@@ -11,16 +11,16 @@ UENUM(BlueprintType)
 enum class EKzTransformSourceType : uint8
 {
 	/** Transform is not set or invalid. */
-	Invalid,
+	Invalid UMETA(DisplayName = "None"),
 
 	/** The transform is provided as a literal world-space value. */
-	Literal,
+	Literal  UMETA(DisplayName = "Literal Transform"),
 
 	/** The transform is derived directly from an actor’s world transform. */
-	Actor,
+	Actor  UMETA(DisplayName = "Actor"),
 
 	/** The transform is derived from a scene component or one of its named sockets. */
-	Scene
+	Scene  UMETA(DisplayName = "Scene Component")
 };
 
 /** Represents a flexible spatial reference that can resolve to an Actor, Component, Socket, or literal Transform. */
@@ -54,6 +54,7 @@ struct KZLIB_API FKzTransformSource
 
 	FKzTransformSource() = default;
 	FKzTransformSource(ENoInit) {}
+	FKzTransformSource(EForceInit) { SourceType = EKzTransformSourceType::Literal; }
 	FKzTransformSource(const AActor* Actor, FVector RelativeLocation = FVector::ZeroVector);
 	FKzTransformSource(const AActor* Actor, FTransform RelativeTransform = FTransform::Identity);
 	FKzTransformSource(const USceneComponent* SceneComponent, FName SocketName = NAME_None, FVector RelativeLocation = FVector::ZeroVector);
@@ -72,7 +73,52 @@ struct KZLIB_API FKzTransformSource
 	void Initialize(FRotator Rotation);
 	void Initialize(FTransform Transform);
 
+	/**
+	 * Creates a transform source from a component reference within the given actor.
+	 *
+	 * If the component reference resolves successfully, the source will be initialized
+	 * from that component using the provided socket name and relative transform.
+	 * Otherwise, the actor’s root component will be used as a fallback.
+	 *
+	 * @param OwningActor       The actor that owns the referenced component.
+	 * @param ComponentRef      Reference to the component within the actor.
+	 * @param SocketName        Optional socket name on the component.
+	 * @param RelativeLocation  Local-space location offset relative to the resolved component or socket.
+	 * @return A fully initialized transform source, or an invalid one if no valid actor was provided.
+	 */
+	static FKzTransformSource MakeFromComponentRef(AActor* OwningActor, const FComponentReference& ComponentRef, FName SocketName = NAME_None, FVector RelativeLocation = FVector::ZeroVector);
+
+	/**
+	 * Creates a transform source from a component reference within the given actor.
+	 *
+	 * If the component reference resolves successfully, the source will be initialized
+	 * from that component using the provided socket name and relative transform.
+	 * Otherwise, the actor’s root component will be used as a fallback.
+	 *
+	 * @param OwningActor       The actor that owns the referenced component.
+	 * @param ComponentRef      Reference to the component within the actor.
+	 * @param SocketName        Optional socket name on the component.
+	 * @param RelativeTransform Local-space transform offset relative to the resolved component or socket.
+	 * @return A fully initialized transform source, or an invalid one if no valid actor was provided.
+	 */
+	static FKzTransformSource MakeFromComponentRef(AActor* OwningActor, const FComponentReference& ComponentRef, FName SocketName = NAME_None, FTransform RelativeTransform = FTransform::Identity);
+
+	/**
+	 * Resets the transform source to a default, identity state.
+	 * Clears all actor, component, and socket references,
+	 * and restores the literal transform to identity.
+	 *
+	 * Use this when you want to fully reset the source.
+	 */
 	void Reset();
+
+	/**
+	 * Clears all internal references and marks the source as invalid.
+	 * Unlike Reset(), this does not restore the literal transform — it simply invalidates the source.
+	 *
+	 * Use this to fully invalidate the source.
+	 */
+	void Clear();
 
 	template<typename T>
 	inline T Get() const { static_assert(sizeof(T) == 0, "Unsupported conversion for type"); }

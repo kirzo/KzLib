@@ -97,13 +97,33 @@ void FKzTransformSource::Initialize(FTransform Transform)
 	LiteralTransform = Transform;
 }
 
+FKzTransformSource FKzTransformSource::MakeFromComponentRef(AActor* OwningActor, const FComponentReference& ComponentRef, FName SocketName, FVector RelativeLocation)
+{
+	return MakeFromComponentRef(OwningActor, ComponentRef, SocketName, FTransform(RelativeLocation));
+}
+
+FKzTransformSource FKzTransformSource::MakeFromComponentRef(AActor* OwningActor, const FComponentReference& ComponentRef, FName SocketName, FTransform RelativeTransform)
+{
+	FKzTransformSource This(NoInit);
+	if (USceneComponent* Component = Cast<USceneComponent>(ComponentRef.GetComponent(OwningActor)))
+	{
+		This.Initialize(Component, SocketName, RelativeTransform);
+	}
+	return This;
+}
+
 void FKzTransformSource::Reset()
 {
-	SourceType = EKzTransformSourceType::Invalid;
 	LiteralTransform = FTransform::Identity;
+	SourceSocketName = NAME_None;
+	Clear();
+}
+
+void FKzTransformSource::Clear()
+{
+	SourceType = EKzTransformSourceType::Invalid;
 	SourceActor = nullptr;
 	SourceComponent = nullptr;
-	SourceSocketName = NAME_None;
 }
 
 FVector FKzTransformSource::GetLocation() const
@@ -226,11 +246,7 @@ const USceneComponent* FKzTransformSource::GetSceneComponent() const
 	{
 		case EKzTransformSourceType::Actor:
 		{
-			if (SourceActor)
-			{
-				return SourceActor->GetRootComponent();
-			}
-			break;
+			return SourceActor ? SourceActor->GetRootComponent() : nullptr;
 		}
 		case EKzTransformSourceType::Scene:
 		{
