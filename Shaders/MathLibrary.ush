@@ -1,0 +1,49 @@
+#pragma once
+
+float DegreesToRadians(float Degrees)
+{
+	return fmod(Degrees, 360.0f) / 57.295799f;
+}
+
+float4 InvQuat(float4 Quat)
+{
+	// This assumes that Quat is normalized
+	return float4(-Quat.x, -Quat.y, -Quat.z, Quat.w);
+}
+
+float4 QuatFromEulerAngles(float Pitch, float Yaw, float Roll)
+{
+	Pitch = DegreesToRadians(Pitch) * 0.5f;
+  Yaw = DegreesToRadians(Yaw) * 0.5f;
+  Roll = DegreesToRadians(Roll) * 0.5f;
+
+  float SP = sin(Pitch); float SY = sin(Yaw); float SR = sin(Roll);
+	float CP = cos(Pitch); float CY = cos(Yaw); float CR = cos(Roll);
+
+  return float4(CR*SP*SY - SR*CP*CY, -CR*SP*CY - SR*CP*SY, CR*CP*SY - SR*SP*CY, CR*CP*CY + SR*SP*SY);
+}
+
+float4 QuatFromEulerAngles(float3 Rotation)
+{
+	return QuatFromEulerAngles(Rotation.y, Rotation.z, Rotation.x);
+}
+
+float3 RotateVector(float3 V, float4 Quat)
+{
+	float3 T = 2.0f * cross(Quat.xyz, V);
+  return V + (Quat.w * T) + cross(Quat.xyz, T);
+}
+
+float3 WorldToLocal(float3 WorldPosition, float3 Position, float3 Rotation)
+{
+	float4 Q = InvQuat(QuatFromEulerAngles(Rotation));
+  float3 V = WorldPosition - Position;
+	return RotateVector(V, Q);
+}
+
+float3 LocalToWorld(float3 LocalPosition, float3 Position, float3 Rotation)
+{
+	float4 Q = QuatFromEulerAngles(Rotation);
+	float3 V = RotateVector(LocalPosition, Q);
+  return V + Position;
+}

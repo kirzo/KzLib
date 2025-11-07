@@ -22,7 +22,11 @@ public class KzLib : ModuleRules
 				"Engine",
 				"Slate",
 				"SlateCore",
+				"RenderCore",
+				"Projects",
 			}
 			);
+
+			PublicDefinitions.Add("KZLIB_PLUGIN_NAME=TEXT(\"KzLib\")");
 	}
 }

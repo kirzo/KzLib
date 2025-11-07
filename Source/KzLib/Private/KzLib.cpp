@@ -1,18 +1,22 @@
 // Copyright 2025 kirzo
 
 #include "KzLib.h"
+#include "Interfaces/IPluginManager.h"
 
 #define LOCTEXT_NAMESPACE "FKzLibModule"
 
 void FKzLibModule::StartupModule()
 {
-	// This code will execute after your module is loaded into memory; the exact timing is specified in the .uplugin file per-module
+	// Map Shaders directory.
+	const auto Plugin = IPluginManager::Get().FindPlugin(KZLIB_PLUGIN_NAME);
+	const FString PluginBaseDir = Plugin.IsValid() ? FPaths::ConvertRelativePathToFull(Plugin->GetBaseDir()) : "";
+
+	const FString PluginShaderDir = FPaths::Combine(PluginBaseDir, TEXT("Shaders"));
+	AddShaderSourceDirectoryMapping(TEXT("/") KZLIB_PLUGIN_NAME, PluginShaderDir);
 }
 
 void FKzLibModule::ShutdownModule()
 {
-	// This function may be called during shutdown to clean up your module.  For modules that support dynamic reloading,
-	// we call this function before unloading the module.
 }
 
 #undef LOCTEXT_NAMESPACE
