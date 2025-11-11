@@ -25,8 +25,8 @@ It’s designed to be **modular** and **dependency-free**, serving as a foundati
 ### Creating a generic shape
 
 ```cpp
-FKzShapeInstance Shape;
-Shape.InitializeAs<FKzSphere>().Radius = 50.f;
+FKzShapeInstance Capsule = FKzShapeInstance::Make<FKzCapsule>(Radius, HalfHeight);
+FKzShapeInstance Box = FKzShapeInstance::Make(FKzBox(HalfSize));
 ```
 
 ### Using a transform source (in Blueprint or C++):
