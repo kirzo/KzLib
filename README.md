@@ -6,7 +6,7 @@
 
 **KzLib** is a lightweight, **public**, and constantly growing utility library for **Unreal Engine**, focused on **mathematics, geometry, and generic programming**.
 
-It’s designed to be **modular** and **dependency-free**, serving as a foundation for larger systems such as [Axon Physics](https://kirzo.dev/axonphysics/) and other advanced simulation or gameplay frameworks.
+It’s designed to be **modular** and **dependency-free**, serving as a foundation for larger systems such as [Axon Physics](https://kirzo.dev/axon-physics/) and other advanced simulation or gameplay frameworks.
 
 ---
 
