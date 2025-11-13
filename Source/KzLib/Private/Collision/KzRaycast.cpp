@@ -7,47 +7,60 @@ namespace Kz::Raycast
 {
 	bool Sphere(FKzHitResult& OutHit, const FVector& Center, float Radius, const FVector& RayStart, const FVector& RayDir, float MaxDistance)
 	{
-		if (MaxDistance <= 0.0f)
-		{
-			MaxDistance = UE_BIG_NUMBER;
-		}
-
 		OutHit.Reset(1.f, false);
 		OutHit.TraceStart = RayStart;
-		OutHit.TraceEnd = RayStart + RayDir * MaxDistance;
+		OutHit.TraceEnd = RayStart + RayDir * (MaxDistance <= 0 ? UE_BIG_NUMBER : MaxDistance);
 
 		const FVector m = RayStart - Center;
+
+		// Optional optimization
+		check(RayDir.IsNormalized());
 		const float b = FVector::DotProduct(m, RayDir);
 		const float c = FVector::DotProduct(m, m) - Radius * Radius;
+		const float disc = b * b - c;
 
-		// Start inside sphere
-		if (c <= 0.f)
+		if (disc < 0.0f)
+			return false;
+
+		const float sqrtDisc = FMath::Sqrt(disc);
+
+		const float t1 = -b - sqrtDisc;
+		const float t2 = -b + sqrtDisc;
+
+		float t = t1;
+
+		// If t1 is negative, we start inside the sphere
+		if (t1 < 0.0f)
 		{
-			OutHit.bBlockingHit = true;
 			OutHit.bStartPenetrating = true;
-			OutHit.Time = 0.f;
-			OutHit.Distance = 0.f;
-			OutHit.Location = RayStart;
-			OutHit.Normal = -RayDir;
-			return true;
+			t = t2;
+
+			if (t2 < 0.0f)
+			{
+				// Ray starts **deep inside** and points away, treat as impact at origin
+				OutHit.bBlockingHit = true;
+				OutHit.Time = 0.f;
+				OutHit.Distance = 0.f;
+				OutHit.Location = RayStart;
+				OutHit.Normal = (RayStart - Center).GetSafeNormal();
+				return true;
+			}
 		}
 
-		if (b > 0.f)
-			return false;
-
-		const float disc = b * b - c;
-		if (disc < 0.f)
-			return false;
-
-		const float t = -b - FMath::Sqrt(disc);
-		if (t < 0.f || t > MaxDistance)
+		if (MaxDistance > 0.0f && t > MaxDistance)
 			return false;
 
 		OutHit.bBlockingHit = true;
-		OutHit.Time = t / MaxDistance;
+
+		if (MaxDistance > 0)
+			OutHit.Time = t / MaxDistance;
+		else
+			OutHit.Time = 0.f;
+
 		OutHit.Distance = t;
 		OutHit.Location = RayStart + RayDir * t;
 		OutHit.Normal = (OutHit.Location - Center).GetSafeNormal();
+
 		return true;
 	}
 
