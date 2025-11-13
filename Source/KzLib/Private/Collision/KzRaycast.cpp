@@ -83,7 +83,7 @@ namespace Kz::Raycast
 		float tmax = MaxDistance;
 
 		// X slab
-		if (FMath::Abs(RayDir.X) < 1e-6f)
+		if (FMath::Abs(RayDir.X) < UE_SMALL_NUMBER)
 		{
 			if (RayStart.X < Min.X || RayStart.X > Max.X)
 				return false;
@@ -99,7 +99,7 @@ namespace Kz::Raycast
 		}
 
 		// Y slab
-		if (FMath::Abs(RayDir.Y) < 1e-6f)
+		if (FMath::Abs(RayDir.Y) < UE_SMALL_NUMBER)
 		{
 			if (RayStart.Y < Min.Y || RayStart.Y > Max.Y)
 				return false;
@@ -115,7 +115,7 @@ namespace Kz::Raycast
 		}
 
 		// Z slab
-		if (FMath::Abs(RayDir.Z) < 1e-6f)
+		if (FMath::Abs(RayDir.Z) < UE_SMALL_NUMBER)
 		{
 			if (RayStart.Z < Min.Z || RayStart.Z > Max.Z)
 				return false;
