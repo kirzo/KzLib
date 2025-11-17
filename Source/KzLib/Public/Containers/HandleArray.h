@@ -59,10 +59,10 @@ public:
 	 * Removes all elements and invalidates all existing handles,
 	 * but preserves allocated memory for future reuse.
 	 */
-	void Reset()
+	void Reset(SizeType NewSize = 0)
 	{
-		Entries.Reset();
-		Slots.Reset();
+		Entries.Reset(NewSize);
+		Slots.Reset(NewSize);
 		FirstFreeSlot = INDEX_NONE;
 	}
 
@@ -72,10 +72,10 @@ public:
 	 * Use this when the container will no longer be used soon,
 	 * to minimize memory footprint.
 	 */
-	void Empty()
+	void Empty(SizeType Slack = 0)
 	{
-		Entries.Empty();
-		Slots.Empty();
+		Entries.Empty(Slack);
+		Slots.Empty(Slack);
 		FirstFreeSlot = INDEX_NONE;
 	}
 

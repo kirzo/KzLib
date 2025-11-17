@@ -25,10 +25,19 @@ concept CKzContainer = requires(T && Val)
 	{ Val.Num() } -> std::convertible_to<int32>;
 	{ Val.IsEmpty() } -> std::convertible_to<bool>;
 
-	// Must support Empty() and Reset() when mutable
+	// Mutable API
 	requires requires(std::remove_const_t<T>&Mutable)
 	{
-		{ Mutable.Empty() };
-		{ Mutable.Reset() };
+		// Accept either Empty() or Empty(int32)
+			requires (
+				requires { Mutable.Empty(); } ||
+				requires { Mutable.Empty(std::declval<int32>()); }
+				);
+
+	// Accept either Reset() or Reset(int32)
+		requires (
+			requires { Mutable.Reset(); } ||
+			requires { Mutable.Reset(std::declval<int32>()); }
+			);
 	};
 };
