@@ -70,6 +70,24 @@ public:
 	/** Converts a SceneComponent to a KzTransformSource. */
 	UFUNCTION(BlueprintPure, Category = "KzLib|Conversions", meta = (DisplayName = "To KzTransformSource (SceneComponent)", CompactNodeTitle = "->", ScriptMethod = "KzTransformSource", Keywords = "cast convert transform source", BlueprintAutocast))
 	static FKzTransformSource Conv_SceneComponentToKzTransformSource(const USceneComponent* Component, const FName SocketName = NAME_None);
+
+	// === Random ===
+
+	/** Returns a Gaussian random float N(0,1) using global RNG. */
+	UFUNCTION(BlueprintPure, Category = "KzLib|Random")
+	static float GaussianFloat();
+
+	/** Returns a Gaussian random float N(0,1) using the provided RandomStream. */
+	UFUNCTION(BlueprintPure, Category = "KzLib|Random")
+	static float GaussianFloatFromStream(UPARAM(ref) FRandomStream& Stream);
+
+	/** Returns a Gaussian random vector N(0,1) using global RNG. */
+	UFUNCTION(BlueprintPure, Category = "KzLib|Random")
+	static FVector GaussianVector();
+
+	/** Returns a Gaussian random vector N(0,1) using the provided RandomStream. */
+	UFUNCTION(BlueprintPure, Category = "KzLib|Random")
+	static FVector GaussianVectorFromStream(UPARAM(ref) FRandomStream& Stream);
 };
 
 // Inline implementations
