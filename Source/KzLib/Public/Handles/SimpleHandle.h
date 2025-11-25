@@ -11,17 +11,12 @@
  *   - An integer index into an indirection table or array slot.
  *   - A generation counter that invalidates old references once a slot is reused.
  */
-USTRUCT(BlueprintType)
 struct FSimpleHandle
 {
-	GENERATED_BODY()
-
 	/** Index into the owning container's slot table or array. */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Handle")
 	int32 Index = INDEX_NONE;
 
 	/** Generation counter for invalidation tracking. */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Handle")
 	int32 Generation = 0;
 
 	/** Default constructor: creates an invalid handle. */
@@ -56,4 +51,37 @@ struct FSimpleHandle
 	{
 		return HashCombineFast(::GetTypeHash(Handle.Index), ::GetTypeHash(Handle.Generation));
 	}
+
+	bool Identical(const FSimpleHandle* Other, uint32 PortFlags) const;
+	bool Serialize(FArchive& Ar);
+
+private:
+	friend struct Z_Construct_UScriptStruct_FSimpleHandle_Statics;
 };
+
+template<> struct TStructOpsTypeTraits<FSimpleHandle> : public TStructOpsTypeTraitsBase2<FSimpleHandle>
+{
+	enum
+	{
+		WithIdentical = true
+	};
+};
+
+template<> struct TBaseStructure<FSimpleHandle>
+{
+	static KZLIB_API UScriptStruct* Get();
+};
+
+#if !CPP
+USTRUCT(noexport, BlueprintType)
+struct FSimpleHandle
+{
+	/** Index into the owning container's slot table or array. */
+	UPROPERTY(BlueprintReadOnly, Category = Handle)
+	int32 Index = INDEX_NONE;
+
+	/** Generation counter for invalidation tracking. */
+	UPROPERTY(BlueprintReadOnly, Category = Handle)
+	int32 Generation = 0;
+};
+#endif
