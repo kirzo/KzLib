@@ -19,6 +19,11 @@
 			"Name": "KzLib",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "KzLibECS",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
 		}
 	]
 }
