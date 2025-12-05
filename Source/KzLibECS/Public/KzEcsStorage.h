@@ -131,6 +131,16 @@ namespace Kz::ECS
 			return Components[Sparse[E.Index]];
 		}
 
+		T* Find(const Entity& E)
+		{
+			return Contains(E) ? &Components[Sparse[E.Index]] : nullptr;
+		}
+
+		const T* Find(const Entity& E) const
+		{
+			return Contains(E) ? &Components[Sparse[E.Index]] : nullptr;
+		}
+
 		/**
 		 * Number of components stored.
 		 */

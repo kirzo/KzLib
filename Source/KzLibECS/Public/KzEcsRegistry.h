@@ -104,6 +104,20 @@ namespace Kz::ECS
 		}
 
 		template<typename T>
+		T* FindComponent(const Entity& E)
+		{
+			Storage<T>* S = GetStorage<T>();
+			return S ? S->Find(E) : nullptr;
+		}
+
+		template<typename T>
+		const T* FindComponent(const Entity& E) const
+		{
+			const Storage<T>* S = GetStorage<T>();
+			return S ? S->Find(E) : nullptr;
+		}
+
+		template<typename T>
 		void RemoveComponent(const Entity& E)
 		{
 			Storage<T>* S = GetStorage<T>();
