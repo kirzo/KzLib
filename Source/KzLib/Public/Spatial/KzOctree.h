@@ -32,17 +32,14 @@ namespace Kz
 		/** Sets minimum number of elements per node before subdivision stops. */
 		void SetMinElementsPerNode(int32 InMinElements) { MinElementsPerNode = FMath::Max(1, InMinElements); }
 
-		/** Sets how "loose" each node’s AABB should be. Values >1 enlarge the boxes slightly to avoid precision gaps. */
+		/** Sets how "loose" each nodeâ€™s AABB should be. Values >1 enlarge the boxes slightly to avoid precision gaps. */
 		void SetLooseness(float InLooseness) { Looseness = FMath::Max(1.0f, InLooseness); }
 
 		/** Resets the octree. */
 		void Reset() { Root = FNode{}; }
 
-		/**
-		 * Builds the octree from any iterable container (Array, THandleArray, etc.).
-		 * Uses semantics to extract bounding boxes and element ids.
-		 */
-		void Build(const CKzContainer auto& Container, float InLooseness = 1.0f, int32 InMaxDepth = 6, int32 InMinElementsPerNode = 4);
+		/** Builds the octree from any iterable container (Array, THandleArray, etc.). */
+		void Build(const CKzContainer auto& Container);
 
 		/**
 		 * Performs a raycast through the octree using broad-phase (node AABB) and narrow-phase
@@ -62,8 +59,7 @@ namespace Kz
 		bool Raycast(ElementIdType& OutId, FKzHitResult& OutHit, const FVector& RayStart, const FVector& RayDir, float RayLength, TValidator&& Validator = {}) const;
 
 		/**
-		 * Performs a broad-phase + narrow-phase overlap query using a box.
-		 * The semantics determines how to obtain element bounds.
+		 * Performs an overlap query using a box.
 		 *
 		 * @param OutResults     Array receiving IDs of overlapping elements.
 		 * @param Bounds         The box to query with.
@@ -73,8 +69,7 @@ namespace Kz
 		bool Query(TArray<ElementIdType>& OutResults, const FBox& Bounds, TValidator&& Validator = {}) const;
 
 		/**
-		 * Performs a broad-phase + narrow-phase overlap query using a shape at a given transform.
-		 * The semantics determines how to obtain element shapes and bounds.
+		 * Performs an overlap query using a shape.
 		 *
 		 * @param OutResults     Array receiving IDs of overlapping elements.
 		 * @param Shape          The geometric shape definition to query with.
@@ -86,15 +81,15 @@ namespace Kz
 		bool Query(TArray<ElementIdType>& OutResults, const FKzShapeInstance& Shape, const FVector& ShapePosition, const FQuat& ShapeRotation, TValidator&& Validator = {}) const;
 
 		/**
-	 * Draws a debug visualization of the octree using wireframe boxes.
-	 *
-	 * @param World            The world where debug lines will be drawn.
-	 * @param Color            Color of the box outlines.
-	 * @param bPersistentLines If true, lines stay on screen until cleared.
-	 * @param LifeTime         How long (in seconds) lines should persist (ignored if bPersistentLines=true).
-	 * @param DepthPriority    Drawing priority (see ESceneDepthPriorityGroup).
-	 * @param Thickness        Line thickness.
-	 */
+		 * Draws a debug visualization.
+		 *
+		 * @param World            The world where debug lines will be drawn.
+		 * @param Color            Color of the box outlines.
+		 * @param bPersistentLines If true, lines stay on screen until cleared.
+		 * @param LifeTime         How long (in seconds) lines should persist (ignored if bPersistentLines=true).
+		 * @param DepthPriority    Drawing priority (see ESceneDepthPriorityGroup).
+		 * @param Thickness        Line thickness.
+		 */
 		void DebugDraw(const class UWorld* World, FColor const& Color, bool bPersistentLines = false, float LifeTime = -1.f, uint8 DepthPriority = 0, float Thickness = 0.f) const;
 
 	private:
@@ -128,7 +123,6 @@ namespace Kz
 		static FKzShapeInstance GetElementShape(const ElementType& E);
 		static FQuat GetElementRotation(const ElementType& E);
 
-	private:
 		FNode Root;
 		int32 MaxDepth = 6;
 		int32 MinElementsPerNode = 4;

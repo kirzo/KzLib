@@ -13,20 +13,13 @@
 namespace Kz
 {
 	template<typename ElementType, typename OctreeSemantics, bool bAllowMultiNode>
-	void TOctree<ElementType, OctreeSemantics, bAllowMultiNode>::Build(const CKzContainer auto& Container, float InLooseness, int32 InMaxDepth, int32 InMinElementsPerNode)
+	void TOctree<ElementType, OctreeSemantics, bAllowMultiNode>::Build(const CKzContainer auto& Container)
 	{
-		SetLooseness(InLooseness);
-		SetMaxDepth(InMaxDepth);
-		SetMinElementsPerNode(InMinElementsPerNode);
-
-		// Clear any previous tree structure
 		Reset();
 
 		int32 Num = Container.Num();
 		if (Num == 0)
-		{
-			return; // Empty tree
-		}
+			return;
 
 		// Compute global bounds
 		FBox Global(ForceInitToZero);
@@ -107,21 +100,19 @@ namespace Kz
 			}
 			else
 			{
-				// Classic octree behavior: single child chosen by element center
-				int32 ChildIndex = 0;
-				const FVector C = ElemBounds.GetCenter();
-				if (C.X > ParentCenter.X) ChildIndex |= 1;
-				if (C.Y > ParentCenter.Y) ChildIndex |= 2;
-				if (C.Z > ParentCenter.Z) ChildIndex |= 4;
-
-				Buckets[ChildIndex].Add(E);
+				// Insert based on center
+				const FVector ElemCenter = ElemBounds.GetCenter();
+				int32 Index = 0;
+				if (ElemCenter.X > ParentCenter.X) Index |= 1;
+				if (ElemCenter.Y > ParentCenter.Y) Index |= 2;
+				if (ElemCenter.Z > ParentCenter.Z) Index |= 4;
+				Buckets[Index].Add(E);
 			}
 		}
 
-		// Clear the elements from the current node as they are now distributed to children
+		// Clear elements from this inner node
 		N.Elements.Empty();
 
-		// Recurse into non-empty children
 		for (int32 i = 0; i < 8; ++i)
 		{
 			if (Buckets[i].Num() > 0)
@@ -384,6 +375,36 @@ namespace Kz
 	}
 
 	template<typename ElementType, typename OctreeSemantics, bool bAllowMultiNode>
+	void TOctree<ElementType, OctreeSemantics, bAllowMultiNode>::DebugDraw(const UWorld* World, FColor const& Color, bool bPersistentLines, float LifeTime, uint8 DepthPriority, float Thickness) const
+	{
+		if (!World)
+		{
+			return;
+		}
+
+		TArray<const FNode*> Stack;
+		Stack.Push(&Root);
+
+		while (Stack.Num() > 0)
+		{
+			const FNode& N = *Stack.Pop(EAllowShrinking::No);
+
+			// Compute extent, compensating for looseness only below the root
+			const FVector Extent = N.Bounds.GetExtent() / (N.Depth == 0 ? 1.0f : Looseness);
+
+			// Draw the node AABB
+			DrawDebugBox(World, N.Bounds.GetCenter(), Extent, Color, bPersistentLines, LifeTime, DepthPriority, Thickness);
+
+			// Continue traversing children
+			for (const FNode& Child : N.Children)
+			{
+				Stack.Push(&Child);
+			}
+		}
+	}
+
+	// Helpers
+	template<typename ElementType, typename OctreeSemantics, bool bAllowMultiNode>
 	FKzShapeInstance TOctree<ElementType, OctreeSemantics, bAllowMultiNode>::GetElementShape(const ElementType& E)
 	{
 		if constexpr (requires { OctreeSemantics::GetShape(E); })
@@ -410,35 +431,6 @@ namespace Kz
 		else
 		{
 			return FQuat::Identity;
-		}
-	}
-
-	template<typename ElementType, typename OctreeSemantics, bool bAllowMultiNode>
-	void TOctree<ElementType, OctreeSemantics, bAllowMultiNode>::DebugDraw(const UWorld* World, FColor const& Color, bool bPersistentLines, float LifeTime, uint8 DepthPriority, float Thickness) const
-	{
-		if (!World)
-		{
-			return;
-		}
-
-		TArray<const FNode*> Stack;
-		Stack.Push(&Root);
-
-		while (Stack.Num() > 0)
-		{
-			const FNode& N = *Stack.Pop(EAllowShrinking::No);
-
-			// Compute extent, compensating for looseness only below the root
-			const FVector Extent = N.Bounds.GetExtent() / (N.Depth == 0 ? 1.0f : Looseness);
-
-			// Draw the node AABB
-			DrawDebugBox(World, N.Bounds.GetCenter(), Extent, Color, bPersistentLines, LifeTime, DepthPriority, Thickness);
-
-			// Continue traversing children
-			for (const FNode& Child : N.Children)
-			{
-				Stack.Push(&Child);
-			}
 		}
 	}
 }
