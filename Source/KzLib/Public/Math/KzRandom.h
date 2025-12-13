@@ -14,7 +14,7 @@ namespace Kz::Random
 			Uniform1 = FMath::Max(Uniform1, UE_KINDA_SMALL_NUMBER); // avoid log(0)
 
 			const float Radius = FMath::Sqrt(-2.0f * FMath::Loge(Uniform1));
-			const float Theta = 2.0f * PI * Uniform2;
+			const float Theta = UE_TWO_PI * Uniform2;
 
 			return Radius * FMath::Cos(Theta);
 		}

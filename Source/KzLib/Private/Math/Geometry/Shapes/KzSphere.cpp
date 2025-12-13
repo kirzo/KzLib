@@ -47,6 +47,6 @@ void FKzSphere::DrawSceneProxy(FPrimitiveDrawInterface* PDI, const FMatrix& Loca
 	{
 		const FLinearColor SolidColor = FLinearColor(Color.R, Color.G, Color.B, 0.2f);
 		FMaterialRenderProxy* const MaterialRenderProxy = new FColoredMaterialRenderProxy(GEngine->DebugMeshMaterial->GetRenderProxy(), SolidColor);
-		GetOrientedHalfSphereMesh(Origin, LocalToWorld.Rotator(), FVector(Radius), SphereSides, SphereSides, 0, PI, MaterialRenderProxy, SDPG_World, false, ViewIndex, Collector);
+		GetOrientedHalfSphereMesh(Origin, LocalToWorld.Rotator(), FVector(Radius), SphereSides, SphereSides, 0, UE_PI, MaterialRenderProxy, SDPG_World, false, ViewIndex, Collector);
 	}
 }
