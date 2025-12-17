@@ -88,6 +88,18 @@ public:
 	/** Returns a Gaussian random vector N(0,1) using the provided RandomStream. */
 	UFUNCTION(BlueprintPure, Category = "KzLib|Random")
 	static FVector GaussianVectorFromStream(UPARAM(ref) FRandomStream& Stream);
+
+	// === Object ===
+
+	/**
+	 * Copies properties from Source to Target.
+	 * Only properties with matching names and types are copied.
+	 * @param Source          The object to copy values FROM.
+	 * @param Target          The object to copy values TO.
+	 * @param bCopyTransients If true, properties marked as Transient will also be copied.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "KzLib|System|Reflection", meta = (AdvancedDisplay = "bCopyTransients"))
+	static void CopyObjectProperties(UObject* Source, UObject* Target, bool bCopyTransients = false);
 };
 
 // Inline implementations

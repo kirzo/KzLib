@@ -35,3 +35,49 @@ FVector UKzSystemLibrary::GaussianVectorFromStream(UPARAM(ref)FRandomStream& Str
 {
 	return Kz::Random::GaussianVector(Stream);
 }
+
+void UKzSystemLibrary::CopyObjectProperties(UObject* Source, UObject* Target, bool bCopyTransients)
+{
+	if (!Source || !Target || Source == Target)
+	{
+		return;
+	}
+
+	for (TFieldIterator<FProperty> It(Source->GetClass()); It; ++It)
+	{
+		FProperty* SourceProp = *It;
+
+		// Skip Deprecated properties always
+		if (SourceProp->HasAnyPropertyFlags(CPF_Deprecated))
+		{
+			continue;
+		}
+
+		// Handle Transient properties
+		// If we are NOT copying transients, and this property IS transient, skip it.
+		if (!bCopyTransients && SourceProp->HasAnyPropertyFlags(CPF_Transient))
+		{
+			continue;
+		}
+
+		// Find matching property in Target
+		FProperty* TargetProp = Target->GetClass()->FindPropertyByName(SourceProp->GetFName());
+
+		if (!TargetProp)
+		{
+			continue;
+		}
+
+		// Verify types match
+		if (!SourceProp->SameType(TargetProp))
+		{
+			continue;
+		}
+
+		// Copy the value
+		const void* SrcValuePtr = SourceProp->ContainerPtrToValuePtr<void>(Source);
+		void* TgtValuePtr = TargetProp->ContainerPtrToValuePtr<void>(Target);
+
+		SourceProp->CopyCompleteValue(TgtValuePtr, SrcValuePtr);
+	}
+}
