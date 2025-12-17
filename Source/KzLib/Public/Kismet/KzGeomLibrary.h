@@ -275,4 +275,16 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "KzLib|Geometry", meta = (DisplayName = "Cylinder Intersects Point"))
 	static bool CylinderIntersectsPoint(const FVector Center, float Radius, float HalfHeight, const FRotator Rotation, FVector Point);
+
+	// === Geometry ===
+
+	/**
+	 * Generates points distributed evenly on a sphere using the Fibonacci Lattice algorithm.
+	 * @param NumSamples The number of points to generate.
+	 * @param Radius     The radius of the sphere.
+	 * @param Transform  World transform to apply.
+	 * @return           Array containing the generated points.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "KzLib|Geometry", meta = (AutoCreateRefTerm = "Transform", AdvancedDisplay = "Transform"))
+	static TArray<FVector> GetFibonacciSpherePoints(int32 NumSamples = 32, float Radius = 50.0f, const FTransform& Transform = FTransform());
 };

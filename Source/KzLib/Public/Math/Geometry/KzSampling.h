@@ -7,6 +7,7 @@
 
 namespace Kz::Geom::Sample
 {
+	/** Generates the 8 corner vertices of an Axis-Aligned Bounding Box (AABB). */
 	FORCEINLINE void BoxVertices(const FBox& B, TArray<FVector>& Out)
 	{
 		Out.Reset(8);
@@ -28,6 +29,7 @@ namespace Kz::Geom::Sample
 		Out.Append(C, 8);
 	}
 
+	/** Generates the 8 corner vertices of an Oriented Box (Physics Element). */
 	FORCEINLINE void BoxVertices(const FKBoxElem& Box, TArray<FVector>& Out)
 	{
 		Out.Reset(8);
@@ -50,6 +52,7 @@ namespace Kz::Geom::Sample
 		}
 	}
 
+	/** Generates 6 cardinal points (extremes along X, Y, Z axes) of a Sphere Element. */
 	FORCEINLINE void SphereVertices(const FKSphereElem& S, TArray<FVector>& Out)
 	{
 		const float R = S.Radius;
@@ -63,6 +66,7 @@ namespace Kz::Geom::Sample
 		Out.Add(FVector(0, 0, -R) + S.Center);
 	}
 
+	/** Generates 8 sample points for a Capsule (Sphyl) Element. The points are located at the connection rings where the cylinder meets the hemispheres. */
 	FORCEINLINE void SphylVertices(const FKSphylElem& S, TArray<FVector>& Out)
 	{
 		const float R = S.Radius;
@@ -80,6 +84,38 @@ namespace Kz::Geom::Sample
 		for (FVector& X : P)
 		{
 			Out.Add(Q.RotateVector(X) + S.Center);
+		}
+	}
+
+	/** Generates points distributed evenly on a sphere using the Fibonacci Lattice algorithm. */
+	FORCEINLINE void FibonacciSphere(int32 NumSamples, float Radius, const FTransform& Transform, TArray<FVector>& Out)
+	{
+		// Safety check: Ensure we have a valid number of samples to avoid division by zero
+		if (NumSamples <= 0 || Radius <= 0.0f)
+		{
+			Out.Reset();
+			return;
+		}
+
+		Out.Reset(NumSamples);
+
+		const float InverseNumSamples = 1.0f / (float)NumSamples;
+
+		for (int32 i = 0; i < NumSamples; ++i)
+		{
+			// Calculate Unit Sphere coordinates
+			const float Z = 1.0f - (i * 2.0f + 1.0f) * InverseNumSamples;
+			const float RadiusAtZ = FMath::Sqrt(1.0f - Z * Z);
+			const float Theta = UE_TWO_PI * UE_GOLDEN_RATIO * i;
+
+			float SinTheta, CosTheta;
+			FMath::SinCos(&SinTheta, &CosTheta, Theta);
+
+			const FVector UnitPoint(CosTheta * RadiusAtZ, SinTheta * RadiusAtZ, Z);
+
+			// Apply Radius and Transform
+			// We multiply by Radius first (Local scaling), then apply the Transform.
+			Out.Add(Transform.TransformPosition(UnitPoint * Radius));
 		}
 	}
 }

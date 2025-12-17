@@ -5,6 +5,7 @@
 #include "Math/Geometry/KzGeometry.h"
 #include "Math/Geometry/KzShapeInstance.h"
 #include "Math/Geometry/Shapes/CommonShapes.h"
+#include "Math/Geometry/KzSampling.h"
 
 #include "Collision/KzHitResult.h"
 #include "Collision/KzRaycast.h"
@@ -241,4 +242,11 @@ FVector UKzGeomLibrary::ClosestPointOnCylinder(const FVector Center, float Radiu
 bool UKzGeomLibrary::CylinderIntersectsPoint(const FVector Center, float Radius, float HalfHeight, const FRotator Rotation, FVector Point)
 {
 	return Kz::Geom::CylinderIntersectsPoint(Center, Rotation.Quaternion(), Radius, HalfHeight, Point);
+}
+
+TArray<FVector> UKzGeomLibrary::GetFibonacciSpherePoints(int32 NumSamples, float Radius, const FTransform& Transform)
+{
+	TArray<FVector> Points;
+	Kz::Geom::Sample::FibonacciSphere(NumSamples, Radius, Transform, Points);
+	return Points;
 }
