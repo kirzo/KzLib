@@ -1,6 +1,8 @@
-// Copyright 2025 kirzo
+// Copyright 2026 kirzo
 
 #include "Misc/KzTransformSource.h"
+#include "GameFramework/Actor.h"
+#include "Components/SceneComponent.h"
 
 FKzTransformSource::FKzTransformSource(const AActor* Actor, FVector RelativeLocation)
 	: FKzTransformSource(Actor, FTransform(RelativeLocation))

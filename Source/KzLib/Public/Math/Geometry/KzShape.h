@@ -1,9 +1,13 @@
-// Copyright 2025 kirzo
+// Copyright 2026 kirzo
 
 #pragma once
 
 #include "CoreMinimal.h"
+#include "CollisionShape.h"
 #include "KzShape.generated.h"
+
+class FPrimitiveDrawInterface;
+class FMeshElementCollector;
 
 /**
  * Base structure for all geometric shape types.
@@ -31,7 +35,7 @@ public:
 	virtual bool IntersectsPoint(const FVector& Position, const FQuat& Orientation, const FVector& Point) const PURE_VIRTUAL(FKzShape::IntersectsPoint, return false;);
 
 	/** Returns an engine-level FCollisionShape representing this Kz shape. */
-	virtual struct FCollisionShape ToCollisionShape(float Inflation = 0.0f) const PURE_VIRTUAL(FKzShape::ToCollisionShape, return {};);
+	virtual FCollisionShape ToCollisionShape(float Inflation = 0.0f) const PURE_VIRTUAL(FKzShape::ToCollisionShape, return {};);
 
 	/** Uniformly inflates the shape by the specified amount. */
 	virtual void Inflate(float Inflation) PURE_VIRTUAL(FKzShape::Inflate, ;);

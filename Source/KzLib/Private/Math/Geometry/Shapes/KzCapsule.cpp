@@ -1,9 +1,12 @@
-// Copyright 2025 kirzo
+// Copyright 2026 kirzo
 
 #include "Math/Geometry/Shapes/KzCapsule.h"
 #include "Math/Geometry/KzGeometry.h"
 #include "Collision/KzRaycast.h"
+#include "Engine/Engine.h"
+#include "Materials/Material.h"
 #include "DrawDebugHelpers.h"
+#include "PrimitiveDrawingUtils.h"
 #include "Materials/MaterialRenderProxy.h"
 
 FBox FKzCapsule::GetBoundingBox(const FVector& Center, const FQuat& Rotation) const

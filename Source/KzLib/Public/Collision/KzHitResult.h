@@ -1,8 +1,9 @@
-// Copyright 2025 kirzo
+// Copyright 2026 kirzo
 
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Engine/NetSerialization.h"
 #include "KzHitResult.generated.h"
 
 /** A struct to hold the comprehensive results of a raycast. */
@@ -152,7 +153,7 @@ struct FKzHitResult
 
 	KZLIB_API FString ToString() const;
 
-	KZLIB_API FHitResult ToHitResult() const;
+	KZLIB_API struct FHitResult ToHitResult() const;
 };
 
 template<>

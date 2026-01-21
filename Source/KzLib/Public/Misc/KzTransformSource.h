@@ -1,9 +1,10 @@
-// Copyright 2025 kirzo
+ï»¿// Copyright 2026 kirzo
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Engine/NetSerialization.h"
+#include "Engine/EngineTypes.h"
 #include "KzTransformSource.generated.h"
 
 /** Defines the different ways a transform source can provide its world-space transform. */
@@ -16,7 +17,7 @@ enum class EKzTransformSourceType : uint8
 	/** The transform is provided as a literal world-space value. */
 	Literal  UMETA(DisplayName = "Literal Transform"),
 
-	/** The transform is derived directly from an actor’s world transform. */
+	/** The transform is derived directly from an actorâ€™s world transform. */
 	Actor  UMETA(DisplayName = "Actor"),
 
 	/** The transform is derived from a scene component or one of its named sockets. */
@@ -78,7 +79,7 @@ struct KZLIB_API FKzTransformSource
 	 *
 	 * If the component reference resolves successfully, the source will be initialized
 	 * from that component using the provided socket name and relative transform.
-	 * Otherwise, the actor’s root component will be used as a fallback.
+	 * Otherwise, the actorâ€™s root component will be used as a fallback.
 	 *
 	 * @param OwningActor       The actor that owns the referenced component.
 	 * @param ComponentRef      Reference to the component within the actor.
@@ -93,7 +94,7 @@ struct KZLIB_API FKzTransformSource
 	 *
 	 * If the component reference resolves successfully, the source will be initialized
 	 * from that component using the provided socket name and relative transform.
-	 * Otherwise, the actor’s root component will be used as a fallback.
+	 * Otherwise, the actorâ€™s root component will be used as a fallback.
 	 *
 	 * @param OwningActor       The actor that owns the referenced component.
 	 * @param ComponentRef      Reference to the component within the actor.
@@ -114,7 +115,7 @@ struct KZLIB_API FKzTransformSource
 
 	/**
 	 * Clears all internal references and marks the source as invalid.
-	 * Unlike Reset(), this does not restore the literal transform — it simply invalidates the source.
+	 * Unlike Reset(), this does not restore the literal transform â€” it simply invalidates the source.
 	 *
 	 * Use this to fully invalidate the source.
 	 */

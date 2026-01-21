@@ -1,6 +1,8 @@
-// Copyright 2025 kirzo
+// Copyright 2026 kirzo
 
 #include "Handles/SimpleHandle.h"
+#include "UObject/Package.h"
+#include "UObject/UObjectHash.h"
 
 static UScriptStruct* StaticGetBaseStructureInternal(FName Name)
 {

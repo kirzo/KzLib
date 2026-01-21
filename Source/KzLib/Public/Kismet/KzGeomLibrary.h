@@ -1,4 +1,4 @@
-// Copyright 2025 kirzo
+ï»¿// Copyright 2026 kirzo
 
 #pragma once
 
@@ -20,63 +20,63 @@ public:
 	// === Ray intersection functions ===
 
 	/**
-	 * Performs a ray–shape intersection test.
+	 * Performs a rayâ€“shape intersection test.
 	 * Returns true if the ray hits the shape within MaxDistance, filling OutHit with impact data.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "KzLib|Geometry", meta = (WorldContext = "WorldContextObject", AdvancedDisplay = "TraceColor,TraceHitColor,DrawTime", Keywords = "raycast"))
 	static bool RayIntersectsShape(const UObject* WorldContextObject, FKzHitResult& OutHit, const FVector RayStart, const FVector RayDirection, float MaxDistance, const FKzShapeInstance& Shape, const FVector ShapePosition, const FRotator ShapeRotation, EDrawDebugTrace::Type DrawDebugType, FLinearColor TraceColor = FLinearColor::Red, FLinearColor TraceHitColor = FLinearColor::Green, float DrawTime = 5.0f);
 
 	/**
-	 * Performs a ray–sphere intersection test.
+	 * Performs a rayâ€“sphere intersection test.
 	 * Returns true if the ray hits the sphere within MaxDistance, filling OutHit with impact data.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "KzLib|Geometry", meta = (WorldContext = "WorldContextObject", AdvancedDisplay = "TraceColor,TraceHitColor,DrawTime", Keywords = "raycast"))
 	static bool RayIntersectsSphere(const UObject* WorldContextObject, FKzHitResult& OutHit, const FVector RayStart, const FVector RayDirection, float MaxDistance, const FVector Center, float Radius, EDrawDebugTrace::Type DrawDebugType, FLinearColor TraceColor = FLinearColor::Red, FLinearColor TraceHitColor = FLinearColor::Green, float DrawTime = 5.0f);
 
 	/**
-	 * Performs a line segment–sphere intersection test.
+	 * Performs a line segmentâ€“sphere intersection test.
 	 * Returns true if the segment between Start and End intersects the sphere, filling OutHit with impact data.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "KzLib|Geometry", meta = (WorldContext = "WorldContextObject", AdvancedDisplay = "TraceColor,TraceHitColor,DrawTime", Keywords = "raycast"))
 	static bool LineIntersectsSphere(const UObject* WorldContextObject, FKzHitResult& OutHit, const FVector Start, const FVector End, const FVector Center, float Radius, EDrawDebugTrace::Type DrawDebugType, FLinearColor TraceColor = FLinearColor::Red, FLinearColor TraceHitColor = FLinearColor::Green, float DrawTime = 5.0f);
 
 	/**
-	 * Performs a ray–oriented-box intersection test.
+	 * Performs a rayâ€“oriented-box intersection test.
 	 * Returns true if the ray hits the box within MaxDistance, filling OutHit with impact data.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "KzLib|Geometry", meta = (WorldContext = "WorldContextObject", AdvancedDisplay = "TraceColor,TraceHitColor,DrawTime", Keywords = "raycast"))
 	static bool RayIntersectsBox(const UObject* WorldContextObject, FKzHitResult& OutHit, const FVector RayStart, const FVector RayDirection, float MaxDistance, const FVector Center, const FVector HalfSize, const FRotator Rotation, EDrawDebugTrace::Type DrawDebugType, FLinearColor TraceColor = FLinearColor::Red, FLinearColor TraceHitColor = FLinearColor::Green, float DrawTime = 5.0f);
 
 	/**
-	 * Performs a line segment–oriented-box intersection test.
+	 * Performs a line segmentâ€“oriented-box intersection test.
 	 * Returns true if the segment between Start and End intersects the box, filling OutHit with impact data.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "KzLib|Geometry", meta = (WorldContext = "WorldContextObject", AdvancedDisplay = "TraceColor,TraceHitColor,DrawTime", Keywords = "raycast"))
 	static bool LineIntersectsBox(const UObject* WorldContextObject, FKzHitResult& OutHit, const FVector Start, const FVector End, const FVector Center, const FVector HalfSize, const FRotator Rotation, EDrawDebugTrace::Type DrawDebugType, FLinearColor TraceColor = FLinearColor::Red, FLinearColor TraceHitColor = FLinearColor::Green, float DrawTime = 5.0f);
 
 	/**
-	 * Performs a ray–capsule intersection test.
+	 * Performs a rayâ€“capsule intersection test.
 	 * Returns true if the ray hits the capsule within MaxDistance, filling OutHit with impact data.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "KzLib|Geometry", meta = (WorldContext = "WorldContextObject", AdvancedDisplay = "TraceColor,TraceHitColor,DrawTime", Keywords = "raycast"))
 	static bool RayIntersectsCapsule(const UObject* WorldContextObject, FKzHitResult& OutHit, const FVector RayStart, const FVector RayDirection, float MaxDistance, const FVector Center, float Radius, float HalfHeight, const FRotator Rotation, EDrawDebugTrace::Type DrawDebugType, FLinearColor TraceColor = FLinearColor::Red, FLinearColor TraceHitColor = FLinearColor::Green, float DrawTime = 5.0f);
 
 	/**
-	 * Performs a line segment–capsule intersection test.
+	 * Performs a line segmentâ€“capsule intersection test.
 	 * Returns true if the segment between Start and End intersects the capsule, filling OutHit with impact data.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "KzLib|Geometry", meta = (WorldContext = "WorldContextObject", AdvancedDisplay = "TraceColor,TraceHitColor,DrawTime", Keywords = "raycast"))
 	static bool LineIntersectsCapsule(const UObject* WorldContextObject, FKzHitResult& OutHit, const FVector Start, const FVector End, const FVector Center, float Radius, float HalfHeight, const FRotator Rotation, EDrawDebugTrace::Type DrawDebugType, FLinearColor TraceColor = FLinearColor::Red, FLinearColor TraceHitColor = FLinearColor::Green, float DrawTime = 5.0f);
 
 	/**
-	 * Performs a ray–cylinder intersection test.
+	 * Performs a rayâ€“cylinder intersection test.
 	 * Returns true if the ray hits the cylinder within MaxDistance, filling OutHit with impact data.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "KzLib|Geometry", meta = (WorldContext = "WorldContextObject", AdvancedDisplay = "TraceColor,TraceHitColor,DrawTime", Keywords = "raycast"))
 	static bool RayIntersectsCylinder(const UObject* WorldContextObject, FKzHitResult& OutHit, const FVector RayStart, const FVector RayDirection, float MaxDistance, const FVector Center, float Radius, float HalfHeight, const FRotator Rotation, EDrawDebugTrace::Type DrawDebugType, FLinearColor TraceColor = FLinearColor::Red, FLinearColor TraceHitColor = FLinearColor::Green, float DrawTime = 5.0f);
 
 	/**
-	 * Performs a line segment–cylinder intersection test.
+	 * Performs a line segmentâ€“cylinder intersection test.
 	 * Returns true if the segment between Start and End intersects the cylinder, filling OutHit with impact data.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "KzLib|Geometry", meta = (WorldContext = "WorldContextObject", AdvancedDisplay = "TraceColor,TraceHitColor,DrawTime", Keywords = "raycast"))

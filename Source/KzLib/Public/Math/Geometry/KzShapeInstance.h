@@ -1,4 +1,4 @@
-// Copyright 2025 kirzo
+// Copyright 2026 kirzo
 
 #pragma once
 
@@ -21,7 +21,7 @@ struct KZLIB_API FKzShapeInstance
 
 private:
 	/** The underlying instanced shape definition. */
-	UPROPERTY(EditAnywhere, NoClear, meta = (ExcludeBaseStruct))
+	UPROPERTY(EditAnywhere, NoClear, Category = "Shape", meta = (ExcludeBaseStruct))
 	TInstancedStruct<FKzShape> Shape;
 
 public:

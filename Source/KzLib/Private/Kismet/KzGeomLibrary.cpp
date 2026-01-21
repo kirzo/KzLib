@@ -1,4 +1,4 @@
-// Copyright 2025 kirzo
+// Copyright 2026 kirzo
 
 #include "Kismet/KzGeomLibrary.h"
 
@@ -11,8 +11,10 @@
 #include "Collision/KzRaycast.h"
 #include "Collision/KzGJK.h"
 
-#include "KismetTraceUtils.h"
+#include "Engine/Engine.h"
+#include "Engine/HitResult.h"
 
+#include "KismetTraceUtils.h"
 #include "KzDrawDebugHelpers.h"
 
 // === Ray intersection functions ===

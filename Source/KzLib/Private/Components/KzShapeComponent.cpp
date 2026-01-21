@@ -1,7 +1,11 @@
-// Copyright 2025 kirzo
+// Copyright 2026 kirzo
 
 #include "Components/KzShapeComponent.h"
 #include "Math/Geometry/Shapes/CommonShapes.h"
+#include "SceneView.h"
+#include "PrimitiveSceneProxy.h"
+#include "SceneManagement.h"
+#include "Engine/Engine.h"
 
 UKzShapeComponent::UKzShapeComponent()
 {

@@ -1,7 +1,8 @@
-// Copyright 2025 kirzo
+// Copyright 2026 kirzo
 
 #include "KzDrawDebugHelpers.h"
 #include "Math/Geometry/KzShapeInstance.h"
+#include "Engine/Engine.h"
 
 #if ENABLE_DRAW_DEBUG
 

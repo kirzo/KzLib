@@ -1,7 +1,9 @@
-// Copyright 2025 kirzo
+// Copyright 2026 kirzo
 
 #include "KzLib.h"
 #include "Interfaces/IPluginManager.h"
+#include "ShaderCore.h"
+#include "Misc/Paths.h"
 
 #define LOCTEXT_NAMESPACE "FKzLibModule"
 
@@ -20,5 +22,5 @@ void FKzLibModule::ShutdownModule()
 }
 
 #undef LOCTEXT_NAMESPACE
-	
+
 IMPLEMENT_MODULE(FKzLibModule, KzLib)

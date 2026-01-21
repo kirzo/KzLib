@@ -1,6 +1,9 @@
-// Copyright 2025 kirzo
+// Copyright 2026 kirzo
 
 #include "Math/Geometry/KzGeometry.h"
+#include "Math/Box.h"
+#include "Math/Vector.h"
+#include "Math/Quat.h"
 
 namespace Kz::Geom
 {

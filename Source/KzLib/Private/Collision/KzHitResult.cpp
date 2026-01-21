@@ -1,6 +1,7 @@
-// Copyright 2025 kirzo
+// Copyright 2026 kirzo
 
 #include "Collision/KzHitResult.h"
+#include "Engine/HitResult.h"
 
 bool FKzHitResult::NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess)
 {
