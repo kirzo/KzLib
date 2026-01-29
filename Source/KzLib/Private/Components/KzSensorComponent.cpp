@@ -6,6 +6,8 @@
 #include "GameFramework/Actor.h"
 #include "Engine/World.h"
 
+UE_DISABLE_OPTIMIZATION
+
 // Internal struct to pair a physical shape with the logical object it represents
 struct FKzSensorCandidate
 {
@@ -62,31 +64,38 @@ void UKzSensorComponent::PerformScan()
 			{
 				if (!Obj) continue;
 
-				UKzShapeComponent* FoundShape = nullptr;
-
 				// Case A: The logic object IS the shape
 				if (UKzShapeComponent* ShapeComp = Cast<UKzShapeComponent>(Obj))
 				{
-					FoundShape = ShapeComp;
+					Candidates.Add({ ShapeComp, Obj });
 				}
-				// Case B: The logic object is an Actor
-				else if (AActor* Actor = Cast<AActor>(Obj))
+				// Case B & C: The logic object is an Actor or a Component
+				else
 				{
-					FoundShape = Actor->FindComponentByClass<UKzShapeComponent>();
-				}
-				// Case C: The logic object is a Component (e.g. InteractableComponent)
-				else if (UActorComponent* Comp = Cast<UActorComponent>(Obj))
-				{
-					if (AActor* Owner = Comp->GetOwner())
+					AActor* TargetActor = nullptr;
+					if (AActor* Actor = Cast<AActor>(Obj))
 					{
-						FoundShape = Owner->FindComponentByClass<UKzShapeComponent>();
+						TargetActor = Actor;
 					}
-				}
+					else if (UActorComponent* Comp = Cast<UActorComponent>(Obj))
+					{
+						TargetActor = Comp->GetOwner();
+					}
 
-				// If we found a valid shape, we link it directly to the Logic Object
-				if (FoundShape)
-				{
-					Candidates.Add({ FoundShape, Obj });
+					if (TargetActor)
+					{
+						// Fetch all shape components instead of just the first one
+						TArray<UKzShapeComponent*> Shapes;
+						TargetActor->GetComponents<UKzShapeComponent>(Shapes);
+
+						for (UKzShapeComponent* FoundShape : Shapes)
+						{
+							if (FoundShape)
+							{
+								Candidates.Add({ FoundShape, Obj });
+							}
+						}
+					}
 				}
 			}
 		}
@@ -173,3 +182,5 @@ void UKzSensorComponent::PerformScan()
 		}
 	}
 }
+
+UE_ENABLE_OPTIMIZATION
