@@ -6,8 +6,6 @@
 #include "GameFramework/Actor.h"
 #include "Engine/World.h"
 
-UE_DISABLE_OPTIMIZATION
-
 // Internal struct to pair a physical shape with the logical object it represents
 struct FKzSensorCandidate
 {
@@ -182,5 +180,3 @@ void UKzSensorComponent::PerformScan()
 		}
 	}
 }
-
-UE_ENABLE_OPTIMIZATION
