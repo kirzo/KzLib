@@ -14,6 +14,9 @@
 
 #include "CoreMinimal.h"
 
+ // Common Types
+#include "Core/KzTypes.h"
+
  // KzLib Math
 #include "Math/KzVectorAccumulator.h"
 #include "Math/KzQuatAccumulator.h"
