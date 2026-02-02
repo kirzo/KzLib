@@ -54,5 +54,6 @@ private:
 	TSharedPtr<IPropertyHandle> OverrideActorHandle;
 	TSharedPtr<IPropertyHandle> ComponentNameHandle;
 	TSharedPtr<IPropertyHandle> SocketNameHandle;
-	TSharedPtr<IPropertyHandle> RelativeTransformHandle;
+	TSharedPtr<IPropertyHandle> RelativeLocationHandle;
+	TSharedPtr<IPropertyHandle> RelativeRotationHandle;
 };

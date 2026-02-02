@@ -28,12 +28,21 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reference")
 	FName SocketName;
 
-	/** Local offset applied relative to the resolved Socket/Component transform. */
+	/** Local position offset. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reference")
-	FTransform RelativeTransform = FTransform::Identity;
+	FVector RelativeLocation = FVector::ZeroVector;
+
+	/** Local rotation offset. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reference")
+	FRotator RelativeRotation = FRotator::ZeroRotator;
+
+	FTransform GetRelativeTransform() const
+	{
+		return FTransform(RelativeRotation, RelativeLocation, FVector::OneVector);
+	}
 
 	/** Resolves and returns the pointer to the scene component */
-	USceneComponent* GetComponent(AActor* OwnerActor) const;
+	USceneComponent* GetComponent(const AActor* OwnerActor) const;
 
 	/**
 	 * Helper to resolve the reference and get the World Transform.
@@ -41,11 +50,11 @@ public:
 	 * @param OutTransform The resulting transform.
 	 * @return True if the component and socket (or component transform if socket is None) were found.
 	 */
-	bool GetSocketTransform(AActor* OwnerActor, FTransform& OutTransform) const;
+	bool GetSocketTransform(const AActor* OwnerActor, FTransform& OutTransform) const;
 
 	/**
 	 * Converts this safe reference into a runtime Transform Source.
 	 * @param OwnerActor The context actor to resolve the component (if OverrideActor is null).
 	 */
-	FKzTransformSource ToTransformSource(AActor* OwnerActor) const;
+	FKzTransformSource ToTransformSource(const AActor* OwnerActor) const;
 };

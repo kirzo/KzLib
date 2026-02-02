@@ -25,7 +25,8 @@ void FKzComponentSocketReferenceCustomization::CustomizeHeader(TSharedRef<IPrope
 	OverrideActorHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FKzComponentSocketReference, OverrideActor));
 	ComponentNameHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FKzComponentSocketReference, ComponentName));
 	SocketNameHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FKzComponentSocketReference, SocketName));
-	RelativeTransformHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FKzComponentSocketReference, RelativeTransform));
+	RelativeLocationHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FKzComponentSocketReference, RelativeLocation));
+	RelativeRotationHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FKzComponentSocketReference, RelativeRotation));
 
 	// Bind callback to reset component/socket if the actor changes
 	OverrideActorHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FKzComponentSocketReferenceCustomization::OnOverrideActorChanged));
@@ -143,9 +144,14 @@ void FKzComponentSocketReferenceCustomization::CustomizeChildren(TSharedRef<IPro
 		ChildBuilder.AddProperty(OverrideActorHandle.ToSharedRef());
 	}
 
-	if (RelativeTransformHandle.IsValid())
+	if (RelativeLocationHandle.IsValid())
 	{
-		ChildBuilder.AddProperty(RelativeTransformHandle.ToSharedRef());
+		ChildBuilder.AddProperty(RelativeLocationHandle.ToSharedRef());
+	}
+
+	if (RelativeRotationHandle.IsValid())
+	{
+		ChildBuilder.AddProperty(RelativeRotationHandle.ToSharedRef());
 	}
 }
 
