@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Misc/KzTransformSource.h"
 #include "KzComponentSocketReference.generated.h"
 
 class AActor;
@@ -41,4 +42,10 @@ public:
 	 * @return True if the component and socket (or component transform if socket is None) were found.
 	 */
 	bool GetSocketTransform(AActor* OwnerActor, FTransform& OutTransform) const;
+
+	/**
+	 * Converts this safe reference into a runtime Transform Source.
+	 * @param OwnerActor The context actor to resolve the component (if OverrideActor is null).
+	 */
+	FKzTransformSource ToTransformSource(AActor* OwnerActor) const;
 };

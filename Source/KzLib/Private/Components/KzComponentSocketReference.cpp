@@ -42,3 +42,9 @@ bool FKzComponentSocketReference::GetSocketTransform(AActor* OwnerActor, FTransf
 	OutTransform = RelativeTransform * TargetComp->GetSocketTransform(SocketName);
 	return true;
 }
+
+FKzTransformSource FKzComponentSocketReference::ToTransformSource(AActor* OwnerActor) const
+{
+	USceneComponent* TargetComp = GetComponent(OwnerActor);
+	return FKzTransformSource(TargetComp, SocketName, RelativeTransform);
+}
