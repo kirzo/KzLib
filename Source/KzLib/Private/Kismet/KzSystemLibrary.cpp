@@ -4,6 +4,9 @@
 #include "Collision/KzHitResult.h"
 #include "Math/KzRandom.h"
 
+#include "GameFramework/Pawn.h"
+#include "GameFramework/Controller.h"
+
 void UKzSystemLibrary::BreakHitResult(const FKzHitResult& Hit, bool& bBlockingHit, bool& bInitialOverlap, float& Time, float& Distance, FVector& Location, FVector& Normal, FVector& TraceStart, FVector& TraceEnd)
 {
 	bBlockingHit = Hit.bBlockingHit;
@@ -80,4 +83,30 @@ void UKzSystemLibrary::CopyObjectProperties(UObject* Source, UObject* Target, bo
 
 		SourceProp->CopyCompleteValue(TgtValuePtr, SrcValuePtr);
 	}
+}
+
+UActorComponent* UKzSystemLibrary::FindComponentInActorOrController(AActor* Target, TSubclassOf<UActorComponent> ComponentClass)
+{
+	if (!Target || !ComponentClass)
+	{
+		return nullptr;
+	}
+
+	// Try Actor
+	UActorComponent* FoundComp = Target->FindComponentByClass(ComponentClass);
+	if (FoundComp)
+	{
+		return FoundComp;
+	}
+
+	// Try Controller (if Pawn)
+	if (APawn* Pawn = Cast<APawn>(Target))
+	{
+		if (AController* Controller = Pawn->GetController())
+		{
+			return Controller->FindComponentByClass(ComponentClass);
+		}
+	}
+
+	return nullptr;
 }

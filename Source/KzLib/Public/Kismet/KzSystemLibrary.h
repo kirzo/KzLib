@@ -100,6 +100,45 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "KzLib|System|Reflection", meta = (AdvancedDisplay = "bCopyTransients"))
 	static void CopyObjectProperties(UObject* Source, UObject* Target, bool bCopyTransients = false);
+
+	// === Components ===
+
+	/**
+	 * Tries to find a component of the specified class on the provided Actor.
+	 * If not found, and the Actor is a Pawn, it tries to find the component on its Controller.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "KzLib|Components", meta = (DefaultToSelf = "Target", DeterminesOutputType = "ComponentClass"))
+	static UActorComponent* FindComponentInActorOrController(AActor* Target, TSubclassOf<UActorComponent> ComponentClass);
+
+	/** * Templated version for C++ usage.
+	 * Searches in the Actor first, then in the Controller if the Actor is a Pawn.
+	 */
+	template <typename T>
+	static T* FindComponentInActorOrController(AActor* Target)
+	{
+		if (!Target)
+		{
+			return nullptr;
+		}
+
+		// Try Actor
+		T* FoundComp = Target->FindComponentByClass<T>();
+		if (FoundComp)
+		{
+			return FoundComp;
+		}
+
+		// Try Controller (if Pawn)
+		if (APawn* Pawn = Cast<APawn>(Target))
+		{
+			if (AController* Controller = Pawn->GetController())
+			{
+				return Controller->FindComponentByClass<T>();
+			}
+		}
+
+		return nullptr;
+	}
 };
 
 // Inline implementations
