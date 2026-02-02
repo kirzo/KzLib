@@ -6,6 +6,9 @@
 #include "AssetToolsModule.h"
 #include "AssetTools/KzAssetTypeActions_Base.h"
 
+#include "Components/KzComponentSocketReference.h"
+#include "Customizations/KzComponentSocketReferenceCustomization.h"
+
 #define LOCTEXT_NAMESPACE "FKzLibEditorModule"
 
 void FKzLibEditorModule::StartupModule()
@@ -64,7 +67,7 @@ void FKzLibEditorModule::RegisterAssetTools()
 
 void FKzLibEditorModule::RegisterLayouts()
 {
-	//RegisterPropertyLayout<FScriptableParameterDefCustomization>(PropertyEditorModule, FScriptableParameterDef::StaticStruct()->GetFName());
+	RegisterPropertyLayout<FKzComponentSocketReferenceCustomization>(FKzComponentSocketReference::StaticStruct()->GetFName());
 }
 
 void FKzLibEditorModule::UnregisterAssetTools()
