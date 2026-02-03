@@ -84,6 +84,47 @@ AActor* FKzComponentSocketReferenceCustomization::GetTargetActor() const
 	return nullptr;
 }
 
+void FKzComponentSocketReferenceCustomization::GetAllowedComponentClasses(TArray<UClass*>& OutClasses) const
+{
+	OutClasses.Reset();
+
+	if (!StructPropertyHandle.IsValid() || !StructPropertyHandle->GetProperty())
+	{
+		return;
+	}
+
+	const FString& AllowedClassesMeta = StructPropertyHandle->GetProperty()->GetMetaData(TEXT("AllowedClasses"));
+	if (AllowedClassesMeta.IsEmpty())
+	{
+		return;
+	}
+
+	TArray<FString> ClassNames;
+	AllowedClassesMeta.ParseIntoArray(ClassNames, TEXT(","), true);
+
+	for (FString& Name : ClassNames)
+	{
+		Name.TrimStartAndEndInline();
+		if (Name.IsEmpty()) continue;
+
+		UClass* FoundClass = nullptr;
+
+		// 1. Try to find the class using the full path or loose name
+		FoundClass = UClass::TryFindTypeSlow<UClass>(Name);
+
+		// 2. If not found and it looks like a path, try to load it
+		if (!FoundClass && (Name.StartsWith(TEXT("/")) || Name.Contains(TEXT("."))))
+		{
+			FoundClass = LoadObject<UClass>(nullptr, *Name);
+		}
+
+		if (FoundClass)
+		{
+			OutClasses.Add(FoundClass);
+		}
+	}
+}
+
 void FKzComponentSocketReferenceCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> PropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& CustomizationUtils)
 {
 	StructPropertyHandle = PropertyHandle;
@@ -229,10 +270,41 @@ void FKzComponentSocketReferenceCustomization::BuildComponentList(TArray<FName>&
 	AActor* Target = GetTargetActor();
 	if (!Target) return;
 
+	// Parse Allowed Classes from Metadata
+	TArray<UClass*> AllowedClasses;
+	GetAllowedComponentClasses(AllowedClasses);
+
+	// Helper lambda to check if a component class matches the filter
+	auto IsClassAllowed = [&](const UClass* InClass) -> bool
+		{
+			// Always require USceneComponent (base requirement of the struct)
+			if (!InClass || !InClass->IsChildOf(USceneComponent::StaticClass()))
+			{
+				return false;
+			}
+
+			// If no filter specified, allow all SceneComponents
+			if (AllowedClasses.IsEmpty())
+			{
+				return true;
+			}
+
+			// Check against allowed list
+			for (UClass* Allowed : AllowedClasses)
+			{
+				if (InClass->IsChildOf(Allowed))
+				{
+					return true;
+				}
+			}
+
+			return false;
+		};
+
 	// Native / Instance Components
 	for (UActorComponent* Comp : Target->GetComponents())
 	{
-		if (Cast<USceneComponent>(Comp))
+		if (IsClassAllowed(Comp->GetClass()))
 		{
 			OutNames.Add(Comp->GetFName());
 		}
@@ -247,7 +319,7 @@ void FKzComponentSocketReferenceCustomization::BuildComponentList(TArray<FName>&
 			{
 				for (USCS_Node* Node : SCS->GetAllNodes())
 				{
-					if (Node && Node->ComponentClass && Node->ComponentClass->IsChildOf(USceneComponent::StaticClass()))
+					if (Node && IsClassAllowed(Node->ComponentClass))
 					{
 						OutNames.Add(Node->GetVariableName());
 					}

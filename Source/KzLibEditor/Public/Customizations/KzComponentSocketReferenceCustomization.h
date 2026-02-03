@@ -34,6 +34,9 @@ private:
 	/** Helper to determine which Actor to inspect for components (Override vs Resolved Context). */
 	AActor* GetTargetActor() const;
 
+	/** Populates the array with valid UClass pointers. */
+	void GetAllowedComponentClasses(TArray<UClass*>& OutClasses) const;
+
 	// -- Component Picking --
 	TSharedRef<SWidget> OnGetComponentsMenu();
 	void OnComponentSelected(FName InName);
