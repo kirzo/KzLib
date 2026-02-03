@@ -48,6 +48,22 @@ public:
 	USceneComponent* GetComponent(const UObject* ContextObject) const;
 
 	/**
+	 * Templated version of GetComponent to retrieve a specific component class.
+	 * Resolves the component first, then attempts to cast it to T.
+	 *
+	 * @param ContextObject The object initiating the query.
+	 * @return A pointer to the component cast to type T, or nullptr if the resolved component is not of type T.
+	 */
+	template <typename T>
+	T* GetComponent(const UObject* ContextObject) const
+	{
+		// Ensure T is actually a SceneComponent at compile time.
+		static_assert(TIsDerivedFrom<T, USceneComponent>::IsDerived, "T must be derived from USceneComponent");
+
+		return Cast<T>(GetComponent(ContextObject));
+	}
+
+	/**
 	 * Helper to resolve the reference and get the World Transform.
 	 * @param ContextObject The object initiating the query. Can be an Actor, a Component, or any UObject.
 	 * @param OutTransform The resulting transform.
