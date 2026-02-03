@@ -179,25 +179,43 @@ void FKzComponentSocketReferenceCustomization::CustomizeHeader(TSharedRef<IPrope
 
 void FKzComponentSocketReferenceCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> PropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils)
 {
-	// Check if we are in an Instance context
-	bool bIsInstance = false;
+	// Check Metadata "NoOffset"
+	bool bHideOffset = false;
+	if (const FProperty* Prop = PropertyHandle->GetProperty())
+	{
+		bHideOffset = Prop->HasMetaData(TEXT("NoOffset"));
+	}
 
+	// Resolve Context for "OverrideActor" visibility
+	bool bIsInstance = false;
 	if (AActor* ContextActor = GetTargetActor())
 	{
-		// If the resolved actor is NOT a CDO/Archetype, we are likely in an instance
+		// If the resolved actor is NOT a CDO/Archetype, we are in an instance context
 		if (!ContextActor->HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
 		{
 			bIsInstance = true;
 		}
 	}
 
+	// Override Actor
 	if (bIsInstance && OverrideActorHandle.IsValid())
 	{
 		ChildBuilder.AddProperty(OverrideActorHandle.ToSharedRef());
 	}
 
-	if (RelativeLocationHandle.IsValid()) ChildBuilder.AddProperty(RelativeLocationHandle.ToSharedRef());
-	if (RelativeRotationHandle.IsValid()) ChildBuilder.AddProperty(RelativeRotationHandle.ToSharedRef());
+	// Relative Location & Rotation (Only if NoOffset is NOT present)
+	if (!bHideOffset)
+	{
+		if (RelativeLocationHandle.IsValid())
+		{
+			ChildBuilder.AddProperty(RelativeLocationHandle.ToSharedRef());
+		}
+
+		if (RelativeRotationHandle.IsValid())
+		{
+			ChildBuilder.AddProperty(RelativeRotationHandle.ToSharedRef());
+		}
+	}
 }
 
 void FKzComponentSocketReferenceCustomization::OnOverrideActorChanged()
