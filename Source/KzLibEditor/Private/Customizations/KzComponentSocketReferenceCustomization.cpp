@@ -19,6 +19,71 @@ TSharedRef<IPropertyTypeCustomization> FKzComponentSocketReferenceCustomization:
 	return MakeShareable(new FKzComponentSocketReferenceCustomization());
 }
 
+AActor* FKzComponentSocketReferenceCustomization::ResolveActorContext(UObject* Obj) const
+{
+	UObject* Current = Obj;
+
+	// Traverse up the outer chain
+	while (Current)
+	{
+		// Is it an Actor? (Instance or CDO)
+		if (AActor* Actor = Cast<AActor>(Current))
+		{
+			return Actor;
+		}
+
+		// Is it a Component?
+		if (UActorComponent* Comp = Cast<UActorComponent>(Current))
+		{
+			// If it's a component instance in the world, it has an Owner.
+			if (AActor* Owner = Comp->GetOwner())
+			{
+				return Owner;
+			}
+			// If it's a component template inside a BP, we need to keep going up 
+			// (Comp -> SCS -> BPGC) or check its direct outer.
+		}
+
+		// Is it a Blueprint Generated Class? 
+		// (This happens when we traverse up from a Component Template or Instanced Object in the BP Editor)
+		if (UBlueprintGeneratedClass* BPClass = Cast<UBlueprintGeneratedClass>(Current))
+		{
+			// Return the CDO so we can inspect native components later, 
+			// and use the class for SCS lookups.
+			return Cast<AActor>(BPClass->GetDefaultObject());
+		}
+
+		// Move up
+		Current = Current->GetOuter();
+	}
+
+	return nullptr;
+}
+
+AActor* FKzComponentSocketReferenceCustomization::GetTargetActor() const
+{
+	// Check Override Actor (Highest Priority - Instance Only)
+	UObject* OverrideObj = nullptr;
+	if (OverrideActorHandle.IsValid() && OverrideActorHandle->GetValue(OverrideObj) == FPropertyAccess::Success)
+	{
+		if (AActor* Override = Cast<AActor>(OverrideObj))
+		{
+			return Override;
+		}
+	}
+
+	// Resolve Context from the Property Outer
+	TArray<UObject*> OuterObjects;
+	StructPropertyHandle->GetOuterObjects(OuterObjects);
+
+	if (OuterObjects.Num() > 0)
+	{
+		return ResolveActorContext(OuterObjects[0]);
+	}
+
+	return nullptr;
+}
+
 void FKzComponentSocketReferenceCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> PropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& CustomizationUtils)
 {
 	StructPropertyHandle = PropertyHandle;
@@ -28,54 +93,30 @@ void FKzComponentSocketReferenceCustomization::CustomizeHeader(TSharedRef<IPrope
 	RelativeLocationHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FKzComponentSocketReference, RelativeLocation));
 	RelativeRotationHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FKzComponentSocketReference, RelativeRotation));
 
-	// Bind callback to reset component/socket if the actor changes
-	OverrideActorHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FKzComponentSocketReferenceCustomization::OnOverrideActorChanged));
+	if (OverrideActorHandle.IsValid())
+	{
+		OverrideActorHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FKzComponentSocketReferenceCustomization::OnOverrideActorChanged));
+	}
 
-	// Analyze Context (Instance vs CDO vs Non-Actor)
-	bIsActorContext = false;
-	bIsInstance = false;
-
+	// Determine if we have a valid context to show pickers
+	bool bHasValidContext = false;
 	TArray<UObject*> OuterObjects;
 	PropertyHandle->GetOuterObjects(OuterObjects);
 
 	if (OuterObjects.Num() > 0)
 	{
-		UObject* Outer = OuterObjects[0];
-
-		// --- CASE A: The property is inside an ACTOR ---
-		if (AActor* Actor = Cast<AActor>(Outer))
+		// Try to resolve an actor context from the immediate outer
+		if (ResolveActorContext(OuterObjects[0]) != nullptr)
 		{
-			bIsActorContext = true;
-
-			// It is an instance if it is NOT a Class Default Object (CDO) or Archetype
-			bIsInstance = !Actor->HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject);
-		}
-		// --- CASE B: The property is inside an ACTOR COMPONENT ---
-		else if (UActorComponent* Comp = Cast<UActorComponent>(Outer))
-		{
-			// If it's a component, it implies an Actor context eventually (Owner or BP Class)
-			bIsActorContext = true;
-
-			// Sub-Case B1: Component Instance (It has a valid Owner in the world)
-			if (Comp->GetOwner())
-			{
-				bIsInstance = true;
-			}
-			// Sub-Case B2: Component Template (Inside BP Editor, no owner yet)
-			else
-			{
-				bIsInstance = false;
-			}
+			bHasValidContext = true;
 		}
 	}
 
-	// Build UI
 	TSharedPtr<SHorizontalBox> HBox = SNew(SHorizontalBox);
 
-	// Determine if we can use the Smart Pickers
-	if (bIsActorContext)
+	if (bHasValidContext)
 	{
-		// Component Picker
+		// Smart Pickers
 		HBox->AddSlot()
 			.FillWidth(1.0f)
 			.VAlign(VAlign_Center)
@@ -91,7 +132,6 @@ void FKzComponentSocketReferenceCustomization::CustomizeHeader(TSharedRef<IPrope
 					]
 			];
 
-		// Socket Picker
 		HBox->AddSlot()
 			.FillWidth(1.0f)
 			.VAlign(VAlign_Center)
@@ -109,7 +149,7 @@ void FKzComponentSocketReferenceCustomization::CustomizeHeader(TSharedRef<IPrope
 	}
 	else
 	{
-		// Fallback: Manual Text Input (e.g. Data Assets)
+		// Fallback Text Fields
 		HBox->AddSlot()
 			.FillWidth(1.0f)
 			.Padding(0.0f, 0.0f, 4.0f, 0.0f)
@@ -130,8 +170,8 @@ void FKzComponentSocketReferenceCustomization::CustomizeHeader(TSharedRef<IPrope
 			PropertyHandle->CreatePropertyNameWidget()
 		]
 		.ValueContent()
-		.MinDesiredWidth(350.0f)
-		.MaxDesiredWidth(800.0f)
+		.MinDesiredWidth(300.0f)
+		.MaxDesiredWidth(600.0f)
 		[
 			HBox.ToSharedRef()
 		];
@@ -139,78 +179,29 @@ void FKzComponentSocketReferenceCustomization::CustomizeHeader(TSharedRef<IPrope
 
 void FKzComponentSocketReferenceCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> PropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils)
 {
+	// Check if we are in an Instance context
+	bool bIsInstance = false;
+
+	if (AActor* ContextActor = GetTargetActor())
+	{
+		// If the resolved actor is NOT a CDO/Archetype, we are likely in an instance
+		if (!ContextActor->HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
+		{
+			bIsInstance = true;
+		}
+	}
+
 	if (bIsInstance && OverrideActorHandle.IsValid())
 	{
 		ChildBuilder.AddProperty(OverrideActorHandle.ToSharedRef());
 	}
 
-	if (RelativeLocationHandle.IsValid())
-	{
-		ChildBuilder.AddProperty(RelativeLocationHandle.ToSharedRef());
-	}
-
-	if (RelativeRotationHandle.IsValid())
-	{
-		ChildBuilder.AddProperty(RelativeRotationHandle.ToSharedRef());
-	}
-}
-
-AActor* FKzComponentSocketReferenceCustomization::GetTargetActor() const
-{
-	// Check if Override Actor is set
-	UObject* OverrideObj = nullptr;
-	if (OverrideActorHandle.IsValid() && OverrideActorHandle->GetValue(OverrideObj) == FPropertyAccess::Success)
-	{
-		if (AActor* Override = Cast<AActor>(OverrideObj))
-		{
-			return Override;
-		}
-	}
-
-	// Fallback to Property Context (Owner / CDO)
-	TArray<UObject*> OuterObjects;
-	StructPropertyHandle->GetOuterObjects(OuterObjects);
-
-	if (OuterObjects.Num() > 0)
-	{
-		UObject* Outer = OuterObjects[0];
-
-		// Case A: Property is on the Actor itself (Instance or CDO)
-		if (AActor* OuterActor = Cast<AActor>(Outer))
-		{
-			return OuterActor;
-		}
-		// Case B: Property is on a Component
-		else if (UActorComponent* Comp = Cast<UActorComponent>(Outer))
-		{
-			// Sub-Case B1: Component Instance (Level) -> Return Owner
-			if (AActor* Owner = Comp->GetOwner())
-			{
-				return Owner;
-			}
-
-			// Sub-Case B2: Component Template (Blueprint Editor)
-			// The outer of a Component Template in the SCS is the BlueprintGeneratedClass
-			UObject* CompOuter = Comp->GetOuter();
-
-			if (UBlueprintGeneratedClass* BPClass = Cast<UBlueprintGeneratedClass>(CompOuter))
-			{
-				return Cast<AActor>(BPClass->GetDefaultObject());
-			}
-			// Sometimes native component templates are parented to the CDO directly
-			else if (AActor* CDO = Cast<AActor>(CompOuter))
-			{
-				return CDO;
-			}
-		}
-	}
-
-	return nullptr;
+	if (RelativeLocationHandle.IsValid()) ChildBuilder.AddProperty(RelativeLocationHandle.ToSharedRef());
+	if (RelativeRotationHandle.IsValid()) ChildBuilder.AddProperty(RelativeRotationHandle.ToSharedRef());
 }
 
 void FKzComponentSocketReferenceCustomization::OnOverrideActorChanged()
 {
-	// If the actor changes, the previous component name is likely invalid. Reset it.
 	ComponentNameHandle->SetValue(FName(NAME_None));
 	SocketNameHandle->SetValue(FName(NAME_None));
 }
@@ -218,16 +209,22 @@ void FKzComponentSocketReferenceCustomization::OnOverrideActorChanged()
 void FKzComponentSocketReferenceCustomization::BuildComponentList(TArray<FName>& OutNames)
 {
 	AActor* Target = GetTargetActor();
-	if (!Target)
+	if (!Target) return;
+
+	// Native / Instance Components
+	for (UActorComponent* Comp : Target->GetComponents())
 	{
-		return;
+		if (Cast<USceneComponent>(Comp))
+		{
+			OutNames.Add(Comp->GetFName());
+		}
 	}
 
-	if (Target->HasAnyFlags(RF_ClassDefaultObject))
+	// Blueprint Added Components (SCS) - Only needed if Target is a CDO
+	if (Target->HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
 	{
 		if (UBlueprintGeneratedClass* BPClass = Cast<UBlueprintGeneratedClass>(Target->GetClass()))
 		{
-			// Check Simple Construction Script (SCS) for components added in BP
 			if (USimpleConstructionScript* SCS = BPClass->SimpleConstructionScript)
 			{
 				for (USCS_Node* Node : SCS->GetAllNodes())
@@ -240,15 +237,6 @@ void FKzComponentSocketReferenceCustomization::BuildComponentList(TArray<FName>&
 			}
 		}
 	}
-
-	// This handles both, level instances and native components (added in c++)
-	for (UActorComponent* Comp : Target->GetComponents())
-	{
-		if (Cast<USceneComponent>(Comp))
-		{
-			OutNames.Add(Comp->GetFName());
-		}
-	}
 }
 
 TSharedRef<SWidget> FKzComponentSocketReferenceCustomization::OnGetComponentsMenu()
@@ -258,7 +246,6 @@ TSharedRef<SWidget> FKzComponentSocketReferenceCustomization::OnGetComponentsMen
 	TArray<FName> Names;
 	BuildComponentList(Names);
 
-	// Option to clear
 	MenuBuilder.AddMenuEntry(
 		LOCTEXT("None", "None"),
 		LOCTEXT("NoneTooltip", "Clear component reference"),
@@ -286,15 +273,9 @@ void FKzComponentSocketReferenceCustomization::OnComponentSelected(FName InName)
 	FName CurrentName;
 	ComponentNameHandle->GetValue(CurrentName);
 
-	// If the selected component is the same as the current one, do nothing to preserve the socket
-	if (CurrentName == InName)
-	{
-		return;
-	}
+	if (CurrentName == InName) return;
 
 	ComponentNameHandle->SetValue(InName);
-
-	// Clear socket when component changes
 	SocketNameHandle->SetValue(FName(NAME_None));
 }
 
@@ -310,12 +291,16 @@ USceneComponent* FKzComponentSocketReferenceCustomization::FindComponentByName(F
 	if (Name.IsNone()) return nullptr;
 
 	AActor* Target = GetTargetActor();
-	if (!Target)
+	if (!Target) return nullptr;
+
+	// Search Native/Instance Components
+	for (UActorComponent* Comp : Target->GetComponents())
 	{
-		return nullptr;
+		if (Comp->GetFName() == Name) return Cast<USceneComponent>(Comp);
 	}
 
-	if (Target->HasAnyFlags(RF_ClassDefaultObject))
+	// Search SCS (BP CDO Fallback)
+	if (Target->HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
 	{
 		if (UBlueprintGeneratedClass* BPClass = Cast<UBlueprintGeneratedClass>(Target->GetClass()))
 		{
@@ -332,10 +317,6 @@ USceneComponent* FKzComponentSocketReferenceCustomization::FindComponentByName(F
 		}
 	}
 
-	for (UActorComponent* Comp : Target->GetComponents())
-	{
-		if (Comp->GetFName() == Name) return Cast<USceneComponent>(Comp);
-	}
 	return nullptr;
 }
 
@@ -351,7 +332,6 @@ TSharedRef<SWidget> FKzComponentSocketReferenceCustomization::OnGetSocketsMenu()
 	{
 		TArray<FName> Sockets = Comp->GetAllSocketNames();
 
-		// Option to clear (Use Component Origin)
 		MenuBuilder.AddMenuEntry(
 			LOCTEXT("NoSocket", "None (Component Origin)"),
 			LOCTEXT("NoSocketTooltip", "Use the component's pivot"),

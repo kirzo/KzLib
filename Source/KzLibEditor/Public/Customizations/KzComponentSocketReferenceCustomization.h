@@ -25,6 +25,15 @@ public:
 	virtual void CustomizeChildren(TSharedRef<IPropertyHandle> PropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils) override;
 
 private:
+	/**
+	 * Walks up the Outer chain of the provided Object to find the responsible Actor context.
+	 * Handles: Direct Actors, Components, Instanced Objects, and Blueprint CDOs.
+	 */
+	AActor* ResolveActorContext(UObject* Obj) const;
+
+	/** Helper to determine which Actor to inspect for components (Override vs Resolved Context). */
+	AActor* GetTargetActor() const;
+
 	// -- Component Picking --
 	TSharedRef<SWidget> OnGetComponentsMenu();
 	void OnComponentSelected(FName InName);
@@ -38,18 +47,10 @@ private:
 
 	// -- Helpers --
 	void BuildComponentList(TArray<FName>& OutNames);
-	class USceneComponent* FindComponentByName(FName Name) const;
-
-	/** Returns the OverrideActor if valid, otherwise attempts to return the owner Actor. */
-	AActor* GetTargetActor() const;
-
-	/** Callback when OverrideActor property value changes to reset invalid component names */
+	USceneComponent* FindComponentByName(FName Name) const;
 	void OnOverrideActorChanged();
 
 	// -- Property Handles --
-	bool bIsActorContext = false;
-	bool bIsInstance = false;
-
 	TSharedPtr<IPropertyHandle> StructPropertyHandle;
 	TSharedPtr<IPropertyHandle> OverrideActorHandle;
 	TSharedPtr<IPropertyHandle> ComponentNameHandle;
