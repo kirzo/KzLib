@@ -139,6 +139,24 @@ void FKzComponentSocketReferenceCustomization::CustomizeHeader(TSharedRef<IPrope
 		OverrideActorHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FKzComponentSocketReferenceCustomization::OnOverrideActorChanged));
 	}
 
+	bool bHideSocket = false;
+	if (const FProperty* Prop = PropertyHandle->GetProperty())
+	{
+		bHideSocket = Prop->HasMetaData(TEXT("NoSocket"));
+	}
+
+	// If NoSocket is requested, ensure the underlying data is cleared to avoid confusion
+	// (Optional safety step, though mostly visual hiding is enough)
+	if (bHideSocket)
+	{
+		FName CurrentSocket;
+		SocketNameHandle->GetValue(CurrentSocket);
+		if (!CurrentSocket.IsNone())
+		{
+			SocketNameHandle->SetValue(FName(NAME_None));
+		}
+	}
+
 	// Determine if we have a valid context to show pickers
 	bool bHasValidContext = false;
 	TArray<UObject*> OuterObjects;
@@ -173,20 +191,23 @@ void FKzComponentSocketReferenceCustomization::CustomizeHeader(TSharedRef<IPrope
 					]
 			];
 
-		HBox->AddSlot()
-			.FillWidth(1.0f)
-			.VAlign(VAlign_Center)
-			[
-				SNew(SComboButton)
-					.Visibility(this, &FKzComponentSocketReferenceCustomization::GetSocketVisibility)
-					.OnGetMenuContent(this, &FKzComponentSocketReferenceCustomization::OnGetSocketsMenu)
-					.ButtonContent()
-					[
-						SNew(STextBlock)
-							.Text(this, &FKzComponentSocketReferenceCustomization::GetCurrentSocketName)
-							.Font(IDetailLayoutBuilder::GetDetailFont())
-					]
-			];
+		if (!bHideSocket)
+		{
+			HBox->AddSlot()
+				.FillWidth(1.0f)
+				.VAlign(VAlign_Center)
+				[
+					SNew(SComboButton)
+						.Visibility(this, &FKzComponentSocketReferenceCustomization::GetSocketVisibility)
+						.OnGetMenuContent(this, &FKzComponentSocketReferenceCustomization::OnGetSocketsMenu)
+						.ButtonContent()
+						[
+							SNew(STextBlock)
+								.Text(this, &FKzComponentSocketReferenceCustomization::GetCurrentSocketName)
+								.Font(IDetailLayoutBuilder::GetDetailFont())
+						]
+				];
+		}
 	}
 	else
 	{
@@ -198,11 +219,14 @@ void FKzComponentSocketReferenceCustomization::CustomizeHeader(TSharedRef<IPrope
 				ComponentNameHandle->CreatePropertyValueWidget()
 			];
 
-		HBox->AddSlot()
-			.FillWidth(1.0f)
-			[
-				SocketNameHandle->CreatePropertyValueWidget()
-			];
+		if (!bHideSocket)
+		{
+			HBox->AddSlot()
+				.FillWidth(1.0f)
+				[
+					SocketNameHandle->CreatePropertyValueWidget()
+				];
+		}
 	}
 
 	HeaderRow
