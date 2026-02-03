@@ -74,7 +74,7 @@ public:
 
 	/** Converts a KzComponentSocketReference to a KzTransformSource. */
 	UFUNCTION(BlueprintPure, Category = "KzLib|Conversions", meta = (DefaultToSelf = "Owner", DisplayName = "To KzTransformSource (KzComponentSocketReference)", CompactNodeTitle = "->", ScriptMethod = "KzTransformSource", Keywords = "cast convert transform source component socket", BlueprintAutocast))
-	static FKzTransformSource Conv_KzComponentSocketReferenceToKzTransformSource(const FKzComponentSocketReference& ComponentRef, const AActor* Owner);
+	static FKzTransformSource Conv_KzComponentSocketReferenceToKzTransformSource(const FKzComponentSocketReference& ComponentRef, const UObject* ContextObject);
 
 	// === Random ===
 

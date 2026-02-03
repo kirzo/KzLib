@@ -25,6 +25,6 @@ KZ_SYSTEM_FORCEINLINE FKzTransformSource	UKzSystemLibrary::Conv_RotatorToKzTrans
 KZ_SYSTEM_FORCEINLINE FKzTransformSource	UKzSystemLibrary::Conv_TransformToKzTransformSource(const FTransform& Source) { return FKzTransformSource(Source); }
 KZ_SYSTEM_FORCEINLINE FKzTransformSource	UKzSystemLibrary::Conv_ActorToKzTransformSource(const AActor* Actor) { return FKzTransformSource(Actor, FVector::ZeroVector); }
 KZ_SYSTEM_FORCEINLINE FKzTransformSource	UKzSystemLibrary::Conv_SceneComponentToKzTransformSource(const USceneComponent* Component, const FName SocketName) { return FKzTransformSource(Component, SocketName, FVector::ZeroVector); }
-KZ_SYSTEM_FORCEINLINE FKzTransformSource	UKzSystemLibrary::Conv_KzComponentSocketReferenceToKzTransformSource(const FKzComponentSocketReference& ComponentRef, const AActor* Owner) { return ComponentRef.ToTransformSource(Owner); }
+KZ_SYSTEM_FORCEINLINE FKzTransformSource	UKzSystemLibrary::Conv_KzComponentSocketReferenceToKzTransformSource(const FKzComponentSocketReference& ComponentRef, const UObject* ContextObject) { return ComponentRef.ToTransformSource(ContextObject); }
 
 #undef KZ_SYSTEM_FORCEINLINE

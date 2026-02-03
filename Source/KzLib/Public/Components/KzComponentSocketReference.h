@@ -41,20 +41,26 @@ public:
 		return FTransform(RelativeRotation, RelativeLocation, FVector::OneVector);
 	}
 
-	/** Resolves and returns the pointer to the scene component */
-	USceneComponent* GetComponent(const AActor* OwnerActor) const;
+	/**
+	 * Resolves the component.
+	 * @param ContextObject The object initiating the query. Can be an Actor, a Component, or any UObject.
+	 */
+	USceneComponent* GetComponent(const UObject* ContextObject) const;
 
 	/**
 	 * Helper to resolve the reference and get the World Transform.
-	 * @param OwnerActor The actor that owns this structure (usually context from the caller).
+	 * @param ContextObject The object initiating the query. Can be an Actor, a Component, or any UObject.
 	 * @param OutTransform The resulting transform.
 	 * @return True if the component and socket (or component transform if socket is None) were found.
 	 */
-	bool GetSocketTransform(const AActor* OwnerActor, FTransform& OutTransform) const;
+	bool GetSocketTransform(const UObject* ContextObject, FTransform& OutTransform) const;
 
 	/**
 	 * Converts this safe reference into a runtime Transform Source.
-	 * @param OwnerActor The context actor to resolve the component (if OverrideActor is null).
+	 * @param ContextObject The object initiating the query. Can be an Actor, a Component, or any UObject.
 	 */
-	FKzTransformSource ToTransformSource(const AActor* OwnerActor) const;
+	FKzTransformSource ToTransformSource(const UObject* ContextObject) const;
+
+private:
+	USceneComponent* FindComponentInActor(const AActor* InActor, FName InName) const;
 };
