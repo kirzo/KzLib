@@ -380,24 +380,43 @@ FText FKzComponentSocketReferenceCustomization::GetCurrentComponentName() const
 		return FText::FromName(CurrentName);
 	}
 
-	// Case B: No selection (Default behavior).
-	// We calculate what "None" resolves to, to give the user immediate feedback.
+	// Case B: No selection. Determine if the implicit "Default" is valid.
 
-	FString ResolvedContextName = TEXT("None");
+	// 1. Get Allowed Classes
+	TArray<UClass*> AllowedClasses;
+	GetAllowedComponentClasses(AllowedClasses);
 
-	// 1. Check if there is an Override Actor (It takes priority).
+	auto IsClassAllowed = [&](const UClass* InClass) -> bool
+		{
+			if (!InClass) return false;
+			// Always require USceneComponent base
+			if (!InClass->IsChildOf(USceneComponent::StaticClass())) return false;
+
+			// If no filter, everything is allowed
+			if (AllowedClasses.IsEmpty()) return true;
+
+			for (UClass* Allowed : AllowedClasses)
+			{
+				if (InClass->IsChildOf(Allowed)) return true;
+			}
+			return false;
+		};
+
+	// 2. Resolve the "Default" candidate component
+	const USceneComponent* DefaultCandidate = nullptr;
+
+	// Check Override Actor
 	UObject* OverrideObj = nullptr;
 	if (OverrideActorHandle.IsValid() && OverrideActorHandle->GetValue(OverrideObj) == FPropertyAccess::Success && OverrideObj)
 	{
 		if (AActor* OverrideActor = Cast<AActor>(OverrideObj))
 		{
-			// If referencing an external actor, default is usually its Root.
-			ResolvedContextName = OverrideActor->GetRootComponent() ? OverrideActor->GetRootComponent()->GetName() : TEXT("Actor Root");
+			DefaultCandidate = OverrideActor->GetRootComponent();
 		}
 	}
 	else
 	{
-		// 2. Resolve Context from the Property Outer (Smart Recursion).
+		// Resolve Context from Property Outer
 		TArray<UObject*> OuterObjects;
 		StructPropertyHandle->GetOuterObjects(OuterObjects);
 
@@ -405,44 +424,40 @@ FText FKzComponentSocketReferenceCustomization::GetCurrentComponentName() const
 		{
 			const UObject* Current = OuterObjects[0];
 
-			// Traverse up the hierarchy to find the nearest SceneComponent or Actor.
+			// Traverse up
 			while (Current)
 			{
-				// If the struct is inside a SceneComponent (or is one), that IS the default context.
 				if (const USceneComponent* Comp = Cast<USceneComponent>(Current))
 				{
-					ResolvedContextName = Comp->GetName();
-
-					// Clean up variable names in SCS (Blueprint Editor) which often have "_GEN_VARIABLE" suffixes.
-					// This is purely cosmetic.
-					if (ResolvedContextName.EndsWith(TEXT("_GEN_VARIABLE")))
-					{
-						ResolvedContextName.LeftChopInline(13); // Remove suffix
-					}
+					DefaultCandidate = Comp;
 					break;
 				}
-
-				// If we hit the Actor, the default is the RootComponent.
 				if (const AActor* Act = Cast<AActor>(Current))
 				{
-					if (USceneComponent* Root = Act->GetRootComponent())
-					{
-						ResolvedContextName = Root->GetName();
-					}
-					else
-					{
-						ResolvedContextName = TEXT("Actor Root");
-					}
+					DefaultCandidate = Act->GetRootComponent();
 					break;
 				}
-
 				Current = Current->GetOuter();
 			}
 		}
 	}
 
-	// Return formatted string: "Default (MeshName)"
-	return FText::Format(LOCTEXT("DefaultContextFmt", "Default ({0})"), FText::FromString(ResolvedContextName));
+	// 3. Validate Candidate against Allowed Classes
+	if (DefaultCandidate && IsClassAllowed(DefaultCandidate->GetClass()))
+	{
+		FString DisplayName = DefaultCandidate->GetName();
+
+		// Clean up BP variable suffix for cleaner UI
+		if (DisplayName.EndsWith(TEXT("_GEN_VARIABLE")))
+		{
+			DisplayName.LeftChopInline(13);
+		}
+
+		return FText::Format(LOCTEXT("DefaultContextFmt", "Default ({0})"), FText::FromString(DisplayName));
+	}
+
+	// 4. Fallback if default is invalid/restricted
+	return LOCTEXT("SelectComponent", "Select Component...");
 }
 
 USceneComponent* FKzComponentSocketReferenceCustomization::FindComponentByName(FName Name) const
