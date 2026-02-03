@@ -281,9 +281,78 @@ void FKzComponentSocketReferenceCustomization::OnComponentSelected(FName InName)
 
 FText FKzComponentSocketReferenceCustomization::GetCurrentComponentName() const
 {
-	FName Val;
-	ComponentNameHandle->GetValue(Val);
-	return Val.IsNone() ? LOCTEXT("SelectComponent", "Select Component...") : FText::FromName(Val);
+	FName CurrentName;
+	ComponentNameHandle->GetValue(CurrentName);
+
+	// Case A: The user has explicitly selected a component.
+	if (!CurrentName.IsNone())
+	{
+		return FText::FromName(CurrentName);
+	}
+
+	// Case B: No selection (Default behavior).
+	// We calculate what "None" resolves to, to give the user immediate feedback.
+
+	FString ResolvedContextName = TEXT("None");
+
+	// 1. Check if there is an Override Actor (It takes priority).
+	UObject* OverrideObj = nullptr;
+	if (OverrideActorHandle.IsValid() && OverrideActorHandle->GetValue(OverrideObj) == FPropertyAccess::Success && OverrideObj)
+	{
+		if (AActor* OverrideActor = Cast<AActor>(OverrideObj))
+		{
+			// If referencing an external actor, default is usually its Root.
+			ResolvedContextName = OverrideActor->GetRootComponent() ? OverrideActor->GetRootComponent()->GetName() : TEXT("Actor Root");
+		}
+	}
+	else
+	{
+		// 2. Resolve Context from the Property Outer (Smart Recursion).
+		TArray<UObject*> OuterObjects;
+		StructPropertyHandle->GetOuterObjects(OuterObjects);
+
+		if (OuterObjects.Num() > 0)
+		{
+			const UObject* Current = OuterObjects[0];
+
+			// Traverse up the hierarchy to find the nearest SceneComponent or Actor.
+			while (Current)
+			{
+				// If the struct is inside a SceneComponent (or is one), that IS the default context.
+				if (const USceneComponent* Comp = Cast<USceneComponent>(Current))
+				{
+					ResolvedContextName = Comp->GetName();
+
+					// Clean up variable names in SCS (Blueprint Editor) which often have "_GEN_VARIABLE" suffixes.
+					// This is purely cosmetic.
+					if (ResolvedContextName.EndsWith(TEXT("_GEN_VARIABLE")))
+					{
+						ResolvedContextName.LeftChopInline(13); // Remove suffix
+					}
+					break;
+				}
+
+				// If we hit the Actor, the default is the RootComponent.
+				if (const AActor* Act = Cast<AActor>(Current))
+				{
+					if (USceneComponent* Root = Act->GetRootComponent())
+					{
+						ResolvedContextName = Root->GetName();
+					}
+					else
+					{
+						ResolvedContextName = TEXT("Actor Root");
+					}
+					break;
+				}
+
+				Current = Current->GetOuter();
+			}
+		}
+	}
+
+	// Return formatted string: "Default (MeshName)"
+	return FText::Format(LOCTEXT("DefaultContextFmt", "Default ({0})"), FText::FromString(ResolvedContextName));
 }
 
 USceneComponent* FKzComponentSocketReferenceCustomization::FindComponentByName(FName Name) const
