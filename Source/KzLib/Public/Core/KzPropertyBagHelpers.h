@@ -16,6 +16,10 @@ namespace KzPropertyBag
 		/** Check if a type is a UStruct/ScriptStruct compatible type */
 		template <typename ValueType>
 		constexpr bool TIsStructure = TModels_V<CBaseStructureProvider, std::decay_t<ValueType>>;
+
+		/** Helper to extract inner type from TArray */
+		template <typename T> struct TUnwrapArray { using Type = T; static constexpr bool IsArray = false; };
+		template <typename T> struct TUnwrapArray<TArray<T>> { using Type = T; static constexpr bool IsArray = true; };
 	}
 
 	/**

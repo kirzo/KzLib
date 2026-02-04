@@ -48,6 +48,9 @@ void FKzDatabaseCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> Prope
 {
 	StructHandle = PropertyHandle;
 
+	// Check if the property has the "FixedType" metadata
+	const bool bIsFixedType = PropertyHandle->HasMetaData(TEXT("FixedType"));
+
 	TSharedPtr<IPropertyHandle> TypeHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FKzDatabase, Type));
 	const bool bAllowArrays = !TypeHandle->HasMetaData(TEXT("NoArrays"));
 
@@ -62,6 +65,7 @@ void FKzDatabaseCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> Prope
 				.Value(this, &FKzDatabaseCustomization::GetTypeValue)
 				.OnValueChanged(this, &FKzDatabaseCustomization::OnTypeChanged)
 				.AllowArrays(bAllowArrays)
+				.IsEnabled(!bIsFixedType)
 		];
 }
 
