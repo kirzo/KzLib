@@ -9,8 +9,55 @@ USceneComponent* FKzComponentSocketReference::FindComponentInActor(const AActor*
 {
 	if (!InActor) return nullptr;
 
-	FObjectPropertyBase* ObjProp = FindFProperty<FObjectPropertyBase>(InActor->GetClass(), InName);
-	if (ObjProp != nullptr)
+	FString Path = InName.ToString();
+
+	// Check if the name contains dots (e.g. "MyChildActor.InnerMesh")
+	FString ChildActorName;
+	FString SubComponentName;
+
+	if (Path.Split(TEXT("."), &ChildActorName, &SubComponentName))
+	{
+		// --- Recursive Logic for Child Actors ---
+
+		UChildActorComponent* ChildActorComp = nullptr;
+		FName ChildActorFName(*ChildActorName);
+
+		// 1. Try to find the ChildActorComponent property (Best for Blueprints)
+		if (FObjectPropertyBase* ObjProp = FindFProperty<FObjectPropertyBase>(InActor->GetClass(), ChildActorFName))
+		{
+			ChildActorComp = Cast<UChildActorComponent>(ObjProp->GetObjectPropertyValue_InContainer(InActor));
+		}
+
+		// 2. Fallback: Search by Name (Best for Native/Construction Script components)
+		if (!ChildActorComp)
+		{
+			for (UActorComponent* Comp : InActor->GetComponents())
+			{
+				if (Comp->GetFName() == ChildActorFName)
+				{
+					ChildActorComp = Cast<UChildActorComponent>(Comp);
+					break;
+				}
+			}
+		}
+
+		// 3. Recurse into the Child Actor
+		if (ChildActorComp)
+		{
+			if (AActor* ChildActor = ChildActorComp->GetChildActor())
+			{
+				// Recursively find the sub-component in the child actor
+				return FindComponentInActor(ChildActor, FName(*SubComponentName));
+			}
+		}
+
+		// Failed to resolve path
+		return nullptr;
+	}
+
+	// --- Standard Logic (Leaf Component) ---
+
+	if (FObjectPropertyBase* ObjProp = FindFProperty<FObjectPropertyBase>(InActor->GetClass(), InName))
 	{
 		return Cast<USceneComponent>(ObjProp->GetObjectPropertyValue_InContainer(InActor));
 	}

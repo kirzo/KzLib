@@ -9,7 +9,26 @@
 class AActor;
 class USceneComponent;
 
-/** A reference to a specific Socket on a specific Component. */
+/**
+ * A reference to a specific Socket on a specific Component.
+ * Supports context resolution for Instanced Objects, Child Actor Components, Actor overrides, and relative local offsets.
+ *
+ * Supported Metadata (UPROPERTY meta tags):
+ *
+ * - NoSocket:
+ * If set to "true", hides the Socket selector widget.
+ * Useful when you need to reference a Component object itself (e.g., for logic or property access)
+ * rather than a specific transform point within it.
+ *
+ * - NoOffset:
+ * If set to "true", hides the RelativeLocation and RelativeRotation properties in the Details panel.
+ * Useful for strict attachments where manual offset is not allowed.
+ *
+ * - AllowedClasses:
+ * Filters the Component dropdown to show only specific types.
+ * Supports simple class names or full paths.
+ * Example: meta = (AllowedClasses = "SkeletalMeshComponent, SplineComponent")
+ */
 USTRUCT(BlueprintType)
 struct KZLIB_API FKzComponentSocketReference
 {

@@ -346,32 +346,109 @@ void FKzComponentSocketReferenceCustomization::BuildComponentList(TArray<FName>&
 			return false;
 		};
 
-	// Native / Instance Components
-	for (UActorComponent* Comp : Target->GetComponents())
-	{
-		if (IsClassAllowed(Comp->GetClass()))
+	// --- Recursive Collector ---
+	// ContextActor: The actor we are currently inspecting (Root or Child)
+	// NamePrefix: The dot-notation path accumulated so far (e.g. "MyChild.")
+	// bIsCDO: Optimization to handle template lookup differently
+	TFunction<void(AActor*, FString)> CollectFromActor =
+		[&](AActor* ContextActor, FString NamePrefix)
 		{
-			OutNames.Add(Comp->GetFName());
-		}
-	}
+			if (!ContextActor) return;
 
-	// Blueprint Added Components (SCS) - Only needed if Target is a CDO
-	if (Target->HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
-	{
-		if (UBlueprintGeneratedClass* BPClass = Cast<UBlueprintGeneratedClass>(Target->GetClass()))
-		{
-			if (USimpleConstructionScript* SCS = BPClass->SimpleConstructionScript)
+			// A. Collect Native/Instance Components
+			for (UActorComponent* Comp : ContextActor->GetComponents())
 			{
-				for (USCS_Node* Node : SCS->GetAllNodes())
+				USceneComponent* SceneComp = Cast<USceneComponent>(Comp);
+				if (!SceneComp) continue;
+
+				FString CompName = Comp->GetName();
+				if (CompName.EndsWith(TEXT("_GEN_VARIABLE"))) CompName.LeftChopInline(13); // Clean BP garbage
+
+				FString FullPath = NamePrefix + CompName;
+
+				// Handle ChildActorComponent Special Case
+				if (UChildActorComponent* ChildActorComp = Cast<UChildActorComponent>(Comp))
 				{
-					if (Node && IsClassAllowed(Node->ComponentClass))
+					// Only list the ChildActorComponent itself if it passes the filter AND we want to allow attaching to the container.
+					if (IsClassAllowed(ChildActorComp->GetClass()))
 					{
-						OutNames.Add(Node->GetVariableName());
+						OutNames.Add(FName(*FullPath));
+					}
+
+					// Recurse into Child
+					AActor* ChildActor = ChildActorComp->GetChildActor();
+
+					// CDO Handling: If the child actor doesn't exist yet (template), check the Class CDO
+					if (!ChildActor && ContextActor->HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
+					{
+						if (ChildActorComp->GetChildActorClass())
+						{
+							ChildActor = ChildActorComp->GetChildActorClass()->GetDefaultObject<AActor>();
+						}
+					}
+
+					if (ChildActor)
+					{
+						// Recurse: Add dot to prefix
+						CollectFromActor(ChildActor, FullPath + TEXT("."));
+					}
+				}
+				else
+				{
+					// Standard Component
+					if (IsClassAllowed(Comp->GetClass()))
+					{
+						OutNames.Add(FName(*FullPath));
 					}
 				}
 			}
-		}
-	}
+
+			// B. Collect SCS Nodes (Only for BP CDOs)
+			if (UBlueprintGeneratedClass* BPClass = Cast<UBlueprintGeneratedClass>(ContextActor->GetClass()))
+			{
+				if (USimpleConstructionScript* SCS = BPClass->SimpleConstructionScript)
+				{
+					for (USCS_Node* Node : SCS->GetAllNodes())
+					{
+						if (!Node) continue;
+
+						// Check if we already processed this via Native loop (ComponentTemplate is often in GetComponents)
+						// To avoid duplicates, we can check names.
+						FString NodeName = Node->GetVariableName().ToString();
+						FString FullPath = NamePrefix + NodeName;
+
+						// Simple deduplication check: usually not needed if we trust the lists don't overlap much in CDO context, 
+						// but let's be safe:
+						if (OutNames.Contains(FName(*FullPath))) continue;
+
+						UActorComponent* Template = Node->GetActualComponentTemplate(BPClass);
+						if (!Template) continue;
+
+						if (UChildActorComponent* ChildActorTemplate = Cast<UChildActorComponent>(Template))
+						{
+							// ... Same ChildActor Logic for SCS ...
+							if (IsClassAllowed(ChildActorTemplate->GetClass()))
+							{
+								OutNames.Add(FName(*FullPath));
+							}
+
+							if (ChildActorTemplate->GetChildActorClass())
+							{
+								AActor* ChildCDO = ChildActorTemplate->GetChildActorClass()->GetDefaultObject<AActor>();
+								CollectFromActor(ChildCDO, FullPath + TEXT("."));
+							}
+						}
+						else if (IsClassAllowed(Node->ComponentClass))
+						{
+							OutNames.Add(FName(*FullPath));
+						}
+					}
+				}
+			}
+		};
+
+	// Start Recursion
+	CollectFromActor(Target, TEXT(""));
 }
 
 TSharedRef<SWidget> FKzComponentSocketReferenceCustomization::OnGetComponentsMenu()
@@ -530,28 +607,99 @@ USceneComponent* FKzComponentSocketReferenceCustomization::FindComponentByName(F
 {
 	if (Name.IsNone()) return nullptr;
 
-	AActor* Target = GetTargetActor();
-	if (!Target) return nullptr;
+	AActor* CurrentActor = GetTargetActor();
+	if (!CurrentActor) return nullptr;
 
-	// Search Native/Instance Components
-	for (UActorComponent* Comp : Target->GetComponents())
+	FString CurrentPath = Name.ToString();
+	FString Left, Right;
+
+	// Loop while there are dots in the path (e.g., "WeaponActor.Muzzle" -> Split into "WeaponActor" and "Muzzle")
+	while (CurrentPath.Split(TEXT("."), &Left, &Right))
 	{
-		if (Comp->GetFName() == Name) return Cast<USceneComponent>(Comp);
+		// 1. Find the ChildActorComponent matching the 'Left' segment
+		UChildActorComponent* TargetCAC = nullptr;
+
+		// A. Search in Instance/Native components
+		for (UActorComponent* Comp : CurrentActor->GetComponents())
+		{
+			// Clean up BP variable suffixes if present in the component name
+			FString CleanName = Comp->GetName();
+			if (CleanName.EndsWith(TEXT("_GEN_VARIABLE"))) CleanName.LeftChopInline(13);
+
+			if (CleanName == Left)
+			{
+				TargetCAC = Cast<UChildActorComponent>(Comp);
+				break;
+			}
+		}
+
+		// B. Fallback: Search in SCS (Simple Construction Script) if we are in a BP CDO
+		// This is needed because sometimes components in CDOs are not fully registered in GetComponents() yet
+		if (!TargetCAC && CurrentActor->HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
+		{
+			if (UBlueprintGeneratedClass* BPClass = Cast<UBlueprintGeneratedClass>(CurrentActor->GetClass()))
+			{
+				if (USimpleConstructionScript* SCS = BPClass->SimpleConstructionScript)
+				{
+					if (USCS_Node* Node = SCS->FindSCSNode(FName(*Left)))
+					{
+						TargetCAC = Cast<UChildActorComponent>(Node->GetActualComponentTemplate(BPClass));
+					}
+				}
+			}
+		}
+
+		// If we couldn't find the container component, the path is broken.
+		if (!TargetCAC)
+		{
+			return nullptr;
+		}
+
+		// 2. Resolve the Actor inside the CAC
+		AActor* NextActor = TargetCAC->GetChildActor();
+
+		// If the child actor is not spawned (CDO), try the class default.
+		if (!NextActor && TargetCAC->GetChildActorClass())
+		{
+			NextActor = TargetCAC->GetChildActorClass()->GetDefaultObject<AActor>();
+		}
+
+		if (!NextActor)
+		{
+			return nullptr; // Container exists, but the inner actor is missing/null.
+		}
+
+		// Advance to the next level
+		CurrentActor = NextActor;
+		CurrentPath = Right; // Continue processing the rest of the path
 	}
 
-	// Search SCS (BP CDO Fallback)
-	if (Target->HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
+	// --- Final Step: Find the Leaf Component in the final Actor ---
+	// 'CurrentPath' now contains just the component name (e.g., "Muzzle")
+
+	// A. Search Instance/Native
+	for (UActorComponent* Comp : CurrentActor->GetComponents())
 	{
-		if (UBlueprintGeneratedClass* BPClass = Cast<UBlueprintGeneratedClass>(Target->GetClass()))
+		FString CleanName = Comp->GetName();
+		if (CleanName.EndsWith(TEXT("_GEN_VARIABLE"))) CleanName.LeftChopInline(13);
+
+		if (CleanName == CurrentPath)
+		{
+			return Cast<USceneComponent>(Comp);
+		}
+	}
+
+	// B. Search SCS (for CDOs)
+	if (CurrentActor->HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
+	{
+		if (UBlueprintGeneratedClass* BPClass = Cast<UBlueprintGeneratedClass>(CurrentActor->GetClass()))
 		{
 			if (USimpleConstructionScript* SCS = BPClass->SimpleConstructionScript)
 			{
-				for (USCS_Node* Node : SCS->GetAllNodes())
+				// Note: FindSCSNode uses the variable name (FName)
+				if (USCS_Node* Node = SCS->FindSCSNode(FName(*CurrentPath)))
 				{
-					if (Node->GetVariableName() == Name)
-					{
-						return Cast<USceneComponent>(Node->GetActualComponentTemplate(BPClass));
-					}
+					return Cast<USceneComponent>(Node->GetActualComponentTemplate(BPClass));
 				}
 			}
 		}
