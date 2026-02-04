@@ -218,6 +218,7 @@ void FKzParamDefCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> Prope
 	PinTypeAttribute = TAttribute<FEdGraphPinType>::Create(TAttribute<FEdGraphPinType>::FGetter::CreateSP(this, &FKzParamDefCustomization::GetTargetPinType));
 
 	const UKzParamDefSchema* Schema = GetDefault<UKzParamDefSchema>();
+	const bool bAllowArrays = !StructHandle->HasMetaData(TEXT("NoArrays"));
 
 	HeaderRow
 		.NameContent()
@@ -254,7 +255,7 @@ void FKzParamDefCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> Prope
 								.TargetPinType(PinTypeAttribute)
 								.OnPinTypeChanged(this, &FKzParamDefCustomization::OnPinTypeChanged)
 								.TypeTreeFilter(ETypeTreeFilter::None)
-								.bAllowArrays(true)
+								.bAllowArrays(bAllowArrays)
 								.Font(IDetailLayoutBuilder::GetDetailFont())
 						]
 				]
