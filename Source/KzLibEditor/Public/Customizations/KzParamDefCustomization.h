@@ -7,6 +7,8 @@
 #include "EdGraphSchema_K2.h"
 #include "EdGraph/EdGraphPin.h" 
 
+struct FKzParamDef;
+
 /**
  * Customization for FKzParamDef.
  * Renders as: [Name] [PinTypeSelector]
@@ -26,9 +28,9 @@ private:
 	/** Updates the struct when the Name text box changes */
 	void OnNameChanged();
 
-	/** Gets the current PinType from the struct data */
-	FEdGraphPinType GetTargetPinType() const;
+	/** Helper to retrieve the current FKzParamDef value from the property handle. */
+	FKzParamDef GetValue() const;
 
-	/** Updates the struct when the PinTypeSelector changes */
-	void OnPinTypeChanged(const FEdGraphPinType& PinType);
+	/** Callback executed when the selector widget updates the definition. */
+	void OnValueChanged(const FKzParamDef& NewDef);
 };
