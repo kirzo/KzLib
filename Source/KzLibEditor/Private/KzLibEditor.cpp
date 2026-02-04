@@ -6,6 +6,9 @@
 #include "AssetToolsModule.h"
 #include "AssetTools/KzAssetTypeActions_Base.h"
 
+#include "Core/KzParamDef.h"
+#include "Customizations/KzParamDefCustomization.h"
+
 #include "Components/KzComponentSocketReference.h"
 #include "Customizations/KzComponentSocketReferenceCustomization.h"
 
@@ -67,6 +70,7 @@ void FKzLibEditorModule::RegisterAssetTools()
 
 void FKzLibEditorModule::RegisterLayouts()
 {
+	RegisterPropertyLayout<FKzParamDefCustomization>(FKzParamDef::StaticStruct()->GetFName());
 	RegisterPropertyLayout<FKzComponentSocketReferenceCustomization>(FKzComponentSocketReference::StaticStruct()->GetFName());
 }
 
