@@ -6,12 +6,14 @@
 
 **KzLib** is a lightweight, **public**, and constantly growing utility library for **Unreal Engine**, focused on **mathematics, geometry, and generic programming**.
 
-It’s designed to be **modular** and **dependency-free**, serving as a foundation for larger systems such as [Axon Physics](https://kirzo.dev/axon-physics/) and other advanced simulation or gameplay frameworks.
+It’s designed to be **modular** and **dependency-free**, serving as a foundation for larger systems such as **[ScriptableFramework](https://github.com/kirzo/ScriptableFramework)**, [Axon Physics](https://kirzo.dev/axon-physics/), and other advanced simulation or gameplay frameworks.
 
 ---
 
 ## Key Features
 
+- **Advanced Data & Reflection Utilities**
+  (`FKzComponentSocketReference`, `FKzParamDef`, `KzPropertyBagHelpers`). Tools for robust socket referencing, defining dynamic parameters, and simplifying Unreal's `FInstancedPropertyBag` workflow.
 - **Unified geometric shapes**  
   (`FKzShapeInstance`, `FKzSphere`, `FKzBox`, etc.) with full editor integration and debug visualization.  
 - **Generic transform systems**  
