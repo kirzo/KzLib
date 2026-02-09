@@ -113,6 +113,21 @@ struct KZLIB_API FKzParamDef
 		return Def;
 	}
 
+	/**
+	 * Converts this definition into a native PropertyBag descriptor.
+	 * Useful to call PropertyBag.AddProperties({ MyDef.ToPropertyDesc() });
+	 */
+	FPropertyBagPropertyDesc ToPropertyDesc() const
+	{
+		return FPropertyBagPropertyDesc(Name, ContainerType, ValueType, ValueTypeObject);
+	}
+
+	/** Implicit conversion operator. */
+	operator FPropertyBagPropertyDesc() const
+	{
+		return ToPropertyDesc();
+	}
+
 	/** Name of the parameter. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Def")
 	FName Name = NAME_None;
