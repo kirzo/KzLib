@@ -39,6 +39,22 @@ namespace Kz
 		/** Builds the octree from any iterable container (Array, THandleArray, etc.). */
 		void Build(const CKzContainer auto& Container);
 
+		/** Inserts a single element into the grid (O(1)). */
+		void Insert(const ElementType& Element);
+
+		/** 
+		 * Removes a single element from the grid by searching ALL active cells (O(N)).
+		 * WARNING: Slower than Remove(Element, Bounds). Use with caution.
+		 * @param Element The element to remove.
+		 */
+		void Remove(const ElementType& Element);
+
+		/**
+		 * Removes a single element from the grid (O(1)).
+		 * Requires the Bounds where the object was located to find it efficiently.
+		 */
+		void Remove(const ElementType& Element, const FBox& PreviousBounds);
+
 		/**
 		 * Performs a raycast through the grid using fast voxel traversal (DDA).
 		 * 

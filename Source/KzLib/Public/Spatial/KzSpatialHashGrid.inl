@@ -23,18 +23,97 @@ namespace Kz
 
 		for (const ElementType& E : Container)
 		{
-			const FBox Bounds = GridSemantics::GetBoundingBox(E);
-			const FInt64Vector Min = GetCellCoord(Bounds.Min, CellSize);
-			const FInt64Vector Max = GetCellCoord(Bounds.Max, CellSize);
+			Insert(E);
+		}
+	}
 
-			for (int64 x = Min.X; x <= Max.X; ++x)
+	template <typename ElementType, typename GridSemantics>
+	void TSpatialHashGrid<ElementType, GridSemantics>::Insert(const ElementType& E)
+	{
+		const FBox Bounds = GridSemantics::GetBoundingBox(E);
+		const FInt64Vector Min = GetCellCoord(Bounds.Min, CellSize);
+		const FInt64Vector Max = GetCellCoord(Bounds.Max, CellSize);
+
+		for (int64 x = Min.X; x <= Max.X; ++x)
+		{
+			for (int64 y = Min.Y; y <= Max.Y; ++y)
 			{
-				for (int64 y = Min.Y; y <= Max.Y; ++y)
+				for (int64 z = Min.Z; z <= Max.Z; ++z)
 				{
-					for (int64 z = Min.Z; z <= Max.Z; ++z)
+					uint64 Key = GetCellKey(x, y, z);
+					GridCells.FindOrAdd(Key).Add(E);
+				}
+			}
+		}
+	}
+
+	template <typename ElementType, typename GridSemantics>
+	void TSpatialHashGrid<ElementType, GridSemantics>::Remove(const ElementType& E)
+	{
+		if (!GridSemantics::IsValid(E)) return;
+
+		const ElementIdType IdToRemove = GridSemantics::GetElementId(E);
+
+		// Brute force iteration over all map buckets
+		for (auto It = GridCells.CreateIterator(); It; ++It)
+		{
+			TArray<ElementType>& Cell = It.Value();
+			bool bFoundInCell = false;
+
+			for (int32 i = 0; i < Cell.Num(); ++i)
+			{
+				if (GridSemantics::GetElementId(Cell[i]) == IdToRemove)
+				{
+					Cell.RemoveAtSwap(i, 1, false);
+					bFoundInCell = true;
+					break; // Found in this cell, move to next
+				}
+			}
+
+			// Clean up empty buckets to keep map size manageable
+			if (Cell.IsEmpty())
+			{
+				It.RemoveCurrent();
+			}
+
+			// Note: We DO NOT break the outer loop (It) because the object 
+			// likely exists in multiple cells. We must check them all.
+		}
+	}
+
+	template <typename ElementType, typename GridSemantics>
+	void TSpatialHashGrid<ElementType, GridSemantics>::Remove(const ElementType& E, const FBox& PreviousBounds)
+	{
+		// To remove efficiently, we look only in the cells covered by the Old Bounds.
+		const FInt64Vector Min = GetCellCoord(PreviousBounds.Min, CellSize);
+		const FInt64Vector Max = GetCellCoord(PreviousBounds.Max, CellSize);
+
+		const ElementIdType IdToRemove = GridSemantics::GetElementId(E);
+
+		for (int64 x = Min.X; x <= Max.X; ++x)
+		{
+			for (int64 y = Min.Y; y <= Max.Y; ++y)
+			{
+				for (int64 z = Min.Z; z <= Max.Z; ++z)
+				{
+					uint64 Key = GetCellKey(x, y, z);
+					if (TArray<ElementType>* Cell = GridCells.Find(Key))
 					{
-						uint64 Key = GetCellKey(x, y, z);
-						GridCells.FindOrAdd(Key).Add(E);
+						// Find element by ID in this cell and remove it
+						for (int32 i = 0; i < Cell->Num(); ++i)
+						{
+							if (GridSemantics::GetElementId((*Cell)[i]) == IdToRemove)
+							{
+								Cell->RemoveAtSwap(i, 1, EAllowShrinking::No);
+								break; // Assuming object is only once per cell
+							}
+						}
+
+						// Clean up empty cells to save memory
+						if (Cell->IsEmpty())
+						{
+							GridCells.Remove(Key);
+						}
 					}
 				}
 			}
