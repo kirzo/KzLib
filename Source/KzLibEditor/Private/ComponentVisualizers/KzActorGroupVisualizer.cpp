@@ -44,7 +44,7 @@ void GetBoundingVectorsForGroup(AKzActorGroup* ActorGroup, FVector& OutVectorMin
 
 void FKzActorGroupVisualizer::DrawVisualization(const UActorComponent* Component, const FSceneView* View, FPrimitiveDrawInterface* PDI)
 {
-	const AKzActorGroup* ActorGroup = Cast<AKzActorGroup>(Component->GetOwner());
+	const AKzActorGroup* ActorGroup = Component ? Cast<AKzActorGroup>(Component->GetOwner()) : nullptr;
 	if (!ActorGroup)
 	{
 		return;
