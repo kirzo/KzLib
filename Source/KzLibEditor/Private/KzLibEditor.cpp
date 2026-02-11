@@ -15,12 +15,18 @@
 #include "Components/KzComponentSocketReference.h"
 #include "Customizations/KzComponentSocketReferenceCustomization.h"
 
+#include "ComponentVisualizers.h"
+
+#include "Actors/KzActorGroup.h"
+#include "ComponentVisualizers/KzActorGroupVisualizer.h"
+
 #define LOCTEXT_NAMESPACE "FKzLibEditorModule"
 
 void FKzLibEditorModule::StartupModule()
 {
 	RegisterAssetTools();
 	RegisterLayouts();
+	RegisterComponentVisualizers();
 }
 
 void FKzLibEditorModule::ShutdownModule()
@@ -77,6 +83,12 @@ void FKzLibEditorModule::RegisterLayouts()
 	RegisterPropertyLayout<FKzDatabaseCustomization>(FKzDatabase::StaticStruct()->GetFName());
 	RegisterPropertyLayout<FKzDatabaseItemCustomization>(FKzDatabaseItem::StaticStruct()->GetFName());
 	RegisterPropertyLayout<FKzComponentSocketReferenceCustomization>(FKzComponentSocketReference::StaticStruct()->GetFName());
+}
+
+void FKzLibEditorModule::RegisterComponentVisualizers()
+{
+	FComponentVisualizersModule& ComponentVisualizersModule = FModuleManager::LoadModuleChecked<FComponentVisualizersModule >("ComponentVisualizers");
+	ComponentVisualizersModule.RegisterComponentVisualizer(UKzActorGroupComponent::StaticClass()->GetFName(), MakeShareable(new FKzActorGroupVisualizer));
 }
 
 void FKzLibEditorModule::UnregisterAssetTools()

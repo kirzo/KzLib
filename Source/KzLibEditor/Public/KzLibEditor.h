@@ -33,6 +33,7 @@ public:
 protected:
 	virtual void RegisterAssetTools();
 	virtual void RegisterLayouts();
+	virtual void RegisterComponentVisualizers();
 
 private:
 	void UnregisterAssetTools();

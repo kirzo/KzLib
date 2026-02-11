@@ -24,6 +24,7 @@ public class KzLibEditor : ModuleRules
 				"PropertyEditor",
 				"BlueprintGraph",
 				"KismetWidgets",
+				"ComponentVisualizers"
 			});
 	}
 }
