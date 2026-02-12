@@ -346,6 +346,28 @@ void FKzComponentSocketReferenceCustomization::BuildComponentList(TArray<FName>&
 			return false;
 		};
 
+	// --- Helper to resolve Variable Name from Component Instance ---
+	auto GetComponentVariableName = [](AActor* InOwner, UActorComponent* InComp) -> FString
+		{
+			if (!InOwner || !InComp) return "";
+
+			// 1. Iterate Object Properties in the Actor Class to find which one points to InComp
+			for (TFieldIterator<FObjectProperty> It(InOwner->GetClass()); It; ++It)
+			{
+				// Skip properties that are not components or match our type
+				if (!It->PropertyClass->IsChildOf(UActorComponent::StaticClass())) continue;
+
+				// Check if the pointer value matches our component instance
+				if (It->GetObjectPropertyValue_InContainer(InOwner) == InComp)
+				{
+					return It->GetName();
+				}
+			}
+
+			// 2. Fallback: If no property points to it (e.g. dynamically created), use the instance name.
+			return InComp->GetName();
+		};
+
 	// --- Recursive Collector ---
 	// ContextActor: The actor we are currently inspecting (Root or Child)
 	// NamePrefix: The dot-notation path accumulated so far (e.g. "MyChild.")
@@ -361,7 +383,8 @@ void FKzComponentSocketReferenceCustomization::BuildComponentList(TArray<FName>&
 				USceneComponent* SceneComp = Cast<USceneComponent>(Comp);
 				if (!SceneComp) continue;
 
-				FString CompName = Comp->GetName();
+				// Reverse lookup to get the Variable Name (e.g. "Mesh" instead of "CharacterMesh0")
+				FString CompName = GetComponentVariableName(ContextActor, Comp);
 				if (CompName.EndsWith(TEXT("_GEN_VARIABLE"))) CompName.LeftChopInline(13); // Clean BP garbage
 
 				FString FullPath = NamePrefix + CompName;
@@ -618,22 +641,32 @@ USceneComponent* FKzComponentSocketReferenceCustomization::FindComponentByName(F
 	{
 		// 1. Find the ChildActorComponent matching the 'Left' segment
 		UChildActorComponent* TargetCAC = nullptr;
+		FName TargetFName(*Left);
 
-		// A. Search in Instance/Native components
-		for (UActorComponent* Comp : CurrentActor->GetComponents())
+		// A. Try Property Lookup (Variable Name Match)
+		if (FObjectPropertyBase* Prop = FindFProperty<FObjectPropertyBase>(CurrentActor->GetClass(), TargetFName))
 		{
-			// Clean up BP variable suffixes if present in the component name
-			FString CleanName = Comp->GetName();
-			if (CleanName.EndsWith(TEXT("_GEN_VARIABLE"))) CleanName.LeftChopInline(13);
+			TargetCAC = Cast<UChildActorComponent>(Prop->GetObjectPropertyValue_InContainer(CurrentActor));
+		}
 
-			if (CleanName == Left)
+		// B. Fallback: Search in Instance/Native components
+		if (!TargetCAC)
+		{
+			for (UActorComponent* Comp : CurrentActor->GetComponents())
 			{
-				TargetCAC = Cast<UChildActorComponent>(Comp);
-				break;
+				// Clean up BP variable suffixes if present in the component name
+				FString CleanName = Comp->GetName();
+				if (CleanName.EndsWith(TEXT("_GEN_VARIABLE"))) CleanName.LeftChopInline(13);
+
+				if (CleanName == Left)
+				{
+					TargetCAC = Cast<UChildActorComponent>(Comp);
+					break;
+				}
 			}
 		}
 
-		// B. Fallback: Search in SCS (Simple Construction Script) if we are in a BP CDO
+		// C. Fallback: Search in SCS (Simple Construction Script) if we are in a BP CDO
 		// This is needed because sometimes components in CDOs are not fully registered in GetComponents() yet
 		if (!TargetCAC && CurrentActor->HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
 		{
@@ -676,8 +709,15 @@ USceneComponent* FKzComponentSocketReferenceCustomization::FindComponentByName(F
 
 	// --- Final Step: Find the Leaf Component in the final Actor ---
 	// 'CurrentPath' now contains just the component name (e.g., "Muzzle")
+	FName LeafFName(*CurrentPath);
 
-	// A. Search Instance/Native
+	// A. Try Property Lookup (Variable Name)
+	if (FObjectPropertyBase* Prop = FindFProperty<FObjectPropertyBase>(CurrentActor->GetClass(), LeafFName))
+	{
+		return Cast<USceneComponent>(Prop->GetObjectPropertyValue_InContainer(CurrentActor));
+	}
+
+	// B. Fallback: Search Instance/Native
 	for (UActorComponent* Comp : CurrentActor->GetComponents())
 	{
 		FString CleanName = Comp->GetName();
@@ -689,7 +729,7 @@ USceneComponent* FKzComponentSocketReferenceCustomization::FindComponentByName(F
 		}
 	}
 
-	// B. Search SCS (for CDOs)
+	// C. Search SCS (for CDOs)
 	if (CurrentActor->HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
 	{
 		if (UBlueprintGeneratedClass* BPClass = Cast<UBlueprintGeneratedClass>(CurrentActor->GetClass()))
