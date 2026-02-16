@@ -2,6 +2,10 @@
 
 #pragma once
 
+#include "Core/KzHandle.h" // Default Handle Type
+
+namespace Kz
+{
 #if __cpp_concepts
 // Concept ensuring the handle type follows the required interface
 template <typename T>
@@ -39,9 +43,9 @@ public:
  *  - O(1) Add / Remove / Find operations.
  */
 #if __cpp_concepts
-template<typename InElementType, CHandleType InHandleType, typename InAllocatorType = FDefaultAllocator>
+template<typename InElementType, CHandleType InHandleType = FKzHandle, typename InAllocatorType = FDefaultAllocator>
 #else
-template<typename InElementType, typename InHandleType, typename InAllocatorType = FDefaultAllocator>
+template<typename InElementType, typename InHandleType = FKzHandle, typename InAllocatorType = FDefaultAllocator>
 #endif
 class THandleArray
 {
@@ -95,8 +99,7 @@ public:
 		{
 			SlotIndex = FirstFreeSlot;
 			FSlot& Slot = Slots[SlotIndex];
-			FirstFreeSlot = Slot.NextFreeIndex;
-			Slot.NextFreeIndex = INDEX_NONE;
+			FirstFreeSlot = Slot.DualIndex;
 			Slot.bActive = true;
 			++Slot.Generation; // Invalidate old handles
 		}
@@ -115,7 +118,7 @@ public:
 
 		// Link slot -> entry
 		FSlot& Slot = Slots[SlotIndex];
-		Slot.RealIndex = EntryIndex;
+		Slot.DualIndex = EntryIndex;
 
 		// Construct the handle with forwarded args
 		HandleType Handle(SlotIndex, Slot.Generation, Forward<TArgs>(Args)...);
@@ -132,8 +135,7 @@ public:
 	/** Removes an element if its handle is valid. */
 	bool Remove(const HandleType& Handle)
 	{
-		if (!IsValid(Handle))
-			return false;
+		if (!IsValid(Handle)) return false;
 		RemoveInternal(Handle);
 		return true;
 	}
@@ -155,13 +157,12 @@ public:
 	template<typename TPredicate>
 	bool RemoveAfter(const HandleType& Handle, TPredicate Predicate)
 	{
-		if (!IsValid(Handle))
-			return false;
+		if (!IsValid(Handle)) return false;
 
 		FSlot& Slot = Slots[Handle.Index];
-		ElementType& Element = Entries[Slot.RealIndex].Value;
+		ElementType& Element = Entries[Slot.DualIndex].Value;
 
-		Predicate(Element);
+		::Invoke(Predicate, Element);
 		RemoveInternal(Handle);
 
 		return true;
@@ -173,7 +174,7 @@ public:
 	{
 		check(IsValid(Handle));
 		FSlot& Slot = Slots[Handle.Index];
-		ElementType& Element = Entries[Slot.RealIndex].Value;
+		ElementType& Element = Entries[Slot.DualIndex].Value;
 
 		::Invoke(Predicate, Element);
 		RemoveInternal(Handle);
@@ -203,8 +204,7 @@ public:
 	{
 		return Slots.IsValidIndex(Handle.Index)
 			&& Slots[Handle.Index].bActive
-			&& Slots[Handle.Index].Generation == Handle.Generation
-			&& Entries.IsValidIndex(Slots[Handle.Index].RealIndex);
+			&& Slots[Handle.Index].Generation == Handle.Generation;
 	}
 
 	/** Semantic alias of IsValid() for clarity. */
@@ -243,10 +243,8 @@ public:
 	/** Returns a pointer to the element associated with this handle, or nullptr if invalid. */
 	ElementType* Find(const HandleType& Handle)
 	{
-		if (!IsValid(Handle))
-			return nullptr;
-		const FSlot& Slot = Slots[Handle.Index];
-		return &Entries[Slot.RealIndex].Value;
+		if (!IsValid(Handle)) return nullptr;
+		return &Entries[Slots[Handle.Index].DualIndex].Value;
 	}
 
 	/** Const version of Find(). */
@@ -259,16 +257,14 @@ public:
 	ElementType& FindChecked(const HandleType& Handle)
 	{
 		check(IsValid(Handle));
-		const FSlot& Slot = Slots[Handle.Index];
-		return Entries[Slot.RealIndex].Value;
+		return Entries[Slots[Handle.Index].DualIndex].Value;
 	}
 
 	/** Const version of FindChecked(). */
 	const ElementType& FindChecked(const HandleType& Handle) const
 	{
 		check(IsValid(Handle));
-		const FSlot& Slot = Slots[Handle.Index];
-		return Entries[Slot.RealIndex].Value;
+		return Entries[Slots[Handle.Index].DualIndex].Value;
 	}
 
 	/** Finds all elements that satisfy the given predicate and appends copies to OutElements. */
@@ -328,7 +324,7 @@ private:
 	void RemoveInternal(const HandleType& Handle)
 	{
 		FSlot& SlotToRemove = Slots[Handle.Index];
-		const SizeType EntryIndex = SlotToRemove.RealIndex;
+		const SizeType EntryIndex = SlotToRemove.DualIndex;
 		const SizeType LastIndex = Entries.Num() - 1;
 
 		// Maintain dense storage by swapping with the last element if needed
@@ -336,17 +332,15 @@ private:
 		{
 			Entries[EntryIndex] = MoveTemp(Entries[LastIndex]);
 			FEntry& MovedEntry = Entries[EntryIndex];
-			FSlot& MovedSlot = Slots[MovedEntry.SlotIndex];
-			MovedSlot.RealIndex = EntryIndex;
+			Slots[MovedEntry.SlotIndex].DualIndex = EntryIndex;
 		}
 
-		Entries.RemoveAt(LastIndex);
+		Entries.RemoveAt(LastIndex, EAllowShrinking::No);
 
 		// Invalidate the removed slot and add it back to the free list
 		SlotToRemove.bActive = false;
 		++SlotToRemove.Generation;
-		SlotToRemove.RealIndex = INDEX_NONE;
-		SlotToRemove.NextFreeIndex = FirstFreeSlot;
+		SlotToRemove.DualIndex = FirstFreeSlot;
 		FirstFreeSlot = Handle.Index;
 	}
 
@@ -354,8 +348,7 @@ private:
 	struct FSlot
 	{
 		int32 Generation = 0;         // Generation counter to detect stale handles.
-		SizeType RealIndex = INDEX_NONE; // Actual index into the dense Entries array.
-		SizeType NextFreeIndex = INDEX_NONE; // Linked-list pointer for the free slot list.
+		SizeType DualIndex = INDEX_NONE; // DataIndex if Active, NextFree if Inactive
 		bool bActive = false;         // Whether this slot currently references a live entry.
 	};
 
@@ -370,107 +363,67 @@ private:
 	TArray<FSlot, InAllocatorType>  Slots;     // Indirection table providing handle indirection.
 	SizeType FirstFreeSlot = INDEX_NONE; // Head of the free slot linked list.
 
+private:
+	// =========================================================================
+	//  Iterator Support
+	// =========================================================================
+
+	/** Generic Wrapper that adapts TArray Iterators (Forward/Reverse) */
+	template<typename TArrayIter>
+	struct TBaseIterator
+	{
+		TBaseIterator(TArrayIter InIter) : Iter(InIter) {}
+
+		// Accessors
+		auto& operator*() const { return (*Iter).Value; }
+		auto* operator->() const { return &(*Iter).Value; }
+
+		// Advancement
+		TBaseIterator& operator++() { ++Iter; return *this; }
+		TBaseIterator& operator--() { --Iter; return *this; } // Support bidirectional
+
+		// Comparison
+		explicit operator bool() const { return (bool)Iter; }
+		bool operator!=(const TBaseIterator& Other) const { return Iter != Other.Iter; }
+		bool operator==(const TBaseIterator& Other) const { return Iter == Other.Iter; }
+
+		// Removal support (Delegates to TArray iterator)
+		void RemoveCurrent() { Iter.RemoveCurrent(); }
+
+		// Access to internal TArray iterator
+		SizeType GetIndex() const { return Iter.GetIndex(); }
+
+	private:
+		TArrayIter Iter;
+	};
+
 public:
-	struct TIterator
-	{
-		using InternalIter = typename TArray<FEntry>::RangedForIteratorType;
+	// Define Iterator Types based on the underlying TArray iterators
+	using TIterator = TBaseIterator<typename TArray<FEntry, InAllocatorType>::RangedForIteratorType>;
+	using TConstIterator = TBaseIterator<typename TArray<FEntry, InAllocatorType>::RangedForConstIteratorType>;
+	using TReverseIterator = TBaseIterator<typename TArray<FEntry, InAllocatorType>::RangedForReverseIteratorType>;
+	using TConstReverseIterator = TBaseIterator<typename TArray<FEntry, InAllocatorType>::RangedForConstReverseIteratorType>;
 
-		TIterator(InternalIter Begin, InternalIter End) : EntryIterator(Begin), EndEntryIterator(End) {}
+	// --- Factory Methods (Standard Unreal API) ---
 
-		ElementType& operator*() { FEntry& Entry = *EntryIterator; return Entry.Value; }
-		ElementType* operator->() { FEntry& Entry = *EntryIterator; return &Entry.Value; }
-		TIterator& operator++() { ++EntryIterator; return *this; }
-		explicit operator bool() const { return EntryIterator != EndEntryIterator; }
-		friend bool operator==(const TIterator& Lhs, const TIterator& Rhs) { return Lhs.EntryIterator == Rhs.EntryIterator; };
-		friend bool operator!=(const TIterator& Lhs, const TIterator& Rhs) { return Lhs.EntryIterator != Rhs.EntryIterator; };
+	TIterator CreateIterator() { return TIterator(Entries.begin()); }
+	TConstIterator CreateConstIterator() const { return TConstIterator(Entries.begin()); }
 
-	private:
-		InternalIter EntryIterator;
-		InternalIter EndEntryIterator;
-	};
+	TReverseIterator CreateReverseIterator() { return TReverseIterator(Entries.rbegin()); }
+	TConstReverseIterator CreateConstReverseIterator() const { return TConstReverseIterator(Entries.rbegin()); }
 
-	struct TConstIterator
-	{
-		using InternalIter = typename TArray<FEntry>::RangedForConstIteratorType;
+	// --- STL-style Range Support (For loops) ---
 
-		TConstIterator(InternalIter Begin, InternalIter End) : EntryIterator(Begin), EndEntryIterator(End) {}
+	FORCEINLINE TIterator begin() { return TIterator(Entries.begin()); }
+	FORCEINLINE TIterator end() { return TIterator(Entries.end()); }
 
-		const ElementType& operator*() const { const FEntry& Entry = *EntryIterator; return Entry.Value; }
-		ElementType const* operator->() const { const FEntry& Entry = *EntryIterator; return &Entry.Value; }
-		TConstIterator& operator++() { ++EntryIterator; return *this; }
-		explicit operator bool() const { return EntryIterator != EndEntryIterator; }
-		friend bool operator==(const TConstIterator& Lhs, const TConstIterator& Rhs) { return Lhs.EntryIterator == Rhs.EntryIterator; };
-		friend bool operator!=(const TConstIterator& Lhs, const TConstIterator& Rhs) { return Lhs.EntryIterator != Rhs.EntryIterator; };
+	FORCEINLINE TConstIterator begin() const { return TConstIterator(Entries.begin()); }
+	FORCEINLINE TConstIterator end() const { return TConstIterator(Entries.end()); }
 
-	private:
-		InternalIter EntryIterator;
-		InternalIter EndEntryIterator;
-	};
+	FORCEINLINE TReverseIterator rbegin() { return TReverseIterator(Entries.rbegin()); }
+	FORCEINLINE TReverseIterator rend() { return TReverseIterator(Entries.rend()); }
 
-	struct TReverseIterator
-	{
-		using InternalIter = typename TArray<FEntry>::RangedForReverseIteratorType;
-
-		TReverseIterator(InternalIter Begin, InternalIter End) : EntryIterator(Begin), EndEntryIterator(End) {}
-
-		ElementType& operator*() { FEntry& Entry = *EntryIterator; return Entry.Value; }
-		ElementType* operator->() { FEntry& Entry = *EntryIterator; return &Entry.Value; }
-		TReverseIterator& operator++() { ++EntryIterator; return *this; }
-		explicit operator bool() const { return EntryIterator != EndEntryIterator; }
-		friend bool operator==(const TReverseIterator& Lhs, const TReverseIterator& Rhs) { return Lhs.EntryIterator == Rhs.EntryIterator; };
-		friend bool operator!=(const TReverseIterator& Lhs, const TReverseIterator& Rhs) { return Lhs.EntryIterator != Rhs.EntryIterator; };
-
-	private:
-		InternalIter EntryIterator;
-		InternalIter EndEntryIterator;
-	};
-
-	struct TConstReverseIterator
-	{
-		using InternalIter = typename TArray<FEntry>::RangedForConstReverseIteratorType;
-
-		TConstReverseIterator(InternalIter Begin, InternalIter End) : EntryIterator(Begin), EndEntryIterator(End) {}
-
-		const ElementType& operator*() const { const FEntry& Entry = *EntryIterator; return Entry.Value; }
-		ElementType const* operator->() const { const FEntry& Entry = *EntryIterator; return &Entry.Value; }
-		TConstReverseIterator& operator++() { ++EntryIterator; return *this; }
-		explicit operator bool() const { return EntryIterator != EndEntryIterator; }
-		friend bool operator==(const TConstReverseIterator& Lhs, const TConstReverseIterator& Rhs) { return Lhs.EntryIterator == Rhs.EntryIterator; };
-		friend bool operator!=(const TConstReverseIterator& Lhs, const TConstReverseIterator& Rhs) { return Lhs.EntryIterator != Rhs.EntryIterator; };
-
-	private:
-		InternalIter EntryIterator;
-		InternalIter EndEntryIterator;
-	};
-
-	TIterator CreateIterator()
-	{
-		return TIterator(Entries.begin(), Entries.end());
-	}
-
-	TConstIterator CreateConstIterator() const
-	{
-		return TConstIterator(Entries.begin(), Entries.end());
-	}
-
-	TReverseIterator CreateReverseIterator()
-	{
-		return TReverseIterator(Entries.rbegin(), Entries.rend());
-	}
-
-	TConstReverseIterator CreateConstReverseIterator() const
-	{
-		return TConstReverseIterator(Entries.rbegin(), Entries.rend());
-	}
-
-	// Support to for-range. DO NOT USE DIRECTLY
-
-	FORCEINLINE TIterator      begin() { return TIterator(Entries.begin(), Entries.end()); }
-	FORCEINLINE TConstIterator begin() const { return TConstIterator(Entries.begin(), Entries.end()); }
-	FORCEINLINE TIterator      end() { return TIterator(Entries.end(), Entries.end()); }
-	FORCEINLINE TConstIterator end() const { return TConstIterator(Entries.end(), Entries.end()); }
-	FORCEINLINE TReverseIterator      rbegin() { return TReverseIterator(Entries.rbegin(), Entries.rend()); }
-	FORCEINLINE TConstReverseIterator rbegin() const { return TConstReverseIterator(Entries.rbegin(), Entries.rend()); }
-	FORCEINLINE TReverseIterator      rend() { return TReverseIterator(Entries.rend(), Entries.rend()); }
-	FORCEINLINE TConstReverseIterator rend() const { return TConstReverseIterator(Entries.rend(), Entries.rend()); }
+	FORCEINLINE TConstReverseIterator rbegin() const { return TConstReverseIterator(Entries.rbegin()); }
+	FORCEINLINE TConstReverseIterator rend() const { return TConstReverseIterator(Entries.rend()); }
 };
+}

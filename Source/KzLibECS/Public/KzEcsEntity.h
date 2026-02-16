@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Core/KzHandle.h"
-#include "Containers/HandleArray.h"
+#include "Containers/KzHandleArray.h"
 
 namespace Kz::ECS
 {
