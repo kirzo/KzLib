@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Handles/SimpleHandle.h"
+#include "Core/KzHandle.h"
 #include "Containers/HandleArray.h"
 
 namespace Kz::ECS
@@ -11,13 +11,13 @@ namespace Kz::ECS
 	/**
 	 * Entity identifier for the ECS.
 	 *
-	 * This is a lightweight generational handle derived from FSimpleHandle.
+	 * This is a lightweight generational handle derived from FKzHandle.
 	 * It guarantees safe reuse of entity IDs and prevents accidental access
 	 * to destroyed entities.
 	 */
-	struct Entity : public FSimpleHandle
+	struct Entity : public FKzHandle
 	{
-		using FSimpleHandle::FSimpleHandle;
+		using FKzHandle::FKzHandle;
 	};
 
 	/**
