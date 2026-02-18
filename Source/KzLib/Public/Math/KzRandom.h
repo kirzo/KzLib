@@ -7,7 +7,7 @@ namespace Kz::Random
 	namespace Internal
 	{
 		/**
-		 * Generic Box–Muller implementation.
+		 * Generic BoxMuller implementation.
 		 */
 		FORCEINLINE float GaussianBoxMuller(float Uniform1, float Uniform2)
 		{
