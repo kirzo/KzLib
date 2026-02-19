@@ -36,6 +36,7 @@ private:
 
 	/** Populates the array with valid UClass pointers. */
 	void GetAllowedComponentClasses(TArray<UClass*>& OutClasses) const;
+	void GetMustImplementInterfaces(TArray<UClass*>& OutInterfaces) const;
 
 	// -- Component Picking --
 	TSharedRef<SWidget> OnGetComponentsMenu();

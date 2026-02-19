@@ -125,6 +125,43 @@ void FKzComponentSocketReferenceCustomization::GetAllowedComponentClasses(TArray
 	}
 }
 
+void FKzComponentSocketReferenceCustomization::GetMustImplementInterfaces(TArray<UClass*>& OutInterfaces) const
+{
+	OutInterfaces.Reset();
+
+	if (!StructPropertyHandle.IsValid() || !StructPropertyHandle->GetProperty())
+	{
+		return;
+	}
+
+	const FString& MustImplementMeta = StructPropertyHandle->GetProperty()->GetMetaData(TEXT("MustImplement"));
+	if (MustImplementMeta.IsEmpty())
+	{
+		return;
+	}
+
+	TArray<FString> InterfaceNames;
+	MustImplementMeta.ParseIntoArray(InterfaceNames, TEXT(","), true);
+
+	for (FString& Name : InterfaceNames)
+	{
+		Name.TrimStartAndEndInline();
+		if (Name.IsEmpty()) continue;
+
+		UClass* FoundInterface = UClass::TryFindTypeSlow<UClass>(Name);
+
+		if (!FoundInterface && (Name.StartsWith(TEXT("/")) || Name.Contains(TEXT("."))))
+		{
+			FoundInterface = LoadObject<UClass>(nullptr, *Name);
+		}
+
+		if (FoundInterface)
+		{
+			OutInterfaces.Add(FoundInterface);
+		}
+	}
+}
+
 void FKzComponentSocketReferenceCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> PropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& CustomizationUtils)
 {
 	StructPropertyHandle = PropertyHandle;
@@ -315,9 +352,11 @@ void FKzComponentSocketReferenceCustomization::BuildComponentList(TArray<FName>&
 	AActor* Target = GetTargetActor();
 	if (!Target) return;
 
-	// Parse Allowed Classes from Metadata
 	TArray<UClass*> AllowedClasses;
 	GetAllowedComponentClasses(AllowedClasses);
+
+	TArray<UClass*> MustImplementInterfaces;
+	GetMustImplementInterfaces(MustImplementInterfaces);
 
 	// Helper lambda to check if a component class matches the filter
 	auto IsClassAllowed = [&](const UClass* InClass) -> bool
@@ -326,6 +365,14 @@ void FKzComponentSocketReferenceCustomization::BuildComponentList(TArray<FName>&
 			if (!InClass || !InClass->IsChildOf(USceneComponent::StaticClass()))
 			{
 				return false;
+			}
+
+			for (UClass* InterfaceClass : MustImplementInterfaces)
+			{
+				if (!InClass->ImplementsInterface(InterfaceClass))
+				{
+					return false;
+				}
 			}
 
 			// If no filter specified, allow all SceneComponents
@@ -531,11 +578,22 @@ FText FKzComponentSocketReferenceCustomization::GetCurrentComponentName() const
 	TArray<UClass*> AllowedClasses;
 	GetAllowedComponentClasses(AllowedClasses);
 
+	TArray<UClass*> MustImplementInterfaces;
+	GetMustImplementInterfaces(MustImplementInterfaces);
+
 	auto IsClassAllowed = [&](const UClass* InClass) -> bool
 		{
 			if (!InClass) return false;
 			// Always require USceneComponent base
 			if (!InClass->IsChildOf(USceneComponent::StaticClass())) return false;
+
+			for (UClass* InterfaceClass : MustImplementInterfaces)
+			{
+				if (!InClass->ImplementsInterface(InterfaceClass))
+				{
+					return false;
+				}
+			}
 
 			// If no filter, everything is allowed
 			if (AllowedClasses.IsEmpty()) return true;
