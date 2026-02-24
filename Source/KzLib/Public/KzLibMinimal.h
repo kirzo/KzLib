@@ -16,6 +16,7 @@
 
  // Common Types
 #include "Core/KzTypes.h"
+#include "KzDelegates.h"
 
  // KzLib Math
 #include "Math/KzVectorAccumulator.h"
