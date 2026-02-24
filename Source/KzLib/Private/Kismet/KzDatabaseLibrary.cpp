@@ -241,7 +241,6 @@ DEFINE_FUNCTION(UKzDatabaseLibrary::execFindBestMatch)
 {
 	P_GET_STRUCT_REF(FKzDatabase, Database);
 	P_GET_STRUCT_REF(FKzDatabaseQuery, Query);
-
 	P_GET_PROPERTY_REF(FNameProperty, OutID);
 
 	// Wildcard Value output
@@ -251,20 +250,13 @@ DEFINE_FUNCTION(UKzDatabaseLibrary::execFindBestMatch)
 
 	P_FINISH;
 
-	// Use the C++ API to find pointers (efficient)
-	TArray<const FKzDatabaseItem*> Matches;
-	Database.QueryItems(Query, Matches);
-
 	bool bFound = false;
 
-	if (Matches.Num() > 0)
+	if (const FKzDatabaseItem* BestItem = Database.FindBestMatch(Query))
 	{
-		const FKzDatabaseItem* BestItem = Matches[0]; // 0 is best because QueryItems sorts by score
-
-		// Write ID
 		OutID = BestItem->ID;
 
-		// Write Value (using our previous copy logic)
+		// Write Value
 		if (ValueProp && ValuePtr && BestItem->IsValid())
 		{
 			static const FName PropName("Data");

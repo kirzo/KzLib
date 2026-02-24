@@ -210,4 +210,32 @@ struct KZLIB_API FKzDatabase
 	 * @return Number of items found.
 	 */
 	int32 QueryItems(const FKzDatabaseQuery& Query, TArray<const FKzDatabaseItem*>& OutItems) const;
+
+	/**
+	 * Finds the single best match for the query (highest score).
+	 * O(N) complexity and 0 heap allocations. Faster than QueryItems for single lookups.
+	 */
+	const FKzDatabaseItem* FindBestMatch(const FKzDatabaseQuery& Query) const;
+
+	/**
+	 * Templated helper to find the best match and extract its ID and typed Value directly.
+	 * @return True if a match was found and the value type is compatible.
+	 */
+	template <typename T>
+	bool FindBestMatch(const FKzDatabaseQuery& Query, FName& OutID, T& OutValue) const
+	{
+		if (const FKzDatabaseItem* BestItem = FindBestMatch(Query))
+		{
+			OutID = BestItem->ID;
+
+			// Extract the value type-safely
+			TValueOrError<T, EPropertyBagResult> Result = BestItem->GetValue<T>();
+			if (Result.HasValue())
+			{
+				OutValue = Result.GetValue();
+				return true;
+			}
+		}
+		return false;
+	}
 };

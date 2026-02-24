@@ -110,3 +110,26 @@ int32 FKzDatabase::QueryItems(const FKzDatabaseQuery& Query, TArray<const FKzDat
 
 	return OutItems.Num();
 }
+
+const FKzDatabaseItem* FKzDatabase::FindBestMatch(const FKzDatabaseQuery& Query) const
+{
+	const FKzDatabaseItem* BestItem = nullptr;
+	int32 BestScore = -1;
+
+	for (const FKzDatabaseItem& Item : Items)
+	{
+		if (Query.Matches(Item.Tags))
+		{
+			const int32 Score = Query.CalculateScore(Item.Tags);
+
+			// If we found a strictly better score, update the winner
+			if (Score > BestScore)
+			{
+				BestScore = Score;
+				BestItem = &Item;
+			}
+		}
+	}
+
+	return BestItem;
+}
