@@ -2,6 +2,7 @@
 
 #include "Actors/KzSplineActor.h"
 #include "Components/SplineComponent.h"
+#include "Engine/World.h"
 
 AKzSplineActor::AKzSplineActor()
 {
