@@ -10,7 +10,8 @@ public class KzLibEditor : ModuleRules
 
 		PublicDependencyModuleNames.AddRange(
 			new string[] {
-				"KzLib"
+				"KzLib",
+				"ComponentVisualizers"
 			});
 
 		PrivateDependencyModuleNames.AddRange(
@@ -23,8 +24,7 @@ public class KzLibEditor : ModuleRules
 				"UnrealEd",
 				"PropertyEditor",
 				"BlueprintGraph",
-				"KismetWidgets",
-				"ComponentVisualizers"
+				"KismetWidgets"
 			});
 	}
 }
