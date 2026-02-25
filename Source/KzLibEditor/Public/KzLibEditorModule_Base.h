@@ -15,9 +15,10 @@
 
 class KZLIBEDITOR_API FKzLibEditorModule_Base : public IModuleInterface
 {
-private:
+protected:
 	EAssetTypeCategories::Type KzAssetCategoryBit = EAssetTypeCategories::None;
 
+private:
 	TArray<TSharedRef<class IAssetTypeActions>> RegisteredAssetTypeActions;
 	TArray<FName> RegisteredClassLayouts;
 	TArray<FName> RegisteredPropertyLayouts;
@@ -32,7 +33,7 @@ public:
 	void RegisterAssetTypeAction(EAssetTypeCategories::Type AssetCategory);
 
 	template<typename T>
-	void RegisterAssetTypeAction(EAssetTypeCategories::Type AssetCategory, const FText& Name, FColor Color);
+	void RegisterAssetTypeAction(EAssetTypeCategories::Type AssetCategory, const FText& Name, FColor Color, const TArray<FText>& SubMenus = TArray<FText>());
 
 	template<typename TType, typename TCustomization>
 	void RegisterPropertyLayout();
@@ -63,11 +64,11 @@ void FKzLibEditorModule_Base::RegisterAssetTypeAction(EAssetTypeCategories::Type
 }
 
 template<typename T>
-void FKzLibEditorModule_Base::RegisterAssetTypeAction(EAssetTypeCategories::Type AssetCategory, const FText& Name, FColor Color)
+void FKzLibEditorModule_Base::RegisterAssetTypeAction(EAssetTypeCategories::Type AssetCategory, const FText& Name, FColor Color, const TArray<FText>& SubMenus)
 {
 	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
 
-	const auto Action = MakeShared<FKzAssetTypeActions>(AssetCategory, Name, Color, T::StaticClass());
+	const auto Action = MakeShared<FKzAssetTypeActions>(AssetCategory, Name, Color, T::StaticClass(), SubMenus);
 	AssetTools.RegisterAssetTypeActions(Action);
 	RegisteredAssetTypeActions.Add(Action);
 }

@@ -25,16 +25,19 @@ public:
 	const FText Name;
 	const FColor Color;
 	UClass* const SupportedClass;
+	const TArray<FText> SubMenus;
 
-	FKzAssetTypeActions(EAssetTypeCategories::Type AssetCategory, const FText& Name, FColor Color, UClass* SupportedClass)
+	FKzAssetTypeActions(EAssetTypeCategories::Type AssetCategory, const FText& Name, FColor Color, UClass* SupportedClass, const TArray<FText>& SubMenus = TArray<FText>())
 		: FKzAssetTypeActions_Base(AssetCategory)
 		, Name(Name)
 		, Color(Color)
 		, SupportedClass(SupportedClass)
+		, SubMenus(SubMenus)
 	{
 	}
 
 	virtual FText GetName() const override { return Name; }
 	virtual FColor GetTypeColor() const override { return Color; }
 	virtual UClass* GetSupportedClass() const override { return SupportedClass; }
+	virtual const TArray<FText>& GetSubMenus() const override { return SubMenus; }
 };
