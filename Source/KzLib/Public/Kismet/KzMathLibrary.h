@@ -19,6 +19,22 @@ class KZLIB_API UKzMathLibrary : public UBlueprintFunctionLibrary
 
 public:
 
+	// === Math ===
+
+	/**
+	 * Calculates the horizontal angle (yaw) between two direction vectors.
+	 * Returns the angle in degrees (0 to 180).
+	 */
+	UFUNCTION(BlueprintPure, Category = "Math|Vector", meta = (DisplayName = "Get Horizontal Angle"))
+	static float GetHorizontalAngle(const FVector& A, const FVector& B);
+
+	/**
+	 * Calculates the absolute difference in vertical angle between two direction vectors.
+	 * Returns the difference in degrees.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Math|Vector", meta = (DisplayName = "Get Vertical Angle Difference"))
+	static float GetVerticalAngleDifference(const FVector& A, const FVector& B);
+
 	// === FVector ===
 
 	/** Constructs a new vector accumulator from an array of vectors. */

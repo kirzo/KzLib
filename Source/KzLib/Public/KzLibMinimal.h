@@ -19,5 +19,6 @@
 #include "KzDelegates.h"
 
  // KzLib Math
+#include "Math/KzMath.h"
 #include "Math/KzVectorAccumulator.h"
 #include "Math/KzQuatAccumulator.h"

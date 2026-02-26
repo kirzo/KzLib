@@ -24,6 +24,20 @@ static TArray<FQuat> ConvertRotatorsToQuats(const TArray<FRotator>& Rotators)
 	return Quats;
 }
 
+// === Math ===
+
+KZ_MATH_FORCEINLINE
+float UKzMathLibrary::GetHorizontalAngle(const FVector& A, const FVector& B)
+{
+	return FKzMath::GetHorizontalAngle(A, B);
+}
+
+KZ_MATH_FORCEINLINE
+float UKzMathLibrary::GetVerticalAngleDifference(const FVector& A, const FVector& B)
+{
+	return FKzMath::GetVerticalAngleDifference(A, B);
+}
+
 // === FVector ===
 
 KZ_MATH_FORCEINLINE
