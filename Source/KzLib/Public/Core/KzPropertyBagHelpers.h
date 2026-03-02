@@ -266,6 +266,30 @@ namespace KzPropertyBag
 		}
 	};
 
+	// --- Specialization: TObjectPtr (UE5 Standard Object Pointers) ---
+	template <typename TPropertyType>
+	struct TPropertyBagType<TObjectPtr<TPropertyType>, typename TEnableIf<TIsDerivedFrom<TPropertyType, UObject>::Value>::Type>
+	{
+		static constexpr EPropertyBagPropertyType Type = EPropertyBagPropertyType::Object;
+		static const UObject* GetObjectType() { return TPropertyType::StaticClass(); }
+
+		static TValueOrError<TObjectPtr<TPropertyType>, EPropertyBagResult> GetValue(const FInstancedPropertyBag& Bag, const FName& Name)
+		{
+			TValueOrError<TPropertyType*, EPropertyBagResult> Result = Bag.GetValueObject<TPropertyType>(Name);
+			if (Result.HasError())
+			{
+				return MakeError(Result.GetError());
+			}
+			return MakeValue(TObjectPtr<TPropertyType>(Result.GetValue()));
+		}
+
+		static void SetValue(FInstancedPropertyBag& Bag, const FName& Name, const TObjectPtr<TPropertyType>& Value)
+		{
+			Bag.AddProperty(Name, Type, GetObjectType());
+			Bag.SetValueObject(Name, Value.Get());
+		}
+	};
+
 	// --- Specialization: Soft Object Pointers ---
 	template <typename T>
 	struct TPropertyBagType<TSoftObjectPtr<T>>
