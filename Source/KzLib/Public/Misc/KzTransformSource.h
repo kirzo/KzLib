@@ -56,18 +56,18 @@ struct KZLIB_API FKzTransformSource
 	FKzTransformSource() = default;
 	FKzTransformSource(ENoInit) {}
 	FKzTransformSource(EForceInit) { SourceType = EKzTransformSourceType::Literal; }
-	FKzTransformSource(const AActor* Actor, FVector RelativeLocation = FVector::ZeroVector);
+	FKzTransformSource(const AActor* Actor, FVector RelativeLocation);
 	FKzTransformSource(const AActor* Actor, FTransform RelativeTransform = FTransform::Identity);
-	FKzTransformSource(const USceneComponent* SceneComponent, FName SocketName = NAME_None, FVector RelativeLocation = FVector::ZeroVector);
+	FKzTransformSource(const USceneComponent* SceneComponent, FName SocketName, FVector RelativeLocation);
 	FKzTransformSource(const USceneComponent* SceneComponent, FName SocketName = NAME_None, FTransform RelativeTransform = FTransform::Identity);
 	FKzTransformSource(FVector Location);
 	FKzTransformSource(FQuat Quat);
 	FKzTransformSource(FRotator Rotation);
 	FKzTransformSource(FTransform Transform);
 
-	void Initialize(const AActor* Actor, FVector RelativeLocation = FVector::ZeroVector);
+	void Initialize(const AActor* Actor, FVector RelativeLocation);
 	void Initialize(const AActor* Actor, FTransform RelativeTransform = FTransform::Identity);
-	void Initialize(const USceneComponent* SceneComponent, FName SocketName = NAME_None, FVector RelativeLocation = FVector::ZeroVector);
+	void Initialize(const USceneComponent* SceneComponent, FName SocketName, FVector RelativeLocation);
 	void Initialize(const USceneComponent* SceneComponent, FName SocketName = NAME_None, FTransform RelativeTransform = FTransform::Identity);
 	void Initialize(FVector Location);
 	void Initialize(FQuat Quat);

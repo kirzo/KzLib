@@ -23,8 +23,8 @@ KZ_SYSTEM_FORCEINLINE FTransform					UKzSystemLibrary::Conv_KzTransformSourceToT
 KZ_SYSTEM_FORCEINLINE FKzTransformSource	UKzSystemLibrary::Conv_VectorToKzTransformSource(const FVector& Vector) { return FKzTransformSource(Vector); }
 KZ_SYSTEM_FORCEINLINE FKzTransformSource	UKzSystemLibrary::Conv_RotatorToKzTransformSource(const FRotator& Rotator) { return FKzTransformSource(Rotator); }
 KZ_SYSTEM_FORCEINLINE FKzTransformSource	UKzSystemLibrary::Conv_TransformToKzTransformSource(const FTransform& Source) { return FKzTransformSource(Source); }
-KZ_SYSTEM_FORCEINLINE FKzTransformSource	UKzSystemLibrary::Conv_ActorToKzTransformSource(const AActor* Actor) { return FKzTransformSource(Actor, FVector::ZeroVector); }
-KZ_SYSTEM_FORCEINLINE FKzTransformSource	UKzSystemLibrary::Conv_SceneComponentToKzTransformSource(const USceneComponent* Component, const FName SocketName) { return FKzTransformSource(Component, SocketName, FVector::ZeroVector); }
+KZ_SYSTEM_FORCEINLINE FKzTransformSource	UKzSystemLibrary::Conv_ActorToKzTransformSource(const AActor* Actor) { return FKzTransformSource(Actor); }
+KZ_SYSTEM_FORCEINLINE FKzTransformSource	UKzSystemLibrary::Conv_SceneComponentToKzTransformSource(const USceneComponent* Component, const FName SocketName) { return FKzTransformSource(Component, SocketName); }
 
 // === FKzComponentSocketReference ===
 
