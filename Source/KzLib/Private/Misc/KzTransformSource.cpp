@@ -259,6 +259,23 @@ const USceneComponent* FKzTransformSource::GetSceneComponent() const
 	return nullptr;
 }
 
+FVector FKzTransformSource::GetVelocity() const
+{
+	switch (SourceType)
+	{
+	case EKzTransformSourceType::Actor:
+	{
+		return SourceActor ? SourceActor->GetVelocity() : FVector::ZeroVector;
+	}
+	case EKzTransformSourceType::Scene:
+	{
+		return SourceComponent ? SourceComponent->ComponentVelocity : FVector::ZeroVector;
+	}
+	}
+
+	return FVector::ZeroVector;
+}
+
 void FKzTransformSource::Invalidate()
 {
 	*this = FKzTransformSource();

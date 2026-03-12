@@ -154,6 +154,9 @@ struct KZLIB_API FKzTransformSource
 	/** Returns the referenced scene component, if any. */
 	const USceneComponent* GetSceneComponent() const;
 
+	/** Resolves the world-space velocity. */
+	FVector GetVelocity() const;
+
 	/** Whether this transform source is valid. */
 	bool IsValid() const { return SourceType != EKzTransformSourceType::Invalid; }
 
