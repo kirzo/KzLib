@@ -27,10 +27,22 @@ struct FKzVectorAccumulator
 		TotalWeight = 0.0f;
 	}
 
-	/** Returns the normalized average vector. */
-	FVector Get() const
+	/** Resolves the accumulator and returns the average vector. */
+	FVector Resolve() const
 	{
 		return IsValid() ? Accumulated / TotalWeight : FVector::ZeroVector;
+	}
+
+	/** Resolves the accumulator and returns it as a safe normalized direction vector. */
+	FVector ResolveDirection() const
+	{
+		return Resolve().GetSafeNormal();
+	}
+
+	/** Resolves the accumulator and returns it as a safe normalized 2D direction vector. */
+	FVector ResolveDirection2D() const
+	{
+		return Resolve().GetSafeNormal2D();
 	}
 
 	/** Returns the total accumulated weight. */
@@ -114,7 +126,7 @@ struct FKzVectorAccumulator
 		*/
 	bool operator==(const FKzVectorAccumulator& V) const
 	{
-		return Get() == V.Get();
+		return Resolve() == V.Resolve();
 	}
 
 	/**
@@ -125,7 +137,7 @@ struct FKzVectorAccumulator
 		*/
 	bool operator!=(const FKzVectorAccumulator& V) const
 	{
-		return Get() != V.Get();
+		return Resolve() != V.Resolve();
 	}
 
 	/** Adds a vector with unit weight (equivalent to AddWeighted with weight = 1). */
@@ -135,8 +147,16 @@ struct FKzVectorAccumulator
 		return *this;
 	}
 
-	/** Allows implicit conversion to TVector<T>, returning the averaged vector. */
-	operator FVector() const { return Get(); }
+	/** Allows implicit conversion to FVector, returning the averaged vector. */
+	operator FVector() const { return Resolve(); }
+
+	FVector operator+(const FVector& Other) const { return Resolve() + Other; }
+	FVector operator-(const FVector& Other) const { return Resolve() - Other; }
+	FVector operator*(float Scalar) const { return Resolve() * Scalar; }
+	FVector operator/(float Scalar) const { return Resolve() / Scalar; }
+	friend FVector operator+(const FVector& Lhs, const FKzVectorAccumulator& Rhs) { return Lhs + Rhs.Resolve(); }
+	friend FVector operator-(const FVector& Lhs, const FKzVectorAccumulator& Rhs) { return Lhs - Rhs.Resolve(); }
+	friend FVector operator*(float Scalar, const FKzVectorAccumulator& Rhs) { return Scalar * Rhs.Resolve(); }
 
 private:
 	/** Accumulated vector sum for averaging. */

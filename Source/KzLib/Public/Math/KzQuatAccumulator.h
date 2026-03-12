@@ -28,8 +28,8 @@ struct FKzQuatAccumulator
 		TotalWeight = 0.0f;
 	}
 
-	/** Returns the normalized average quaternion. */
-	FQuat Get() const
+	/** Resolves the accumulator and returns the average quat. */
+	FQuat Resolve() const
 	{
 		return IsValid() ? Accumulated.GetNormalized() : FQuat::Identity;
 	}
@@ -146,7 +146,7 @@ struct FKzQuatAccumulator
 		*/
 	bool operator==(const FKzQuatAccumulator& V) const
 	{
-		return Get() == V.Get();
+		return Resolve() == V.Resolve();
 	}
 
 	/**
@@ -157,7 +157,7 @@ struct FKzQuatAccumulator
 		*/
 	bool operator!=(const FKzQuatAccumulator& V) const
 	{
-		return Get() != V.Get();
+		return Resolve() != V.Resolve();
 	}
 
 	/** Adds a quaternion with unit weight (equivalent to AddWeighted with weight = 1). */
@@ -168,7 +168,19 @@ struct FKzQuatAccumulator
 	}
 
 	/** Allows implicit conversion to FQuat, returning the averaged quaternion. */
-	operator FQuat() const { return Get(); }
+	operator FQuat() const { return Resolve(); }
+	operator FRotator() const { return Resolve().Rotator(); }
+
+	FQuat operator*(const FQuat& Other) const { return Resolve() * Other; }
+	FVector operator*(const FVector& V) const { return Resolve() * V; }
+	FQuat operator+(const FQuat& Other) const { return Resolve() + Other; }
+	FQuat operator-(const FQuat& Other) const { return Resolve() - Other; }
+	FQuat operator*(float Scalar) const { return Resolve() * Scalar; }
+	FQuat operator/(float Scalar) const { return Resolve() / Scalar; }
+	friend FQuat operator*(const FQuat& Lhs, const FKzQuatAccumulator& Rhs) { return Lhs * Rhs.Resolve(); }
+	friend FQuat operator+(const FQuat& Lhs, const FKzQuatAccumulator& Rhs) { return Lhs + Rhs.Resolve(); }
+	friend FQuat operator-(const FQuat& Lhs, const FKzQuatAccumulator& Rhs) { return Lhs - Rhs.Resolve(); }
+	friend FQuat operator*(float Scalar, const FKzQuatAccumulator& Rhs) { return Scalar * Rhs.Resolve(); }
 
 	bool Identical(const FKzQuatAccumulator* Q, const uint32 PortFlags) const
 	{

@@ -174,13 +174,13 @@ void UKzMathLibrary::AppendRotatorsWeighted(FKzQuatAccumulator& Accumulator, con
 KZ_MATH_FORCEINLINE
 FRotator UKzMathLibrary::GetAverageRotator(const FKzQuatAccumulator& Accumulator)
 {
-	return Accumulator.Get().Rotator();
+	return Accumulator;
 }
 
 KZ_MATH_FORCEINLINE
 FRotator UKzMathLibrary::Conv_QuatAccumulatorToRotator(const FKzQuatAccumulator& Accumulator)
 {
-	return Accumulator.Get().Rotator();
+	return Accumulator;
 }
 
 KZ_MATH_FORCEINLINE
