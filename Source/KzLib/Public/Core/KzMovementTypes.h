@@ -15,6 +15,9 @@ enum class EKzTargetVerticalAlignment : uint8
 	/** Treats the target location as the floor level and adds the character's capsule half-height. */
 	AlignFeetToTarget   UMETA(DisplayName = "Align Feet To Target (Add Capsule Height)"),
 
+	/** Traces down from the target location to find the actual floor, then adds the capsule half-height. */
+	AlignFeetToFloor    UMETA(DisplayName = "Align Feet To Floor (Trace & Add Capsule Height)"),
+
 	/** Ignores the target's Z value and maintains the actor's current Z height. */
 	KeepStartZ          UMETA(DisplayName = "Maintain Start Z")
 };
