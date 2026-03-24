@@ -93,7 +93,7 @@ void FKzComponentSocketReferenceCustomization::GetAllowedComponentClasses(TArray
 		return;
 	}
 
-	const FString& AllowedClassesMeta = StructPropertyHandle->GetProperty()->GetMetaData(TEXT("AllowedClasses"));
+	const FString& AllowedClassesMeta = StructPropertyHandle->GetMetaData(TEXT("AllowedClasses"));
 	if (AllowedClassesMeta.IsEmpty())
 	{
 		return;
@@ -134,7 +134,7 @@ void FKzComponentSocketReferenceCustomization::GetMustImplementInterfaces(TArray
 		return;
 	}
 
-	const FString& MustImplementMeta = StructPropertyHandle->GetProperty()->GetMetaData(TEXT("MustImplement"));
+	const FString& MustImplementMeta = StructPropertyHandle->GetMetaData(TEXT("MustImplement"));
 	if (MustImplementMeta.IsEmpty())
 	{
 		return;
@@ -176,11 +176,7 @@ void FKzComponentSocketReferenceCustomization::CustomizeHeader(TSharedRef<IPrope
 		OverrideActorHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FKzComponentSocketReferenceCustomization::OnOverrideActorChanged));
 	}
 
-	bool bHideSocket = false;
-	if (const FProperty* Prop = PropertyHandle->GetProperty())
-	{
-		bHideSocket = Prop->HasMetaData(TEXT("NoSocket"));
-	}
+	bool bHideSocket = PropertyHandle->HasMetaData(TEXT("NoSocket"));
 
 	// If NoSocket is requested, ensure the underlying data is cleared to avoid confusion
 	// (Optional safety step, though mostly visual hiding is enough)
@@ -303,11 +299,7 @@ void FKzComponentSocketReferenceCustomization::CustomizeHeader(TSharedRef<IPrope
 void FKzComponentSocketReferenceCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> PropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils)
 {
 	// Check Metadata "NoOffset"
-	bool bHideOffset = false;
-	if (const FProperty* Prop = PropertyHandle->GetProperty())
-	{
-		bHideOffset = Prop->HasMetaData(TEXT("NoOffset"));
-	}
+	bool bHideOffset = PropertyHandle->HasMetaData(TEXT("NoOffset"));
 
 	// Resolve Context for "OverrideActor" visibility
 	bool bIsInstance = false;
