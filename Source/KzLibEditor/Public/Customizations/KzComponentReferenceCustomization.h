@@ -12,10 +12,10 @@ class AActor;
 class USceneComponent;
 
 /**
- * Customization for FKzComponentSocketReference.
+ * Customization for FKzComponentReference.
  * Provides dropdowns for Component selection (parsing SCS for blueprints) and Socket selection.
  */
-class FKzComponentSocketReferenceCustomization : public IPropertyTypeCustomization
+class FKzComponentReferenceCustomization : public IPropertyTypeCustomization
 {
 public:
 	static TSharedRef<IPropertyTypeCustomization> MakeInstance();
@@ -55,6 +55,12 @@ private:
 	void BuildComponentList(TArray<FName>& OutNames);
 	USceneComponent* FindComponentByName(FName Name) const;
 	void OnOverrideActorChanged();
+
+	/**
+	 * Helper that copies the entire struct, applies a modification, and writes it back as a full string.
+	 * This prevents TSet hash corruption by forcing the Property System to do a full Remove+Add cycle.
+	 */
+	void ApplyFullStructUpdate(TFunctionRef<void(void*, UStruct*)> UpdateLogic);
 
 	// -- Property Handles --
 	TSharedPtr<IPropertyHandle> StructPropertyHandle;

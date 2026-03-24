@@ -1,11 +1,11 @@
 // Copyright 2026 kirzo
 
-#include "Components/KzComponentSocketReference.h"
+#include "Components/KzComponentReference.h"
 #include "UObject/UnrealType.h"
 #include "GameFramework/Actor.h"
 #include "Components/SceneComponent.h"
 
-USceneComponent* FKzComponentSocketReference::FindComponentInActor(const AActor* InActor, FName InName) const
+USceneComponent* FKzComponentReference::FindComponentInActor(const AActor* InActor, FName InName) const
 {
 	if (!InActor) return nullptr;
 
@@ -65,7 +65,7 @@ USceneComponent* FKzComponentSocketReference::FindComponentInActor(const AActor*
 	return nullptr;
 }
 
-USceneComponent* FKzComponentSocketReference::GetComponent(const UObject* ContextObject) const
+USceneComponent* FKzComponentReference::GetComponent(const UObject* ContextObject) const
 {
 	// Determine priority: OverrideActor takes precedence.
 	if (OverrideActor)

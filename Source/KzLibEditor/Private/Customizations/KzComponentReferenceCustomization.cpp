@@ -1,7 +1,7 @@
 // Copyright 2026 kirzo
 
-#include "Customizations/KzComponentSocketReferenceCustomization.h"
-#include "Components/KzComponentSocketReference.h"
+#include "Customizations/KzComponentReferenceCustomization.h"
+#include "Components/KzComponentReference.h"
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"
 #include "IDetailChildrenBuilder.h"
@@ -12,14 +12,14 @@
 #include "GameFramework/Actor.h"
 #include "Engine/BlueprintGeneratedClass.h"
 
-#define LOCTEXT_NAMESPACE "KzComponentSocketReferenceCustomization"
+#define LOCTEXT_NAMESPACE "KzComponentReferenceCustomization"
 
-TSharedRef<IPropertyTypeCustomization> FKzComponentSocketReferenceCustomization::MakeInstance()
+TSharedRef<IPropertyTypeCustomization> FKzComponentReferenceCustomization::MakeInstance()
 {
-	return MakeShareable(new FKzComponentSocketReferenceCustomization());
+	return MakeShareable(new FKzComponentReferenceCustomization());
 }
 
-AActor* FKzComponentSocketReferenceCustomization::ResolveActorContext(UObject* Obj) const
+AActor* FKzComponentReferenceCustomization::ResolveActorContext(UObject* Obj) const
 {
 	UObject* Current = Obj;
 
@@ -60,7 +60,7 @@ AActor* FKzComponentSocketReferenceCustomization::ResolveActorContext(UObject* O
 	return nullptr;
 }
 
-AActor* FKzComponentSocketReferenceCustomization::GetTargetActor() const
+AActor* FKzComponentReferenceCustomization::GetTargetActor() const
 {
 	// Check Override Actor (Highest Priority - Instance Only)
 	UObject* OverrideObj = nullptr;
@@ -84,7 +84,7 @@ AActor* FKzComponentSocketReferenceCustomization::GetTargetActor() const
 	return nullptr;
 }
 
-void FKzComponentSocketReferenceCustomization::GetAllowedComponentClasses(TArray<UClass*>& OutClasses) const
+void FKzComponentReferenceCustomization::GetAllowedComponentClasses(TArray<UClass*>& OutClasses) const
 {
 	OutClasses.Reset();
 
@@ -125,7 +125,7 @@ void FKzComponentSocketReferenceCustomization::GetAllowedComponentClasses(TArray
 	}
 }
 
-void FKzComponentSocketReferenceCustomization::GetMustImplementInterfaces(TArray<UClass*>& OutInterfaces) const
+void FKzComponentReferenceCustomization::GetMustImplementInterfaces(TArray<UClass*>& OutInterfaces) const
 {
 	OutInterfaces.Reset();
 
@@ -162,25 +162,27 @@ void FKzComponentSocketReferenceCustomization::GetMustImplementInterfaces(TArray
 	}
 }
 
-void FKzComponentSocketReferenceCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> PropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& CustomizationUtils)
+void FKzComponentReferenceCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> PropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& CustomizationUtils)
 {
 	StructPropertyHandle = PropertyHandle;
-	OverrideActorHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FKzComponentSocketReference, OverrideActor));
-	ComponentNameHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FKzComponentSocketReference, ComponentName));
+	OverrideActorHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FKzComponentReference, OverrideActor));
+	ComponentNameHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FKzComponentReference, ComponentName));
+
+	// These might be invalid if the struct is just an FKzComponentReference
 	SocketNameHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FKzComponentSocketReference, SocketName));
 	RelativeLocationHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FKzComponentSocketReference, RelativeLocation));
 	RelativeRotationHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FKzComponentSocketReference, RelativeRotation));
 
 	if (OverrideActorHandle.IsValid())
 	{
-		OverrideActorHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FKzComponentSocketReferenceCustomization::OnOverrideActorChanged));
+		OverrideActorHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FKzComponentReferenceCustomization::OnOverrideActorChanged));
 	}
 
-	bool bHideSocket = PropertyHandle->HasMetaData(TEXT("NoSocket"));
+	// Determine if Sockets should be hidden either by metadata or because the struct doesn't have the property
+	bool bHideSocket = PropertyHandle->HasMetaData(TEXT("NoSocket")) || !SocketNameHandle.IsValid();
 
-	// If NoSocket is requested, ensure the underlying data is cleared to avoid confusion
-	// (Optional safety step, though mostly visual hiding is enough)
-	if (bHideSocket)
+	// If NoSocket is requested but the struct HAS a socket property, clear it safely
+	if (bHideSocket && SocketNameHandle.IsValid())
 	{
 		FName CurrentSocket;
 		SocketNameHandle->GetValue(CurrentSocket);
@@ -215,7 +217,7 @@ void FKzComponentSocketReferenceCustomization::CustomizeHeader(TSharedRef<IPrope
 			[
 				SNew(SImage)
 					.Image(FAppStyle::GetBrush("Icons.WarningWithColor"))
-					.Visibility(this, &FKzComponentSocketReferenceCustomization::GetComponentWarningVisibility)
+					.Visibility(this, &FKzComponentReferenceCustomization::GetComponentWarningVisibility)
 					.ToolTipText(LOCTEXT("CompNotFoundTooltip", "Component not found! It may have been renamed or deleted."))
 			];
 
@@ -225,11 +227,11 @@ void FKzComponentSocketReferenceCustomization::CustomizeHeader(TSharedRef<IPrope
 			.Padding(0.0f, 0.0f, 4.0f, 0.0f)
 			[
 				SNew(SComboButton)
-					.OnGetMenuContent(this, &FKzComponentSocketReferenceCustomization::OnGetComponentsMenu)
+					.OnGetMenuContent(this, &FKzComponentReferenceCustomization::OnGetComponentsMenu)
 					.ButtonContent()
 					[
 						SNew(STextBlock)
-							.Text(this, &FKzComponentSocketReferenceCustomization::GetCurrentComponentName)
+							.Text(this, &FKzComponentReferenceCustomization::GetCurrentComponentName)
 							.Font(IDetailLayoutBuilder::GetDetailFont())
 					]
 			];
@@ -243,7 +245,7 @@ void FKzComponentSocketReferenceCustomization::CustomizeHeader(TSharedRef<IPrope
 				[
 					SNew(SImage)
 						.Image(FAppStyle::GetBrush("Icons.WarningWithColor"))
-						.Visibility(this, &FKzComponentSocketReferenceCustomization::GetSocketWarningVisibility)
+						.Visibility(this, &FKzComponentReferenceCustomization::GetSocketWarningVisibility)
 						.ToolTipText(LOCTEXT("SocketNotFoundTooltip", "Socket not found on the selected component!"))
 				];
 
@@ -252,12 +254,12 @@ void FKzComponentSocketReferenceCustomization::CustomizeHeader(TSharedRef<IPrope
 				.VAlign(VAlign_Center)
 				[
 					SNew(SComboButton)
-						.Visibility(this, &FKzComponentSocketReferenceCustomization::GetSocketVisibility)
-						.OnGetMenuContent(this, &FKzComponentSocketReferenceCustomization::OnGetSocketsMenu)
+						.Visibility(this, &FKzComponentReferenceCustomization::GetSocketVisibility)
+						.OnGetMenuContent(this, &FKzComponentReferenceCustomization::OnGetSocketsMenu)
 						.ButtonContent()
 						[
 							SNew(STextBlock)
-								.Text(this, &FKzComponentSocketReferenceCustomization::GetCurrentSocketName)
+								.Text(this, &FKzComponentReferenceCustomization::GetCurrentSocketName)
 								.Font(IDetailLayoutBuilder::GetDetailFont())
 						]
 				];
@@ -296,10 +298,12 @@ void FKzComponentSocketReferenceCustomization::CustomizeHeader(TSharedRef<IPrope
 		];
 }
 
-void FKzComponentSocketReferenceCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> PropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils)
+void FKzComponentReferenceCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> PropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils)
 {
-	// Check Metadata "NoOffset"
-	bool bHideOffset = PropertyHandle->HasMetaData(TEXT("NoOffset"));
+	// Hide offset if metadata says so, or if the properties simply do not exist in the struct
+	bool bHideOffset = PropertyHandle->HasMetaData(TEXT("NoOffset")) ||
+		!RelativeLocationHandle.IsValid() ||
+		!RelativeRotationHandle.IsValid();
 
 	// Resolve Context for "OverrideActor" visibility
 	bool bIsInstance = false;
@@ -321,25 +325,29 @@ void FKzComponentSocketReferenceCustomization::CustomizeChildren(TSharedRef<IPro
 	// Relative Location & Rotation (Only if NoOffset is NOT present)
 	if (!bHideOffset)
 	{
-		if (RelativeLocationHandle.IsValid())
-		{
-			ChildBuilder.AddProperty(RelativeLocationHandle.ToSharedRef());
-		}
-
-		if (RelativeRotationHandle.IsValid())
-		{
-			ChildBuilder.AddProperty(RelativeRotationHandle.ToSharedRef());
-		}
+		ChildBuilder.AddProperty(RelativeLocationHandle.ToSharedRef());
+		ChildBuilder.AddProperty(RelativeRotationHandle.ToSharedRef());
 	}
 }
 
-void FKzComponentSocketReferenceCustomization::OnOverrideActorChanged()
+void FKzComponentReferenceCustomization::OnOverrideActorChanged()
 {
-	ComponentNameHandle->SetValue(FName(NAME_None));
-	SocketNameHandle->SetValue(FName(NAME_None));
+	// The Property System just changed the Actor pointer correctly. 
+	// We just need to wipe the Component and Socket to avoid dangling references.
+	ApplyFullStructUpdate([](void* Data, UStruct* Type)
+		{
+			if (FProperty* CompProp = Type->FindPropertyByName(TEXT("ComponentName")))
+			{
+				*CompProp->ContainerPtrToValuePtr<FName>(Data) = NAME_None;
+			}
+			if (FProperty* SocketProp = Type->FindPropertyByName(TEXT("SocketName")))
+			{
+				*SocketProp->ContainerPtrToValuePtr<FName>(Data) = NAME_None;
+			}
+		});
 }
 
-void FKzComponentSocketReferenceCustomization::BuildComponentList(TArray<FName>& OutNames)
+void FKzComponentReferenceCustomization::BuildComponentList(TArray<FName>& OutNames)
 {
 	AActor* Target = GetTargetActor();
 	if (!Target) return;
@@ -513,7 +521,7 @@ void FKzComponentSocketReferenceCustomization::BuildComponentList(TArray<FName>&
 	CollectFromActor(Target, TEXT(""));
 }
 
-TSharedRef<SWidget> FKzComponentSocketReferenceCustomization::OnGetComponentsMenu()
+TSharedRef<SWidget> FKzComponentReferenceCustomization::OnGetComponentsMenu()
 {
 	FMenuBuilder MenuBuilder(true, nullptr);
 
@@ -524,7 +532,7 @@ TSharedRef<SWidget> FKzComponentSocketReferenceCustomization::OnGetComponentsMen
 		LOCTEXT("None", "None"),
 		LOCTEXT("NoneTooltip", "Clear component reference"),
 		FSlateIcon(),
-		FUIAction(FExecuteAction::CreateSP(this, &FKzComponentSocketReferenceCustomization::OnComponentSelected, FName(NAME_None)))
+		FUIAction(FExecuteAction::CreateSP(this, &FKzComponentReferenceCustomization::OnComponentSelected, FName(NAME_None)))
 	);
 
 	MenuBuilder.AddSeparator();
@@ -535,25 +543,33 @@ TSharedRef<SWidget> FKzComponentSocketReferenceCustomization::OnGetComponentsMen
 			FText::FromName(Name),
 			FText::GetEmpty(),
 			FSlateIcon(),
-			FUIAction(FExecuteAction::CreateSP(this, &FKzComponentSocketReferenceCustomization::OnComponentSelected, Name))
+			FUIAction(FExecuteAction::CreateSP(this, &FKzComponentReferenceCustomization::OnComponentSelected, Name))
 		);
 	}
 
 	return MenuBuilder.MakeWidget();
 }
 
-void FKzComponentSocketReferenceCustomization::OnComponentSelected(FName InName)
+void FKzComponentReferenceCustomization::OnComponentSelected(FName InName)
 {
 	FName CurrentName;
 	ComponentNameHandle->GetValue(CurrentName);
-
 	if (CurrentName == InName) return;
 
-	ComponentNameHandle->SetValue(InName);
-	SocketNameHandle->SetValue(FName(NAME_None));
+	ApplyFullStructUpdate([InName](void* Data, UStruct* Type)
+		{
+			if (FProperty* CompProp = Type->FindPropertyByName(TEXT("ComponentName")))
+			{
+				*CompProp->ContainerPtrToValuePtr<FName>(Data) = InName;
+			}
+			if (FProperty* SocketProp = Type->FindPropertyByName(TEXT("SocketName")))
+			{
+				*SocketProp->ContainerPtrToValuePtr<FName>(Data) = NAME_None;
+			}
+		});
 }
 
-FText FKzComponentSocketReferenceCustomization::GetCurrentComponentName() const
+FText FKzComponentReferenceCustomization::GetCurrentComponentName() const
 {
 	FName CurrentName;
 	ComponentNameHandle->GetValue(CurrentName);
@@ -655,7 +671,7 @@ FText FKzComponentSocketReferenceCustomization::GetCurrentComponentName() const
 	return LOCTEXT("SelectComponent", "Select Component...");
 }
 
-EVisibility FKzComponentSocketReferenceCustomization::GetComponentWarningVisibility() const
+EVisibility FKzComponentReferenceCustomization::GetComponentWarningVisibility() const
 {
 	FName CurrentName;
 	if (ComponentNameHandle->GetValue(CurrentName) != FPropertyAccess::Success)
@@ -676,7 +692,7 @@ EVisibility FKzComponentSocketReferenceCustomization::GetComponentWarningVisibil
 	return FoundComp ? EVisibility::Collapsed : EVisibility::Visible;
 }
 
-USceneComponent* FKzComponentSocketReferenceCustomization::FindComponentByName(FName Name) const
+USceneComponent* FKzComponentReferenceCustomization::FindComponentByName(FName Name) const
 {
 	if (Name.IsNone()) return nullptr;
 
@@ -803,7 +819,7 @@ USceneComponent* FKzComponentSocketReferenceCustomization::FindComponentByName(F
 	return nullptr;
 }
 
-TSharedRef<SWidget> FKzComponentSocketReferenceCustomization::OnGetSocketsMenu()
+TSharedRef<SWidget> FKzComponentReferenceCustomization::OnGetSocketsMenu()
 {
 	FMenuBuilder MenuBuilder(true, nullptr);
 
@@ -819,7 +835,7 @@ TSharedRef<SWidget> FKzComponentSocketReferenceCustomization::OnGetSocketsMenu()
 			LOCTEXT("NoSocket", "None (Component Origin)"),
 			LOCTEXT("NoSocketTooltip", "Use the component's pivot"),
 			FSlateIcon(),
-			FUIAction(FExecuteAction::CreateSP(this, &FKzComponentSocketReferenceCustomization::OnSocketSelected, FName(NAME_None)))
+			FUIAction(FExecuteAction::CreateSP(this, &FKzComponentReferenceCustomization::OnSocketSelected, FName(NAME_None)))
 		);
 
 		MenuBuilder.AddSeparator();
@@ -830,7 +846,7 @@ TSharedRef<SWidget> FKzComponentSocketReferenceCustomization::OnGetSocketsMenu()
 				FText::FromName(Socket),
 				FText::GetEmpty(),
 				FSlateIcon(),
-				FUIAction(FExecuteAction::CreateSP(this, &FKzComponentSocketReferenceCustomization::OnSocketSelected, Socket))
+				FUIAction(FExecuteAction::CreateSP(this, &FKzComponentReferenceCustomization::OnSocketSelected, Socket))
 			);
 		}
 	}
@@ -838,26 +854,36 @@ TSharedRef<SWidget> FKzComponentSocketReferenceCustomization::OnGetSocketsMenu()
 	return MenuBuilder.MakeWidget();
 }
 
-void FKzComponentSocketReferenceCustomization::OnSocketSelected(FName InName)
+void FKzComponentReferenceCustomization::OnSocketSelected(FName InName)
 {
-	SocketNameHandle->SetValue(InName);
+	FName CurrentName;
+	SocketNameHandle->GetValue(CurrentName);
+	if (CurrentName == InName) return;
+
+	ApplyFullStructUpdate([InName](void* Data, UStruct* Type)
+		{
+			if (FProperty* SocketProp = Type->FindPropertyByName(TEXT("SocketName")))
+			{
+				*SocketProp->ContainerPtrToValuePtr<FName>(Data) = InName;
+			}
+		});
 }
 
-FText FKzComponentSocketReferenceCustomization::GetCurrentSocketName() const
+FText FKzComponentReferenceCustomization::GetCurrentSocketName() const
 {
 	FName Val;
 	SocketNameHandle->GetValue(Val);
 	return Val.IsNone() ? LOCTEXT("SelectSocket", "Select Socket...") : FText::FromName(Val);
 }
 
-EVisibility FKzComponentSocketReferenceCustomization::GetSocketVisibility() const
+EVisibility FKzComponentReferenceCustomization::GetSocketVisibility() const
 {
 	FName Val;
 	ComponentNameHandle->GetValue(Val);
 	return Val.IsNone() ? EVisibility::Collapsed : EVisibility::Visible;
 }
 
-EVisibility FKzComponentSocketReferenceCustomization::GetSocketWarningVisibility() const
+EVisibility FKzComponentReferenceCustomization::GetSocketWarningVisibility() const
 {
 	FName CurrentSocketName;
 	if (SocketNameHandle->GetValue(CurrentSocketName) != FPropertyAccess::Success)
@@ -891,6 +917,39 @@ EVisibility FKzComponentSocketReferenceCustomization::GetSocketWarningVisibility
 
 	// 4. Warning: Socket name not found on this component
 	return EVisibility::Visible;
+}
+
+void FKzComponentReferenceCustomization::ApplyFullStructUpdate(TFunctionRef<void(void*, UStruct*)> UpdateLogic)
+{
+	TArray<void*> RawData;
+	StructPropertyHandle->AccessRawData(RawData);
+
+	if (RawData.Num() != 1 || !RawData[0])
+	{
+		return;
+	}
+
+	FStructProperty* StructProp = CastField<FStructProperty>(StructPropertyHandle->GetProperty());
+	if (!StructProp) return;
+
+	// 1. Allocate a temporary copy of the struct
+	void* StructCopy = FMemory::Malloc(StructProp->Struct->GetStructureSize());
+	StructProp->Struct->InitializeStruct(StructCopy);
+	StructProp->Struct->CopyScriptStruct(StructCopy, RawData[0]);
+
+	// 2. Apply the specific property changes to our copy
+	UpdateLogic(StructCopy, StructProp->Struct);
+
+	// 3. Export the entire struct back to an Unreal-formatted string
+	FString FormattedString;
+	StructProp->Struct->ExportText(FormattedString, StructCopy, nullptr, nullptr, PPF_None, nullptr);
+
+	// 4. Inject it back. For TSets, this forces a full re-hash and instantly eliminates duplicates
+	StructPropertyHandle->SetValueFromFormattedString(FormattedString);
+
+	// 5. Cleanup memory
+	StructProp->Struct->DestroyStruct(StructCopy);
+	FMemory::Free(StructCopy);
 }
 
 #undef LOCTEXT_NAMESPACE

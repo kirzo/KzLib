@@ -10,8 +10,8 @@
 #include "Core/KzDatabase.h"
 #include "Customizations/KzDatabaseCustomization.h"
 
-#include "Components/KzComponentSocketReference.h"
-#include "Customizations/KzComponentSocketReferenceCustomization.h"
+#include "Components/KzComponentReference.h"
+#include "Customizations/KzComponentReferenceCustomization.h"
 
 #include "Actors/KzActorGroup.h"
 #include "ComponentVisualizers/KzActorGroupVisualizer.h"
@@ -23,7 +23,8 @@ void FKzLibEditorModule::OnStartupModule()
 	RegisterPropertyLayout<FKzParamDef, FKzParamDefCustomization>();
 	RegisterPropertyLayout<FKzDatabase, FKzDatabaseCustomization>();
 	RegisterPropertyLayout<FKzDatabaseItem, FKzDatabaseItemCustomization>();
-	RegisterPropertyLayout<FKzComponentSocketReference, FKzComponentSocketReferenceCustomization>();
+	RegisterPropertyLayout<FKzComponentReference, FKzComponentReferenceCustomization>();
+	RegisterPropertyLayout<FKzComponentSocketReference, FKzComponentReferenceCustomization>();
 
 	RegisterComponentVisualizer<UKzActorGroupComponent, FKzActorGroupVisualizer>();
 }

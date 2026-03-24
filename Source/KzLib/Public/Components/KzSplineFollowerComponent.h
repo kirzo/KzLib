@@ -4,7 +4,7 @@
 
 #include "KzLibMinimal.h"
 #include "Components/ActorComponent.h"
-#include "Components/KzComponentSocketReference.h"
+#include "Components/KzComponentReference.h"
 #include "KzSplineFollowerComponent.generated.h"
 
 class USplineComponent;
@@ -19,12 +19,12 @@ class KZLIB_API UKzSplineFollowerComponent : public UActorComponent
 
 public:
 	/** The component that will be moved along the spline. If empty, the Owner's RootComponent will be used. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SplineFollower", meta = (NoSocket, NoOffset))
-	FKzComponentSocketReference TargetComponentRef;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SplineFollower")
+	FKzComponentReference TargetComponentRef;
 
 	/** The Spline to follow. If empty, it will search for the first USplineComponent in the Owner. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SplineFollower", meta = (NoSocket, NoOffset, AllowedClasses = "/Script/Engine.SplineComponent"))
-	FKzComponentSocketReference SplineComponentRef;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SplineFollower", meta = (AllowedClasses = "/Script/Engine.SplineComponent"))
+	FKzComponentReference SplineComponentRef;
 
 	/** Normalized starting position on the spline (0.0 to 1.0). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SplineFollower", meta = (ClampMin = "0", ClampMax = "1"))

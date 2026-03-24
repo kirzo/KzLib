@@ -2,7 +2,7 @@
 
 #include "KzSystemLibrary.h"
 #include "Misc/KzTransformSource.h"
-#include "Components/KzComponentSocketReference.h"
+#include "Components/KzComponentReference.h"
 
 #pragma once
 
