@@ -2,16 +2,15 @@
 
 using UnrealBuildTool;
 
-public class KzLibEditor : ModuleRules
+public class KzLibUncooked : ModuleRules
 {
-	public KzLibEditor(ReadOnlyTargetRules Target) : base(Target)
+	public KzLibUncooked(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 
 		PublicDependencyModuleNames.AddRange(
 			new string[] {
-				"KzLib",
-				"ComponentVisualizers"
+				"KzLib"
 			});
 
 		PrivateDependencyModuleNames.AddRange(
@@ -19,13 +18,8 @@ public class KzLibEditor : ModuleRules
 				"Core",
 				"CoreUObject",
 				"Engine",
-				"Slate",
-				"SlateCore",
 				"UnrealEd",
-				"PropertyEditor",
-				"BlueprintGraph",
-				"KismetWidgets",
-				"KzLibUncooked"
+				"BlueprintGraph"
 			});
 	}
 }

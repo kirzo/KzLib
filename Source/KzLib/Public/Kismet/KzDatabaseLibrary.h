@@ -7,6 +7,9 @@
 #include "Core/KzDatabase.h"
 #include "KzDatabaseLibrary.generated.h"
 
+class UKzDatabaseAsset;
+class UKzDatabaseComponent;
+
 UCLASS()
 class KZLIB_API UKzDatabaseLibrary : public UBlueprintFunctionLibrary
 {
@@ -44,6 +47,20 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "KzLib|Database", CustomThunk, meta = (CustomStructureParam = "OutValue"))
 	static bool FindBestMatch(const FKzDatabase& Database, const FKzDatabaseQuery& Query, FName& OutID, int32& OutValue);
 
+	/**
+	 * Internal function used by the EvaluateDatabaseAsset node.
+	 * Evaluates the query against the asset and outputs the result in the wildcard out pin.
+	 */
+	UFUNCTION(BlueprintCallable, CustomThunk, meta = (BlueprintInternalUseOnly = "true", CustomStructureParam = "OutValue"))
+	static bool EvaluateDatabaseAsset(UKzDatabaseAsset* Asset, const FKzDatabaseQuery& Query, int32& OutValue);
+
+	/**
+	 * Internal function used by the ResolveDatabaseQuery node.
+	 * Asks the Database Component to resolve a query and output the matched item based on the pin type.
+	 */
+	UFUNCTION(BlueprintCallable, CustomThunk, meta = (BlueprintInternalUseOnly = "true", CustomStructureParam = "OutValue"))
+	static bool ResolveDatabaseQuery(UKzDatabaseComponent* Component, const FKzDatabaseQuery& Query, int32& OutValue);
+
 private:
 	// --- Internal Thunk Declarations ---
 
@@ -51,4 +68,6 @@ private:
 	DECLARE_FUNCTION(execSetDatabaseItemValue);
 	DECLARE_FUNCTION(execGetDatabaseItemValue);
 	DECLARE_FUNCTION(execFindBestMatch);
+	DECLARE_FUNCTION(execEvaluateDatabaseAsset);
+	DECLARE_FUNCTION(execResolveDatabaseQuery);
 };

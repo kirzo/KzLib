@@ -2,6 +2,8 @@
 
 #include "Kismet/KzDatabaseLibrary.h"
 #include "StructUtils/StructView.h"
+#include "Core/KzDatabaseAsset.h"
+#include "Components/KzDatabaseComponent.h"
 
 // --- Standard Functions ---
 
@@ -282,4 +284,102 @@ DEFINE_FUNCTION(UKzDatabaseLibrary::execFindBestMatch)
 	}
 
 	*(bool*)RESULT_PARAM = bFound;
+}
+
+DEFINE_FUNCTION(UKzDatabaseLibrary::execEvaluateDatabaseAsset)
+{
+	P_GET_OBJECT(UKzDatabaseAsset, Asset);
+	P_GET_STRUCT_REF(FKzDatabaseQuery, Query);
+
+	FProperty* OutValueProp = nullptr;
+	void* OutValuePtr = nullptr;
+	GetWildcardProperty(Stack, OutValueProp, OutValuePtr);
+
+	P_FINISH;
+
+	bool bSuccess = false;
+
+	if (Asset && OutValueProp && OutValuePtr)
+	{
+		if (const FKzDatabaseItem* BestItem = Asset->ResolveMatch(Query))
+		{
+			if (BestItem->IsValid())
+			{
+				static const FName PropName("Data");
+				const UScriptStruct* BagStruct = BestItem->Data.GetPropertyBagStruct();
+				const FProperty* BagProp = BagStruct ? BagStruct->FindPropertyByName(PropName) : nullptr;
+
+				// Type validation (Asset Schema vs Node Pin)
+				if (BagProp && ArePropertiesCompatible(BagProp, OutValueProp))
+				{
+					FConstStructView ConstStruct = BestItem->Data.GetValue();
+					const uint8* SrcPtr = BagProp->ContainerPtrToValuePtr<uint8>(ConstStruct.GetMemory());
+
+					if (SrcPtr)
+					{
+						// Copy memory directly to the Blueprint pin
+						OutValueProp->CopyCompleteValue(OutValuePtr, SrcPtr);
+						bSuccess = true;
+					}
+				}
+				else
+				{
+					FFrame::KismetExecutionMessage(
+						*FString::Printf(TEXT("EvaluateDatabaseAsset: Type mismatch on Asset '%s'. Asset provides '%s', but node pin is '%s'."),
+							*Asset->GetName(), BagProp ? *BagProp->GetCPPType() : TEXT("Unknown"), *OutValueProp->GetCPPType()),
+						ELogVerbosity::Warning
+					);
+				}
+			}
+		}
+	}
+
+	*(bool*)RESULT_PARAM = bSuccess;
+}
+
+DEFINE_FUNCTION(UKzDatabaseLibrary::execResolveDatabaseQuery)
+{
+	P_GET_OBJECT(UKzDatabaseComponent, Component);
+	P_GET_STRUCT_REF(FKzDatabaseQuery, Query);
+
+	FProperty* OutValueProp = nullptr;
+	void* OutValuePtr = nullptr;
+	GetWildcardProperty(Stack, OutValueProp, OutValuePtr);
+
+	P_FINISH;
+
+	bool bSuccess = false;
+
+	if (Component && OutValueProp && OutValuePtr)
+	{
+		FPropertyBagPropertyDesc Desc(NAME_None, OutValueProp);
+		FKzParamDef SearchType(Desc.Name, Desc.ContainerTypes.GetFirstContainerType(), Desc.ValueType, Desc.ValueTypeObject.Get());
+
+		if (UKzDatabaseAsset* Asset = Component->GetDatabaseAsset(SearchType))
+		{
+			if (const FKzDatabaseItem* BestItem = Asset->ResolveMatch(Query))
+			{
+				if (BestItem->IsValid())
+				{
+					static const FName PropName("Data");
+					const UScriptStruct* BagStruct = BestItem->Data.GetPropertyBagStruct();
+					const FProperty* BagProp = BagStruct ? BagStruct->FindPropertyByName(PropName) : nullptr;
+
+					if (BagProp && ArePropertiesCompatible(BagProp, OutValueProp))
+					{
+						FConstStructView ConstStruct = BestItem->Data.GetValue();
+						const uint8* SrcPtr = BagProp->ContainerPtrToValuePtr<uint8>(ConstStruct.GetMemory());
+
+						if (SrcPtr)
+						{
+							OutValueProp->CopyCompleteValue(OutValuePtr, SrcPtr);
+							bSuccess = true;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	*(bool*)RESULT_PARAM = bSuccess;
 }

@@ -10,7 +10,7 @@
 namespace KzLib::Editor
 {
 	/** Helper to convert internal PropertyBag types to Editor Pin Types */
-	FEdGraphPinType PinTypeFromDef(const FKzParamDef& InDef)
+	inline FEdGraphPinType PinTypeFromDef(const FKzParamDef& InDef)
 	{
 		FEdGraphPinType PinType;
 
@@ -87,7 +87,7 @@ namespace KzLib::Editor
 	}
 
 	/** Helper to convert Editor Pin Types to internal PropertyBag types */
-	FKzParamDef DefFromPinType(const FName& Name, const FEdGraphPinType& PinType)
+	inline FKzParamDef DefFromPinType(const FName& Name, const FEdGraphPinType& PinType)
 	{
 		FKzParamDef NewDef;
 		NewDef.Name = Name;
