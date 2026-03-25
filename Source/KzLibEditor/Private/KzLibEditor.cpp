@@ -10,6 +10,8 @@
 #include "Core/KzDatabase.h"
 #include "Customizations/KzDatabaseCustomization.h"
 
+#include "Core/KzDatabaseAsset.h"
+
 #include "Components/KzComponentReference.h"
 #include "Customizations/KzComponentReferenceCustomization.h"
 
@@ -27,6 +29,8 @@ void FKzLibEditorModule::OnStartupModule()
 	RegisterPropertyLayout<FKzComponentSocketReference, FKzComponentReferenceCustomization>();
 
 	RegisterComponentVisualizer<UKzActorGroupComponent, FKzActorGroupVisualizer>();
+
+	RegisterAssetTypeAction<UKzDatabaseAsset>(KzAssetCategoryBit, INVTEXT("Database"), FColor::FromHex("#9B59B6"));
 }
 
 #undef LOCTEXT_NAMESPACE
