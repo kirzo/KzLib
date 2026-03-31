@@ -194,6 +194,52 @@ namespace Kz
 			return Result;
 		}
 
+		// --- Sorting & Retrieval ---
+
+		/**
+		 * Returns an array of pointers to the elements, strictly sorted by the heap rules.
+		 * O(N log N) time complexity.
+		 */
+		TArray<const TEntry*> GetSortedElements() const
+		{
+			TArray<const FPriorityEntry*> Temp;
+			Temp.Reserve(Stack.Num());
+			for (const FPriorityEntry& E : Stack) Temp.Add(&E);
+
+			// Sort by Priority first, then by Sequence (LIFO behavior for identical priorities)
+			Temp.Sort([](const FPriorityEntry& A, const FPriorityEntry& B)
+				{
+					if (A.Priority == B.Priority) return A.Sequence > B.Sequence;
+					return A.Priority > B.Priority;
+				});
+
+			TArray<const TEntry*> Result;
+			Result.Reserve(Temp.Num());
+			for (const FPriorityEntry* E : Temp) Result.Add(&E->Entry);
+
+			return Result;
+		}
+
+		/** Non-const version of GetSortedElements */
+		TArray<TEntry*> GetSortedElements()
+		{
+			TArray<FPriorityEntry*> Temp;
+			Temp.Reserve(Stack.Num());
+			for (FPriorityEntry& E : Stack) Temp.Add(&E);
+
+			Temp.Sort([](const FPriorityEntry& A, const FPriorityEntry& B)
+				{
+					if (A.Priority == B.Priority) return A.Sequence > B.Sequence;
+					return A.Priority > B.Priority;
+				});
+
+			TArray<TEntry*> Result;
+			Result.Reserve(Temp.Num());
+			for (FPriorityEntry* E : Temp) Result.Add(&E->Entry);
+
+			return Result;
+		}
+
 	private:
 
 		struct FPriorityEntry
