@@ -3,9 +3,18 @@
 #pragma once
 
 #include "Math/MathFwd.h"
+#include "Containers/Array.h"
 
 namespace Kz::Geom
 {
+	KZLIB_API float DistanceToLine(const FVector& A, const FVector& B, const FVector& P);
+
+	/** Decimates a polygon by removing intermediate points that form an angle smaller than the threshold. */
+	KZLIB_API TArray<FVector> SimplifyPolygon(TArray<FVector> Polygon, float AngleThreshold = 5.0f);
+
+	KZLIB_API bool IsPointInPolygon2D(const FVector& Point, const TArray<FVector>& Polygon);
+	KZLIB_API FVector GetRandomPointInPolygon2D(const TArray<FVector>& Polygon, const FBox& PolygonBounds, int32 MaxAttempts = 100);
+
 	// === Sphere ===
 
 	KZLIB_API FBox SphereBounds(const FVector& Center, float Radius);

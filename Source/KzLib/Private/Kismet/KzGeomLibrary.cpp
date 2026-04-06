@@ -14,6 +14,8 @@
 #include "Engine/Engine.h"
 #include "Engine/HitResult.h"
 
+#include "Components/SplineComponent.h"
+
 #include "KismetTraceUtils.h"
 #include "KzDrawDebugHelpers.h"
 
@@ -246,9 +248,69 @@ bool UKzGeomLibrary::CylinderIntersectsPoint(const FVector Center, float Radius,
 	return Kz::Geom::CylinderIntersectsPoint(Center, Rotation.Quaternion(), Radius, HalfHeight, Point);
 }
 
+// === Geometry ===
+
 TArray<FVector> UKzGeomLibrary::GetFibonacciSpherePoints(int32 NumSamples, float Radius, const FTransform& Transform)
 {
 	TArray<FVector> Points;
 	Kz::Geom::Sample::FibonacciSphere(NumSamples, Radius, Transform, Points);
 	return Points;
+}
+
+TArray<FVector> UKzGeomLibrary::SplineToPolygon(USplineComponent* SplineComponent, bool bWorldSpace, float DistanceThreshold)
+{
+	TArray<FVector> Polygon;
+	if (!SplineComponent) return Polygon;
+
+	const ESplineCoordinateSpace::Type CoordinateSpace = bWorldSpace ? ESplineCoordinateSpace::World : ESplineCoordinateSpace::Local;
+
+	float IntervalMin = 0.0f;
+	float IntervalMax = 1.0f;
+
+	// Loop protection in case of extremely tight curves or tiny thresholds
+	int32 MaxIterations = 10000;
+
+	while (IntervalMin < IntervalMax && MaxIterations-- > 0)
+	{
+		const FVector A = SplineComponent->GetLocationAtTime(IntervalMin, CoordinateSpace, true);
+		const FVector B = SplineComponent->GetLocationAtTime(IntervalMax, CoordinateSpace, true);
+
+		const float IntervalMid = (IntervalMin + IntervalMax) * 0.5f;
+		const FVector P = SplineComponent->GetLocationAtTime(IntervalMid, CoordinateSpace, true);
+
+		const FVector Dir = (B - A).GetSafeNormal();
+		const FVector Tan = SplineComponent->GetTangentAtTime(IntervalMid, CoordinateSpace, true).GetSafeNormal();
+
+		const float Dist = Kz::Geom::DistanceToLine(A, B, P);
+
+		// If the midpoint is close enough to the chord, and the tangent aligns with the direction, it's flat enough
+		if (Dist < DistanceThreshold && (Dir | Tan) > 0.9988f)
+		{
+			IntervalMin = IntervalMax;
+			IntervalMax = 1.0f;
+
+			Polygon.Add(P);
+		}
+		else
+		{
+			// Needs more detail, subdivide the interval
+			IntervalMax = IntervalMid;
+		}
+	}
+	return Polygon;
+}
+
+TArray<FVector> UKzGeomLibrary::SimplifyPolygon(const TArray<FVector>& Polygon, float AngleThreshold)
+{
+	return Kz::Geom::SimplifyPolygon(Polygon, AngleThreshold);
+}
+
+bool UKzGeomLibrary::IsPointInPolygon2D(const FVector& Point, const TArray<FVector>& Polygon)
+{
+	return Kz::Geom::IsPointInPolygon2D(Point, Polygon);
+}
+
+FVector UKzGeomLibrary::GetRandomPointInPolygon2D(const TArray<FVector>& Polygon, const FBox& PolygonBounds, int32 MaxAttempts)
+{
+	return Kz::Geom::GetRandomPointInPolygon2D(Polygon, PolygonBounds, MaxAttempts);
 }

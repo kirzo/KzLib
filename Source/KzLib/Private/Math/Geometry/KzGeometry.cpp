@@ -7,6 +7,101 @@
 
 namespace Kz::Geom
 {
+	float DistanceToLine(const FVector& A, const FVector& B, const FVector& P)
+	{
+		if (A.Equals(B))
+		{
+			return FVector::Distance(A, P);
+		}
+
+		const FVector PA = P - A;
+		const FVector N = (B - A).GetSafeNormal();
+		return (PA - (PA | N) * N).Size();
+	}
+
+	TArray<FVector> SimplifyPolygon(TArray<FVector> Polygon, float AngleThreshold)
+	{
+		int32 Index = 0;
+		float Angle = 0.0f;
+
+		while (Index < Polygon.Num() - 2)
+		{
+			const FVector P1 = Polygon[Index];
+			const FVector P2 = Polygon[Index + 1];
+			const FVector P3 = Polygon[Index + 2];
+
+			const FVector U = (P2 - P1).GetSafeNormal();
+			const FVector V = (P3 - P1).GetSafeNormal();
+
+			const FVector W = U ^ V;
+
+			Angle += FMath::Sign((W ^ U) | V) * FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(U | V, -1.0f, 1.0f)));
+
+			if (FMath::Abs(Angle) < AngleThreshold)
+			{
+				Polygon.RemoveAt(Index + 1);
+			}
+			else
+			{
+				Index++;
+				Angle = 0.0f;
+			}
+		}
+		return Polygon;
+	}
+
+	bool IsPointInPolygon2D(const FVector& Point, const TArray<FVector>& Polygon)
+	{
+		bool bInside = false;
+		const int32 NumPoints = Polygon.Num();
+
+		if (NumPoints < 3) return false;
+
+		for (int32 i = 0, j = NumPoints - 1; i < NumPoints; j = i++)
+		{
+			const FVector& P1 = Polygon[i];
+			const FVector& P2 = Polygon[j];
+
+			if (Point.Y > FMath::Min(P1.Y, P2.Y))
+			{
+				if (Point.Y <= FMath::Max(P1.Y, P2.Y))
+				{
+					if (Point.X <= FMath::Max(P1.X, P2.X))
+					{
+						if (P1.Y != P2.Y)
+						{
+							float Intersection = (Point.Y - P1.Y) * (P2.X - P1.X) / (P2.Y - P1.Y) + P1.X;
+							if (P1.X == P2.X || Point.X <= Intersection)
+							{
+								bInside = !bInside;
+							}
+						}
+					}
+				}
+			}
+		}
+
+		return bInside;
+	}
+
+	FVector GetRandomPointInPolygon2D(const TArray<FVector>& Polygon, const FBox& PolygonBounds, int32 MaxAttempts)
+	{
+		if (Polygon.Num() < 3) return FVector::ZeroVector;
+
+		for (int32 i = 0; i < MaxAttempts; ++i)
+		{
+			FVector RandomPoint = FMath::RandPointInBox(PolygonBounds);
+
+			if (IsPointInPolygon2D(RandomPoint, Polygon))
+			{
+				RandomPoint.Z = Polygon[0].Z;
+				return RandomPoint;
+			}
+		}
+
+		return Polygon[0];
+	}
+
 	// === Sphere ===
 
 	FBox SphereBounds(const FVector& Center, float Radius)

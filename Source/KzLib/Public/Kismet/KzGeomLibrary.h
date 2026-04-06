@@ -9,6 +9,7 @@
 
 struct FKzHitResult;
 struct FKzShapeInstance;
+class USplineComponent;
 
 UCLASS(meta = (BlueprintThreadSafe, ScriptName = "KzGeomLibrary"))
 class KZLIB_API UKzGeomLibrary : public UBlueprintFunctionLibrary
@@ -287,4 +288,20 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "KzLib|Geometry", meta = (AutoCreateRefTerm = "Transform", AdvancedDisplay = "Transform"))
 	static TArray<FVector> GetFibonacciSpherePoints(int32 NumSamples = 32, float Radius = 50.0f, const FTransform& Transform = FTransform());
+
+	/** Extracts a polygon from a Spline using an adaptive subdivision algorithm. */
+	UFUNCTION(BlueprintPure, Category = "KzLib|Geometry")
+	static TArray<FVector> SplineToPolygon(USplineComponent* SplineComponent, bool bWorldSpace = true, float DistanceThreshold = 10.0f);
+
+	/** Decimates a polygon by removing intermediate points that form an angle smaller than the threshold. */
+	UFUNCTION(BlueprintPure, Category = "KzLib|Geometry")
+	static TArray<FVector> SimplifyPolygon(const TArray<FVector>& Polygon, float AngleThreshold = 5.0f);
+
+	/** Checks if a 2D point (XY plane) is inside a polygon. */
+	UFUNCTION(BlueprintPure, Category = "KzLib|Geometry")
+	static bool IsPointInPolygon2D(const FVector& Point, const TArray<FVector>& Polygon);
+
+	/** Generates a random valid point inside the polygon. */
+	UFUNCTION(BlueprintPure, Category = "KzLib|Geometry")
+	static FVector GetRandomPointInPolygon2D(const TArray<FVector>& Polygon, const FBox& PolygonBounds, int32 MaxAttempts = 100);
 };
