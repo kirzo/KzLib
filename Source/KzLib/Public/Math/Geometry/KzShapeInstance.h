@@ -149,6 +149,9 @@ public:
 		return This;
 	}
 
+	/** Creates a new FKzShapeInstance from an Unreal Engine FCollisionShape. */
+	static FKzShapeInstance MakeFromCollisionShape(const FCollisionShape& CollisionShape);
+
 	/**
 	 * Returns true if the contained shape is exactly of the specified type.
 	 *
