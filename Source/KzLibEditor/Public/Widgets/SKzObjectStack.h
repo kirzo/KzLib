@@ -7,6 +7,7 @@
 #include "Utils/KzObjectEditorUtils.h"
 #include "EditorUndoClient.h"
 #include "Framework/Commands/UICommandList.h"
+#include "Widgets/SKzClassCombo.h"
 #include "Widgets/Views/SListView.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Text/STextBlock.h"
@@ -91,11 +92,10 @@ public:
 											.FillWidth(1.f)
 											.Padding(6.0f, 4.0f)
 											[
-												SNew(SPositiveActionButton)
-													.Icon(FAppStyle::Get().GetBrush("Icons.Plus"))
-													.Text(FText::Format(INVTEXT("Add {0}"), ItemName))
-													.ToolTipText(FText::Format(INVTEXT("Add a new {0} to this list."), ItemName))
-													.OnGetMenuContent(this, &SKzObjectStack::GetAddMenuContent)
+												SNew(SKzClassCombo<TItemClass>)
+													.ItemName(ItemName)
+													.OnGetDisallowedClasses(this, &SKzObjectStack::GetDisallowedClasses)
+													.OnClassSelected(this, &SKzObjectStack::OnAddObjectClassSelected)
 											]
 									]
 							]
@@ -362,66 +362,20 @@ private:
 	}
 
 	// --- Actions ---
-	TSharedRef<SWidget> GetAddMenuContent()
+	TSet<UClass*> GetDisallowedClasses() const
 	{
-		FMenuBuilder MenuBuilder(true, nullptr);
-
-		if (!OwnerAsset || !TargetArray)
-		{
-			return MenuBuilder.MakeWidget();
-		}
-
-		TSet<UClass*> ExistingClasses;
-		if (!bAllowDuplicates)
+		TSet<UClass*> Disallowed;
+		if (!bAllowDuplicates && TargetArray)
 		{
 			for (TObjectPtr<TItemClass> Obj : *TargetArray)
 			{
 				if (Obj)
 				{
-					ExistingClasses.Add(Obj->GetClass());
+					Disallowed.Add(Obj->GetClass());
 				}
 			}
 		}
-
-		bool bHasValidClasses = false;
-
-		MenuBuilder.BeginSection("AvailableElements", FText::Format(INVTEXT("{0}s"), ItemName));
-		{
-			for (TObjectIterator<UClass> ClassIt; ClassIt; ++ClassIt)
-			{
-				UClass* Class = *ClassIt;
-
-				if (Class->IsChildOf(TItemClass::StaticClass()) &&
-					!Class->HasAnyClassFlags(CLASS_Abstract | CLASS_Deprecated | CLASS_NewerVersionExists) &&
-					!Class->GetName().StartsWith(TEXT("SKEL_")) &&
-					!Class->GetName().StartsWith(TEXT("REINST_")))
-				{
-					if (bAllowDuplicates || !ExistingClasses.Contains(Class))
-					{
-						bHasValidClasses = true;
-						MenuBuilder.AddMenuEntry(
-							Class->GetDisplayNameText(),
-							Class->GetToolTipText(),
-							FSlateIconFinder::FindIconForClass(Class),
-							FUIAction(FExecuteAction::CreateSP(this, &SKzObjectStack::OnAddObjectClassSelected, Class))
-						);
-					}
-				}
-			}
-		}
-		MenuBuilder.EndSection();
-
-		if (!bHasValidClasses)
-		{
-			MenuBuilder.AddWidget(
-				SNew(STextBlock)
-				.Text(FText::Format(INVTEXT("No more {0}s available"), ItemName))
-				.Margin(FMargin(4.0f)),
-				FText::GetEmpty()
-			);
-		}
-
-		return MenuBuilder.MakeWidget();
+		return Disallowed;
 	}
 
 	void OnAddObjectClassSelected(UClass* ObjectClass)

@@ -10,6 +10,8 @@
 #include "Misc/StringOutputDevice.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "ScopedTransaction.h"
+#include "ClassViewerFilter.h"
+#include "ClassViewerModule.h"
 
 // --- Custom Drag and Drop Operation Template ---
 template<typename T>
@@ -52,6 +54,35 @@ public:
 	virtual void ProcessConstructedObject(UObject* InCreatedObject) override
 	{
 		CreatedObject = Cast<T>(InCreatedObject);
+	}
+};
+
+// --- Class Filter ---
+template<typename T>
+class FKzClassViewerFilter : public IClassViewerFilter
+{
+public:
+	TSet<const UClass*> DisallowedClasses;
+	bool bAllowDuplicates = false;
+
+	virtual bool IsClassAllowed(const FClassViewerInitializationOptions& InInitOptions, const UClass* InClass, TSharedRef< FClassViewerFilterFuncs > InFilterFuncs) override
+	{
+		// Only accept children of T
+		if (!InClass->IsChildOf(T::StaticClass())) return false;
+
+		// Filter out abstract, deprecated, or temporary skeleton/reinstanced classes
+		if (InClass->HasAnyClassFlags(CLASS_Abstract | CLASS_Deprecated | CLASS_NewerVersionExists)) return false;
+		if (InClass->GetName().StartsWith(TEXT("SKEL_")) || InClass->GetName().StartsWith(TEXT("REINST_"))) return false;
+
+		// If duplicates are not allowed and the class is already in the target array, hide it
+		if (!bAllowDuplicates && DisallowedClasses.Contains(InClass)) return false;
+
+		return true;
+	}
+
+	virtual bool IsUnloadedClassAllowed(const FClassViewerInitializationOptions& InInitOptions, const TSharedRef< const IUnloadedBlueprintData > InUnloadedClassData, TSharedRef< FClassViewerFilterFuncs > InFilterFuncs) override
+	{
+		return InUnloadedClassData->IsChildOf(T::StaticClass());
 	}
 };
 
