@@ -14,6 +14,8 @@
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Layout/SSpacer.h"
 #include "Widgets/Images/SImage.h"
+#include "Widgets/Input/SSearchBox.h"
+#include "Misc/TextFilterExpressionEvaluator.h"
 #include "SPositiveActionButton.h"
 #include "Styling/AppStyle.h"
 #include "Editor.h"
@@ -56,6 +58,12 @@ public:
 		// Default to "Element" if no custom name is provided
 		ItemName = InArgs._ItemName.IsEmpty() ? INVTEXT("Element") : InArgs._ItemName;
 
+		TextFilter = MakeShared<FTextFilterExpressionEvaluator>(ETextFilterExpressionEvaluatorMode::BasicString);
+
+		SAssignNew(SearchBox, SSearchBox)
+			.HintText(FText::Format(INVTEXT("Search {0}s"), ItemName))
+			.OnTextChanged(this, &SKzObjectStack::OnSearchBoxTextChanged);
+
 		BindCommands();
 
 		if (GEditor)
@@ -86,16 +94,27 @@ public:
 									.VAlign(VAlign_Top)
 									[
 										SNew(SHorizontalBox)
+
+											// Add Button
 											+ SHorizontalBox::Slot()
 											.VAlign(VAlign_Center)
 											.HAlign(HAlign_Left)
-											.FillWidth(1.f)
+											.AutoWidth()
 											.Padding(6.0f, 4.0f)
 											[
 												SNew(SKzClassCombo<TItemClass>)
 													.ItemName(ItemName)
 													.OnGetDisallowedClasses(this, &SKzObjectStack::GetDisallowedClasses)
 													.OnClassSelected(this, &SKzObjectStack::OnAddObjectClassSelected)
+											]
+
+											// Search Box
+											+ SHorizontalBox::Slot()
+											.FillWidth(1.0f)
+											.VAlign(VAlign_Center)
+											.Padding(3.0f, 3.0f)
+											[
+												SearchBox.ToSharedRef()
 											]
 									]
 							]
@@ -112,7 +131,7 @@ public:
 							.Padding(5.0f)
 							[
 								SAssignNew(ListViewWidget, SListView<TItemClass*>)
-									.ListItemsSource(&DisplayList)
+									.ListItemsSource(&FilteredDisplayList)
 									.OnGenerateRow(this, &SKzObjectStack::OnGenerateRowForObject)
 									.OnSelectionChanged(this, &SKzObjectStack::OnObjectSelectionChanged)
 									.OnContextMenuOpening(this, &SKzObjectStack::GetContextMenuContent)
@@ -144,10 +163,48 @@ public:
 			}
 		}
 
+		GenerateFilteredList();
+	}
+
+	void GenerateFilteredList()
+	{
+		FilteredDisplayList.Empty();
+		const bool bHasFilterText = !TextFilter->GetFilterText().IsEmpty();
+
+		for (TItemClass* Item : DisplayList)
+		{
+			if (Item)
+			{
+				bool bPassesFilter = true;
+				if (bHasFilterText)
+				{
+					const FString ItemNameStr = Item->GetClass()->GetDisplayNameText().ToString();
+					bPassesFilter = TextFilter->TestTextFilter(FBasicStringFilterExpressionContext(ItemNameStr));
+				}
+
+				if (bPassesFilter)
+				{
+					FilteredDisplayList.Add(Item);
+				}
+			}
+		}
+
 		if (ListViewWidget.IsValid())
 		{
 			ListViewWidget->RequestListRefresh();
 		}
+	}
+
+	void OnSearchBoxTextChanged(const FText& InSearchText)
+	{
+		TextFilter->SetFilterText(InSearchText);
+		SearchBox->SetError(TextFilter->GetFilterErrorText());
+		GenerateFilteredList();
+	}
+
+	FText GetSearchText() const
+	{
+		return TextFilter->GetFilterText();
 	}
 
 	//~ Begin SWidget Interface
@@ -186,6 +243,11 @@ private:
 	FOnItemSelected OnItemSelectedDelegate;
 	TSharedPtr<SListView<TItemClass*>> ListViewWidget;
 	TArray<TItemClass*> DisplayList;
+	TArray<TItemClass*> FilteredDisplayList;
+
+	TSharedPtr<FTextFilterExpressionEvaluator> TextFilter;
+	TSharedPtr<SSearchBox> SearchBox;
+
 	TSharedPtr<FUICommandList> CommandList;
 
 	// --- Slate Delegates ---
@@ -245,6 +307,7 @@ private:
 							[
 								SNew(STextBlock)
 									.Text(DisplayName)
+									.HighlightText(this, &SKzObjectStack::GetSearchText)
 							]
 
 							// Spacer
