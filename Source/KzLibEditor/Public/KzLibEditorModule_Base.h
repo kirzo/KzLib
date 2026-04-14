@@ -32,7 +32,7 @@ public:
 	template<typename T>
 	void RegisterAssetTypeAction(EAssetTypeCategories::Type AssetCategory);
 
-	template<typename T>
+	template<typename TAsset, typename TEditor = FSimpleAssetEditor>
 	void RegisterAssetTypeAction(EAssetTypeCategories::Type AssetCategory, const FText& Name, FColor Color, const TArray<FText>& SubMenus = TArray<FText>());
 
 	template<typename TType, typename TCustomization>
@@ -63,12 +63,13 @@ void FKzLibEditorModule_Base::RegisterAssetTypeAction(EAssetTypeCategories::Type
 	RegisteredAssetTypeActions.Add(Action);
 }
 
-template<typename T>
+template<typename TAsset, typename TEditor>
 void FKzLibEditorModule_Base::RegisterAssetTypeAction(EAssetTypeCategories::Type AssetCategory, const FText& Name, FColor Color, const TArray<FText>& SubMenus)
 {
 	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
 
-	const auto Action = MakeShared<FKzAssetTypeActions>(AssetCategory, Name, Color, T::StaticClass(), SubMenus);
+	// Instantiate the templated TKzAssetTypeActions
+	const auto Action = MakeShared<TKzAssetTypeActions<TEditor>>(AssetCategory, Name, Color, TAsset::StaticClass(), SubMenus);
 	AssetTools.RegisterAssetTypeActions(Action);
 	RegisteredAssetTypeActions.Add(Action);
 }

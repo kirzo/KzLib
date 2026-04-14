@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "AssetTypeActions_Base.h"
+#include "Toolkits/SimpleAssetEditor.h"
 
 class FKzAssetTypeActions_Base : public FAssetTypeActions_Base
 {
@@ -19,7 +20,8 @@ private:
 	EAssetTypeCategories::Type AssetCategory;
 };
 
-class FKzAssetTypeActions : public FKzAssetTypeActions_Base
+template<typename TEditor = FSimpleAssetEditor>
+class TKzAssetTypeActions : public FKzAssetTypeActions_Base
 {
 public:
 	const FText Name;
@@ -27,7 +29,7 @@ public:
 	UClass* const SupportedClass;
 	const TArray<FText> SubMenus;
 
-	FKzAssetTypeActions(EAssetTypeCategories::Type AssetCategory, const FText& Name, FColor Color, UClass* SupportedClass, const TArray<FText>& SubMenus = TArray<FText>())
+	TKzAssetTypeActions(EAssetTypeCategories::Type AssetCategory, const FText& Name, FColor Color, UClass* SupportedClass, const TArray<FText>& SubMenus = TArray<FText>())
 		: FKzAssetTypeActions_Base(AssetCategory)
 		, Name(Name)
 		, Color(Color)
@@ -40,4 +42,9 @@ public:
 	virtual FColor GetTypeColor() const override { return Color; }
 	virtual UClass* GetSupportedClass() const override { return SupportedClass; }
 	virtual const TArray<FText>& GetSubMenus() const override { return SubMenus; }
+
+	virtual void OpenAssetEditor(const TArray<UObject*>& InObjects, TSharedPtr<class IToolkitHost> EditWithinLevelEditor = TSharedPtr<IToolkitHost>()) override
+	{
+		TEditor::CreateEditor(EToolkitMode::Standalone, EditWithinLevelEditor, InObjects);
+	}
 };
