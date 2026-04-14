@@ -22,6 +22,7 @@ public class KzLibEditor : ModuleRules
 				"Slate",
 				"SlateCore",
 				"UnrealEd",
+				"Projects",
 				"PropertyEditor",
 				"BlueprintGraph",
 				"KismetWidgets",

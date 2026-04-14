@@ -3,6 +3,7 @@
 #pragma once
 
 #include "KzLibEditor.h"
+#include "KzLibEditorStyle.h"
 
 #include "Core/KzParamDef.h"
 #include "Customizations/KzParamDefCustomization.h"
@@ -22,6 +23,8 @@
 
 void FKzLibEditorModule::OnStartupModule()
 {
+	FKzLibEditorStyle::Initialize();
+
 	RegisterPropertyLayout<FKzParamDef, FKzParamDefCustomization>();
 	RegisterPropertyLayout<FKzDatabase, FKzDatabaseCustomization>();
 	RegisterPropertyLayout<FKzDatabaseItem, FKzDatabaseItemCustomization>();
@@ -31,6 +34,11 @@ void FKzLibEditorModule::OnStartupModule()
 	RegisterComponentVisualizer<UKzActorGroupComponent, FKzActorGroupVisualizer>();
 
 	RegisterAssetTypeAction<UKzDatabaseAsset>(KzAssetCategoryBit, INVTEXT("Database"), FColor::FromHex("#9B59B6"));
+}
+
+void FKzLibEditorModule::OnShutdownModule()
+{
+	FKzLibEditorStyle::Shutdown();
 }
 
 #undef LOCTEXT_NAMESPACE
