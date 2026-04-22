@@ -18,3 +18,12 @@ FString UKzAppLibrary::GetProjectVersion()
 
 	return ProjectVersion;
 }
+
+bool UKzAppLibrary::IsPackagedBuild()
+{
+#if WITH_EDITOR
+	return false;
+#else
+	return true;
+#endif
+}

@@ -18,4 +18,8 @@ public:
 	/** Returns the current project version as defined in Project Settings. */
 	UFUNCTION(BlueprintPure, Category = "KzLib|Project")
 	static FString GetProjectVersion();
+
+	/** Checks if the game is running as a final packaged build or inside the Unreal Editor. */
+	UFUNCTION(BlueprintPure, Category = "KzLib|Package")
+	static bool IsPackagedBuild();
 };
