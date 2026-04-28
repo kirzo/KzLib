@@ -30,6 +30,14 @@ public:
 	UFUNCTION(BlueprintPure, Category = "KzLib|Area")
 	FVector GetRandomPointInside(int32 MaxAttempts = 100) const;
 
+	/**
+	 * Returns the closest point on the 2D area to the given point.
+	 * @param Point The target point to check against the area.
+	 * @param bKeepInputZ If true, returns the Z coordinate from the input Point. If false, returns the component's Z.
+	 */
+	UFUNCTION(BlueprintPure, Category = "KzLib|Area", meta = (AdvancedDisplay = "bKeepInputZ"))
+	FVector GetClosestPointOnArea(const FVector& Point, bool bKeepInputZ = true) const;
+
 	/** Manually forces a rebuild of the cached polygon data and bounds. */
 	UFUNCTION(BlueprintCallable, Category = "KzLib|Area")
 	void CachePolygonData();

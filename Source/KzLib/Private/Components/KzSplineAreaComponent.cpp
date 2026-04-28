@@ -26,6 +26,53 @@ void UKzSplineAreaComponent::BeginPlay()
 	Super::BeginPlay();
 }
 
+FVector UKzSplineAreaComponent::GetClosestPointOnArea(const FVector& Point, bool bKeepInputZ) const
+{
+	// Determine the target Z coordinate based on the parameter
+	const float TargetZ = bKeepInputZ ? Point.Z : GetComponentLocation().Z;
+
+	// If the point is already inside the area, return its XY with the target Z
+	if (IsPointInside(Point))
+	{
+		return FVector(Point.X, Point.Y, TargetZ);
+	}
+
+	// Safety check: ensure we have a valid polygon
+	int32 NumPoints = CachedPolygon.Num();
+	if (NumPoints < 3)
+	{
+		return FVector(Point.X, Point.Y, TargetZ);
+	}
+
+	// Flatten the target point for pure 2D distance calculation
+	FVector Point2D(Point.X, Point.Y, 0.0f);
+
+	FVector ClosestPoint2D = FVector::ZeroVector;
+	float MinDistanceSquared = UE_MAX_FLT;
+
+	// Iterate through all segments of the polygon perimeter
+	for (int32 i = 0; i < NumPoints; ++i)
+	{
+		// Flatten segment start and end points
+		FVector SegmentStart2D(CachedPolygon[i].X, CachedPolygon[i].Y, 0.0f);
+		FVector SegmentEnd2D(CachedPolygon[(i + 1) % NumPoints].X, CachedPolygon[(i + 1) % NumPoints].Y, 0.0f);
+
+		// Find the closest point on this specific segment
+		FVector PointOnSegment2D = FMath::ClosestPointOnSegment(Point2D, SegmentStart2D, SegmentEnd2D);
+
+		// Check if this point is closer than the previous ones
+		float DistSquared = FVector::DistSquared(Point2D, PointOnSegment2D);
+		if (DistSquared < MinDistanceSquared)
+		{
+			MinDistanceSquared = DistSquared;
+			ClosestPoint2D = PointOnSegment2D;
+		}
+	}
+
+	// Return the closest 2D position with the requested Z coordinate
+	return FVector(ClosestPoint2D.X, ClosestPoint2D.Y, TargetZ);
+}
+
 void UKzSplineAreaComponent::CachePolygonData()
 {
 	CachedPolygon = UKzGeomLibrary::SplineToPolygon(this, true, GenerationThreshold);
