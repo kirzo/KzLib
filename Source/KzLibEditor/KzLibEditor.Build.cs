@@ -21,11 +21,13 @@ public class KzLibEditor : ModuleRules
 				"Engine",
 				"Slate",
 				"SlateCore",
+				"InputCore",
 				"UnrealEd",
 				"Projects",
 				"PropertyEditor",
 				"BlueprintGraph",
 				"KismetWidgets",
+				"ToolWidgets",
 				"KzLibUncooked"
 			});
 	}

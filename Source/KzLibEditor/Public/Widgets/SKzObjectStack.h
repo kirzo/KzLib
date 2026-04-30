@@ -102,7 +102,8 @@ public:
 											.AutoWidth()
 											.Padding(6.0f, 4.0f)
 											[
-												SNew(SKzClassCombo<TItemClass>)
+												SNew(SKzClassCombo)
+													.BaseClass(TItemClass::StaticClass())
 													.ItemName(ItemName)
 													.OnGetDisallowedClasses(this, &SKzObjectStack::GetDisallowedClasses)
 													.OnClassSelected(this, &SKzObjectStack::OnAddObjectClassSelected)
