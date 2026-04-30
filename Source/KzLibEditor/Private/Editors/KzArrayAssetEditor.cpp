@@ -310,6 +310,16 @@ void FKzArrayAssetEditor::OnElementSelected(TSharedPtr<IPropertyHandle> Selected
 			TSharedPtr<IStructureDataProvider> Provider = MakeShared<FKzStructProvider>(SelectedHandle);
 			TSharedRef<IStructureDetailsView> StructView = PropertyEditorModule.CreateStructureProviderDetailView(DetailsViewArgs, StructViewArgs, Provider);
 
+			// Listen to changes inside the raw struct view and manually notify the property handle
+			StructView->GetOnFinishedChangingPropertiesDelegate().AddLambda([this, SelectedHandle](const FPropertyChangedEvent& Event)
+				{
+					if (SelectedHandle.IsValid() && SelectedHandle->IsValidHandle())
+					{
+						// This forces Unreal to fire the normal property chain events on the outer UObject
+						SelectedHandle->NotifyPostChange(EPropertyChangeType::ValueSet);
+					}
+				});
+
 			ElementDetailsContainer->SetContent(StructView->GetWidget().ToSharedRef());
 			return;
 		}
