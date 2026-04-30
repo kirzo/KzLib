@@ -1,0 +1,207 @@
+// Copyright 2026 kirzo
+
+#include "Editors/KzArrayAssetEditor.h"
+#include "Widgets/SKzPropertyStack.h"
+#include "Modules/ModuleManager.h"
+#include "PropertyEditorModule.h"
+#include "IDetailsView.h"
+#include "Widgets/Docking/SDockTab.h"
+#include "Styling/AppStyle.h"
+#include "DetailLayoutBuilder.h"
+#include "DetailCategoryBuilder.h"
+#include "IDetailCustomization.h"
+
+const FName FKzArrayAssetEditor::AssetDetailsTabId(TEXT("KzArrayEditor_AssetDetails"));
+const FName FKzArrayAssetEditor::ArrayStackTabId(TEXT("KzArrayEditor_ArrayStack"));
+const FName FKzArrayAssetEditor::ElementDetailsTabId(TEXT("KzArrayEditor_ElementDetails"));
+
+class FKzArrayAssetDetailCustomization : public IDetailCustomization
+{
+public:
+	FKzArrayAssetDetailCustomization(FKzArrayAssetEditor* InEditor) : Editor(InEditor) {}
+
+	static TSharedRef<IDetailCustomization> MakeInstance(FKzArrayAssetEditor* InEditor)
+	{
+		return MakeShareable(new FKzArrayAssetDetailCustomization(InEditor));
+	}
+
+	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override
+	{
+		if (Editor)
+		{
+			TSharedPtr<IPropertyHandle> Handle = DetailBuilder.GetProperty(Editor->ArrayPropertyName);
+			DetailBuilder.HideProperty(Handle);
+
+			Editor->ArrayPropertyHandle = Handle;
+
+			if (Editor->PropertyStackWidget.IsValid())
+			{
+				Editor->PropertyStackWidget->SetPropertyHandle(Handle);
+			}
+		}
+	}
+
+private:
+	FKzArrayAssetEditor* Editor;
+};
+
+TSharedRef<FKzArrayAssetEditor> FKzArrayAssetEditor::CreateEditor(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& InitToolkitHost, const TArray<UObject*>& ObjectsToEdit, FName InArrayPropertyName, FText InItemName)
+{
+	TSharedRef<FKzArrayAssetEditor> NewEditor(new FKzArrayAssetEditor());
+	if (ObjectsToEdit.Num() > 0)
+	{
+		if (UObject* Asset = ObjectsToEdit[0])
+		{
+			NewEditor->InitArrayAssetEditor(Mode, InitToolkitHost, Asset, InArrayPropertyName, InItemName);
+		}
+	}
+	return NewEditor;
+}
+
+void FKzArrayAssetEditor::InitArrayAssetEditor(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& InitToolkitHost, UObject* InAsset, FName InArrayPropertyName, FText InItemName)
+{
+	AssetToEdit = InAsset;
+	ArrayPropertyName = InArrayPropertyName;
+	ItemName = InItemName;
+
+	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+
+	FDetailsViewArgs DetailsViewArgs;
+	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
+	DetailsViewArgs.bHideSelectionTip = true;
+
+	AssetDetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
+
+	AssetDetailsView->RegisterInstancedCustomPropertyLayout(
+		AssetToEdit->GetClass(),
+		FOnGetDetailCustomizationInstance::CreateLambda([this]() {
+			return FKzArrayAssetDetailCustomization::MakeInstance(this);
+			})
+	);
+
+	AssetDetailsView->SetObject(AssetToEdit);
+
+	ElementDetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
+
+	const TSharedRef<FTabManager::FLayout> StandaloneDefaultLayout = FTabManager::NewLayout("Standalone_KzArrayEditor_Layout_v1")
+		->AddArea
+		(
+			FTabManager::NewPrimaryArea()->SetOrientation(Orient_Horizontal)
+			->Split
+			(
+				FTabManager::NewSplitter()->SetOrientation(Orient_Vertical)
+				->SetSizeCoefficient(0.4f)
+				->Split
+				(
+					FTabManager::NewStack()
+					->SetSizeCoefficient(0.4f)
+					->AddTab(AssetDetailsTabId, ETabState::OpenedTab)
+				)
+				->Split
+				(
+					FTabManager::NewStack()
+					->SetSizeCoefficient(0.6f)
+					->AddTab(ArrayStackTabId, ETabState::OpenedTab)
+				)
+			)
+			->Split
+			(
+				FTabManager::NewStack()
+				->SetSizeCoefficient(0.6f)
+				->AddTab(ElementDetailsTabId, ETabState::OpenedTab)
+			)
+		);
+
+	const bool bCreateDefaultStandaloneMenu = true;
+	const bool bCreateDefaultToolbar = true;
+	InitAssetEditor(Mode, InitToolkitHost, FName("KzArrayEditorApp"), StandaloneDefaultLayout, bCreateDefaultStandaloneMenu, bCreateDefaultToolbar, AssetToEdit);
+}
+
+void FKzArrayAssetEditor::RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager)
+{
+	FAssetEditorToolkit::RegisterTabSpawners(InTabManager);
+
+	WorkspaceMenuCategory = InTabManager->AddLocalWorkspaceMenuCategory(NSLOCTEXT("KzArrayEditor", "WorkspaceMenu", "Kz Array Editor"));
+
+	InTabManager->RegisterTabSpawner(AssetDetailsTabId, FOnSpawnTab::CreateSP(this, &FKzArrayAssetEditor::SpawnTab_AssetDetails))
+		.SetDisplayName(NSLOCTEXT("KzArrayEditor", "AssetDetailsTab", "Asset Details"))
+		.SetGroup(WorkspaceMenuCategory.ToSharedRef())
+		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Details"));
+
+	InTabManager->RegisterTabSpawner(ArrayStackTabId, FOnSpawnTab::CreateSP(this, &FKzArrayAssetEditor::SpawnTab_ArrayStack))
+		.SetDisplayName(FText::Format(NSLOCTEXT("KzArrayEditor", "ArrayStackTab", "{0}s"), ItemName))
+		.SetGroup(WorkspaceMenuCategory.ToSharedRef())
+		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Outliner"));
+
+	InTabManager->RegisterTabSpawner(ElementDetailsTabId, FOnSpawnTab::CreateSP(this, &FKzArrayAssetEditor::SpawnTab_ElementDetails))
+		.SetDisplayName(FText::Format(NSLOCTEXT("KzArrayEditor", "ElementDetailsTab", "{0} Details"), ItemName))
+		.SetGroup(WorkspaceMenuCategory.ToSharedRef())
+		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Properties"));
+}
+
+void FKzArrayAssetEditor::UnregisterTabSpawners(const TSharedRef<FTabManager>& InTabManager)
+{
+	FAssetEditorToolkit::UnregisterTabSpawners(InTabManager);
+
+	InTabManager->UnregisterTabSpawner(AssetDetailsTabId);
+	InTabManager->UnregisterTabSpawner(ArrayStackTabId);
+	InTabManager->UnregisterTabSpawner(ElementDetailsTabId);
+}
+
+TSharedRef<SDockTab> FKzArrayAssetEditor::SpawnTab_AssetDetails(const FSpawnTabArgs& Args)
+{
+	return SNew(SDockTab)
+		.Label(NSLOCTEXT("KzArrayEditor", "AssetDetailsTitle", "Asset Details"))
+		[
+			AssetDetailsView.ToSharedRef()
+		];
+}
+
+TSharedRef<SDockTab> FKzArrayAssetEditor::SpawnTab_ArrayStack(const FSpawnTabArgs& Args)
+{
+	SAssignNew(PropertyStackWidget, SKzPropertyStack, ArrayPropertyHandle)
+		.bAllowDuplicates(false)
+		.ItemName(ItemName)
+		.OnItemSelected(this, &FKzArrayAssetEditor::OnElementSelected);
+
+	return SNew(SDockTab)
+		.Label(FText::Format(NSLOCTEXT("KzArrayEditor", "ArrayStackTitle", "{0}s"), ItemName))
+		[
+			PropertyStackWidget.ToSharedRef()
+		];
+}
+
+TSharedRef<SDockTab> FKzArrayAssetEditor::SpawnTab_ElementDetails(const FSpawnTabArgs& Args)
+{
+	return SNew(SDockTab)
+		.Label(FText::Format(NSLOCTEXT("KzArrayEditor", "ElementDetailsTitle", "{0} Details"), ItemName))
+		[
+			ElementDetailsView.ToSharedRef()
+		];
+}
+
+FName FKzArrayAssetEditor::GetToolkitFName() const { return FName("KzArrayAssetEditor"); }
+FText FKzArrayAssetEditor::GetBaseToolkitName() const { return NSLOCTEXT("KzArrayEditor", "AppLabel", "Array Asset Editor"); }
+FString FKzArrayAssetEditor::GetWorldCentricTabPrefix() const { return TEXT("ArrayAssetEditor"); }
+FLinearColor FKzArrayAssetEditor::GetWorldCentricTabColorScale() const { return FLinearColor::White; }
+
+void FKzArrayAssetEditor::OnElementSelected(TSharedPtr<IPropertyHandle> SelectedHandle)
+{
+	if (SelectedHandle.IsValid() && SelectedHandle->IsValidHandle())
+	{
+		UObject* SelectedObj = nullptr;
+		if (SelectedHandle->GetValue(SelectedObj) == FPropertyAccess::Success)
+		{
+			if (ElementDetailsView.IsValid())
+			{
+				ElementDetailsView->SetObject(SelectedObj);
+			}
+			return;
+		}
+	}
+
+	if (ElementDetailsView.IsValid())
+	{
+		ElementDetailsView->SetObject(nullptr);
+	}
+}
