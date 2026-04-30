@@ -61,6 +61,7 @@ private:
 
 	bool bAllowDuplicates = false;
 	FText ItemName;
+	FString TitlePropertyMeta;
 
 	bool bIsObjectArray = false;
 	UClass* BaseObjectClass = nullptr;

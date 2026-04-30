@@ -169,6 +169,22 @@ FString SKzPropertyStack::GetHandleDisplayName(TSharedPtr<IPropertyHandle> Handl
 {
 	if (!Handle.IsValid()) return TEXT("Invalid");
 
+	// 1. Try to use the TitleProperty meta if defined
+	if (!TitlePropertyMeta.IsEmpty())
+	{
+		TSharedPtr<IPropertyHandle> TitleHandle = Handle->GetChildHandle(*TitlePropertyMeta);
+		if (TitleHandle.IsValid())
+		{
+			FString TitleValue;
+			// GetValueAsDisplayString formats FText, FName, numeric values, etc., cleanly for UI
+			if (TitleHandle->GetValueAsDisplayString(TitleValue) == FPropertyAccess::Success && !TitleValue.IsEmpty())
+			{
+				return TitleValue;
+			}
+		}
+	}
+
+	// 2. Try to use the Object Class Name
 	if (bIsObjectArray)
 	{
 		UObject* ObjectValue = nullptr;
@@ -178,6 +194,7 @@ FString SKzPropertyStack::GetHandleDisplayName(TSharedPtr<IPropertyHandle> Handl
 		}
 	}
 
+	// 3. Fallback to generic index name
 	return FString::Printf(TEXT("%s %s"), *ItemName.ToString(), *Handle->GetPropertyDisplayName().ToString());
 }
 
@@ -233,9 +250,16 @@ void SKzPropertyStack::SetPropertyHandle(TSharedPtr<IPropertyHandle> InPropertyH
 
 	bIsObjectArray = false;
 	BaseObjectClass = nullptr;
+	TitlePropertyMeta.Empty();
 
 	if (RootHandle.IsValid() && RootHandle->GetProperty())
 	{
+		// Extract TitleProperty meta if it exists
+		if (RootHandle->GetProperty()->HasMetaData(TEXT("TitleProperty")))
+		{
+			TitlePropertyMeta = RootHandle->GetProperty()->GetMetaData(TEXT("TitleProperty"));
+		}
+
 		if (FArrayProperty* ArrayProp = CastField<FArrayProperty>(RootHandle->GetProperty()))
 		{
 			if (FObjectPropertyBase* ObjectProp = CastField<FObjectPropertyBase>(ArrayProp->Inner))
@@ -291,7 +315,6 @@ TSharedPtr<IPropertyHandle> SKzPropertyStack::GetSelectedPropertyHandle() const
 
 TSharedRef<ITableRow> SKzPropertyStack::OnGenerateRow(TSharedPtr<IPropertyHandle> Item, const TSharedRef<STableViewBase>& OwnerTable)
 {
-	FText DisplayName = FText::FromString(GetHandleDisplayName(Item));
 	FText Tooltip = GetHandleToolTip(Item);
 
 	const float HorizontalPadding = 6.0f;
@@ -337,7 +360,7 @@ TSharedRef<ITableRow> SKzPropertyStack::OnGenerateRow(TSharedPtr<IPropertyHandle
 						.Padding(Margin)
 						[
 							SNew(STextBlock)
-								.Text(DisplayName)
+								.Text_Lambda([this, Item]() { return FText::FromString(GetHandleDisplayName(Item)); })
 								.HighlightText(this, &SKzPropertyStack::GetSearchText)
 						]
 
@@ -538,6 +561,20 @@ FReply SKzPropertyStack::OnAcceptDrop(const FDragDropEvent& DragDropEvent, EItem
 		if (OldIndex != INDEX_NONE && NewIndex != INDEX_NONE)
 		{
 			const FScopedTransaction Transaction(FText::Format(INVTEXT("Reorder {0}"), ItemName));
+
+			// Mark the outer assets as modified so the editor knows it needs saving
+			if (RootHandle.IsValid())
+			{
+				TArray<UObject*> OuterObjects;
+				RootHandle->GetOuterObjects(OuterObjects);
+				for (UObject* OuterObj : OuterObjects)
+				{
+					if (OuterObj)
+					{
+						OuterObj->Modify();
+					}
+				}
+			}
 
 			if (DropZone == EItemDropZone::BelowItem)
 			{
