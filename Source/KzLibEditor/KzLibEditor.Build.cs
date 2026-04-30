@@ -28,6 +28,7 @@ public class KzLibEditor : ModuleRules
 				"BlueprintGraph",
 				"KismetWidgets",
 				"ToolWidgets",
+				"ApplicationCore",
 				"KzLibUncooked"
 			});
 	}

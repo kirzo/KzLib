@@ -31,7 +31,6 @@ typedef TSharedPtr<FKzClassComboEntry> FKzClassComboEntryPtr;
 
 /**
  * A generic combo box widget for selecting UClass types.
- * Replaces the old template-based version to allow dynamic base class assignments.
  */
 class KZLIBEDITOR_API SKzClassCombo : public SCompoundWidget
 {
