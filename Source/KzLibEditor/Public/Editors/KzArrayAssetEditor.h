@@ -36,6 +36,7 @@ private:
 
 	TSharedPtr<IDetailsView> AssetDetailsView;
 	TSharedPtr<IDetailsView> ElementDetailsView;
+	TSharedPtr<class SBox> ElementDetailsContainer;
 
 	TSharedPtr<IPropertyHandle> ArrayPropertyHandle;
 	TSharedPtr<SKzPropertyStack> PropertyStackWidget;

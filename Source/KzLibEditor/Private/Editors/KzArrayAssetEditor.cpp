@@ -10,6 +10,11 @@
 #include "DetailLayoutBuilder.h"
 #include "DetailCategoryBuilder.h"
 #include "IDetailCustomization.h"
+#include "ISinglePropertyView.h"
+#include "IStructureDetailsView.h"
+#include "IStructureDataProvider.h"
+#include "Widgets/Layout/SBox.h"
+#include "UObject/StructOnScope.h"
 
 const FName FKzArrayAssetEditor::AssetDetailsTabId(TEXT("KzArrayEditor_AssetDetails"));
 const FName FKzArrayAssetEditor::ArrayStackTabId(TEXT("KzArrayEditor_ArrayStack"));
@@ -43,6 +48,74 @@ public:
 
 private:
 	FKzArrayAssetEditor* Editor;
+};
+
+// Safely provides dynamic memory addresses for struct properties inside an array
+class FKzStructProvider : public IStructureDataProvider
+{
+public:
+	TSharedPtr<IPropertyHandle> StructHandle;
+
+	FKzStructProvider(TSharedPtr<IPropertyHandle> InHandle) : StructHandle(InHandle) {}
+
+	virtual bool IsValid() const override
+	{
+		return StructHandle.IsValid() && StructHandle->IsValidHandle();
+	}
+
+	virtual const UStruct* GetBaseStructure() const override
+	{
+		if (IsValid())
+		{
+			if (FStructProperty* StructProp = CastField<FStructProperty>(StructHandle->GetProperty()))
+			{
+				return StructProp->Struct;
+			}
+		}
+		return nullptr;
+	}
+
+	virtual void GetInstances(TArray<TSharedPtr<FStructOnScope>>& OutInstances, const UStruct* ExpectedBaseStructure) const override
+	{
+		if (IsValid())
+		{
+			void* Data = nullptr;
+			if (StructHandle->GetValueData(Data) == FPropertyAccess::Success && Data)
+			{
+				// Provide a non-owning struct on scope. It views the data without taking ownership.
+				TSharedPtr<FStructOnScope> StructOnScope = MakeShared<FStructOnScope>(ExpectedBaseStructure, (uint8*)Data);
+
+				// We retrieve the outer asset package and inject it into the scope.
+				TArray<UObject*> OuterObjects;
+				StructHandle->GetOuterObjects(OuterObjects);
+				if (OuterObjects.Num() > 0 && OuterObjects[0])
+				{
+					StructOnScope->SetPackage(OuterObjects[0]->GetPackage());
+				}
+
+				OutInstances.Add(StructOnScope);
+			}
+		}
+	}
+
+	virtual bool IsPropertyIndirection() const override
+	{
+		return false; // False indicates we are providing the direct memory block
+	}
+
+	virtual uint8* GetValueBaseAddress(uint8* ParentValueAddress, const UStruct* ExpectedBaseStructure) const override
+	{
+		if (IsValid())
+		{
+			void* Data = nullptr;
+			// Automatically fetches the valid pointer even if the array reallocates
+			if (StructHandle->GetValueData(Data) == FPropertyAccess::Success)
+			{
+				return (uint8*)Data;
+			}
+		}
+		return nullptr;
+	}
 };
 
 TSharedRef<FKzArrayAssetEditor> FKzArrayAssetEditor::CreateEditor(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& InitToolkitHost, const TArray<UObject*>& ObjectsToEdit, FName InArrayPropertyName, FText InItemName)
@@ -173,10 +246,12 @@ TSharedRef<SDockTab> FKzArrayAssetEditor::SpawnTab_ArrayStack(const FSpawnTabArg
 
 TSharedRef<SDockTab> FKzArrayAssetEditor::SpawnTab_ElementDetails(const FSpawnTabArgs& Args)
 {
+	SAssignNew(ElementDetailsContainer, SBox);
+
 	return SNew(SDockTab)
 		.Label(FText::Format(NSLOCTEXT("KzArrayEditor", "ElementDetailsTitle", "{0} Details"), ItemName))
 		[
-			ElementDetailsView.ToSharedRef()
+			ElementDetailsContainer.ToSharedRef()
 		];
 }
 
@@ -187,21 +262,67 @@ FLinearColor FKzArrayAssetEditor::GetWorldCentricTabColorScale() const { return 
 
 void FKzArrayAssetEditor::OnElementSelected(TSharedPtr<IPropertyHandle> SelectedHandle)
 {
-	if (SelectedHandle.IsValid() && SelectedHandle->IsValidHandle())
+	if (!ElementDetailsContainer.IsValid())
 	{
-		UObject* SelectedObj = nullptr;
-		if (SelectedHandle->GetValue(SelectedObj) == FPropertyAccess::Success)
-		{
-			if (ElementDetailsView.IsValid())
-			{
-				ElementDetailsView->SetObject(SelectedObj);
-			}
-			return;
-		}
+		return;
 	}
 
+	// Ensure previous views are completely cleared before inspecting new handles
+	ElementDetailsContainer->SetContent(SNullWidget::NullWidget);
 	if (ElementDetailsView.IsValid())
 	{
 		ElementDetailsView->SetObject(nullptr);
+	}
+
+	if (SelectedHandle.IsValid() && SelectedHandle->IsValidHandle())
+	{
+		FProperty* Prop = SelectedHandle->GetProperty();
+
+		// 1. Handle UObjects
+		if (CastField<FObjectPropertyBase>(Prop))
+		{
+			UObject* SelectedObj = nullptr;
+			SelectedHandle->GetValue(SelectedObj);
+
+			if (ElementDetailsView.IsValid())
+			{
+				ElementDetailsView->SetObject(SelectedObj);
+				ElementDetailsContainer->SetContent(ElementDetailsView.ToSharedRef());
+			}
+			return;
+		}
+
+		// 2. Handle UStructs via our custom DataProvider
+		if (CastField<FStructProperty>(Prop))
+		{
+			FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+
+			FDetailsViewArgs DetailsViewArgs;
+			DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
+			DetailsViewArgs.bHideSelectionTip = true;
+
+			FStructureDetailsViewArgs StructViewArgs;
+			StructViewArgs.bShowObjects = true;
+			StructViewArgs.bShowAssets = true;
+			StructViewArgs.bShowClasses = true;
+			StructViewArgs.bShowInterfaces = true;
+
+			TSharedPtr<IStructureDataProvider> Provider = MakeShared<FKzStructProvider>(SelectedHandle);
+			TSharedRef<IStructureDetailsView> StructView = PropertyEditorModule.CreateStructureProviderDetailView(DetailsViewArgs, StructViewArgs, Provider);
+
+			ElementDetailsContainer->SetContent(StructView->GetWidget().ToSharedRef());
+			return;
+		}
+
+		// 3. Handle Primitive Types (int, float, FName, etc.)
+		ElementDetailsContainer->SetContent(
+			SNew(SBox)
+			.Padding(10.0f)
+			.VAlign(VAlign_Top)
+			[
+				SelectedHandle->CreatePropertyValueWidget()
+			]
+		);
+		return;
 	}
 }
