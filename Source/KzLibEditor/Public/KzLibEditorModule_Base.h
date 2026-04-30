@@ -32,8 +32,8 @@ public:
 	template<typename T>
 	void RegisterAssetTypeAction(EAssetTypeCategories::Type AssetCategory);
 
-	template<typename TAsset, typename TEditor = FSimpleAssetEditor>
-	void RegisterAssetTypeAction(EAssetTypeCategories::Type AssetCategory, const FText& Name, FColor Color, const TArray<FText>& SubMenus = TArray<FText>());
+	template<typename TAsset, typename TEditor = FSimpleAssetEditor, typename... TArgs>
+	void RegisterAssetTypeAction(EAssetTypeCategories::Type AssetCategory, const FText& Name, FColor Color, const TArray<FText>& SubMenus = TArray<FText>(), TArgs... Args);
 
 	template<typename TType, typename TCustomization>
 	void RegisterPropertyLayout();
@@ -63,13 +63,13 @@ void FKzLibEditorModule_Base::RegisterAssetTypeAction(EAssetTypeCategories::Type
 	RegisteredAssetTypeActions.Add(Action);
 }
 
-template<typename TAsset, typename TEditor>
-void FKzLibEditorModule_Base::RegisterAssetTypeAction(EAssetTypeCategories::Type AssetCategory, const FText& Name, FColor Color, const TArray<FText>& SubMenus)
+template<typename TAsset, typename TEditor, typename... TArgs>
+void FKzLibEditorModule_Base::RegisterAssetTypeAction(EAssetTypeCategories::Type AssetCategory, const FText& Name, FColor Color, const TArray<FText>& SubMenus, TArgs... Args)
 {
 	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
 
 	// Instantiate the templated TKzAssetTypeActions
-	const auto Action = MakeShared<TKzAssetTypeActions<TEditor>>(AssetCategory, Name, Color, TAsset::StaticClass(), SubMenus);
+	const auto Action = MakeShared<TKzAssetTypeActions<TEditor, TArgs...>>(AssetCategory, Name, Color, TAsset::StaticClass(), SubMenus, Args...);
 	AssetTools.RegisterAssetTypeActions(Action);
 	RegisteredAssetTypeActions.Add(Action);
 }
