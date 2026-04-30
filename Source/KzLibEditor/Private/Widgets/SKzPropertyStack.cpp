@@ -10,6 +10,7 @@
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SSearchBox.h"
 #include "Widgets/Layout/SSpacer.h"
+#include "SPositiveActionButton.h"
 #include "Misc/TextFilterExpressionEvaluator.h"
 #include "Framework/Commands/UICommandList.h"
 #include "Framework/Commands/GenericCommands.h"
@@ -285,7 +286,8 @@ void SKzPropertyStack::SetPropertyHandle(TSharedPtr<IPropertyHandle> InPropertyH
 		else if (RootHandle.IsValid())
 		{
 			AddWidgetContainer->SetContent(
-				SNew(SButton)
+				SNew(SPositiveActionButton)
+				.Icon(FAppStyle::Get().GetBrush("Icons.Plus"))
 				.Text(FText::Format(INVTEXT("Add {0}"), ItemName))
 				.OnClicked(this, &SKzPropertyStack::OnAddElementClicked)
 			);
