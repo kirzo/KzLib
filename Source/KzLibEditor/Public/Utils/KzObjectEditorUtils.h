@@ -111,7 +111,7 @@ struct FKzClipboardUtils
 		FPlatformApplicationMisc::ClipboardCopy(*Archive);
 	}
 
-	template<typename TItemClass>
+	template<typename TItemClass = UObject>
 	static TItemClass* PasteObjectFromClipboard(UObject* Outer)
 	{
 		FString TextToImport;

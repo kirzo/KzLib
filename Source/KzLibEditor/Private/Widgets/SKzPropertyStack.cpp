@@ -20,6 +20,7 @@
 #include "Framework/Notifications/NotificationManager.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "KzLibEditorStyle.h"
+#include "Utils/KzObjectEditorUtils.h"
 
 void SKzPropertyStack::Construct(const FArguments& InArgs, TSharedPtr<IPropertyHandle> InPropertyHandle)
 {
@@ -581,10 +582,23 @@ void SKzPropertyStack::CopySelectedElement()
 	TSharedPtr<IPropertyHandle> Selected = GetSelectedPropertyHandle();
 	if (Selected.IsValid())
 	{
-		FString SerializedValue;
-		if (Selected->GetValueAsFormattedString(SerializedValue) == FPropertyAccess::Success)
+		if (bIsObjectArray)
 		{
-			FPlatformApplicationMisc::ClipboardCopy(*SerializedValue);
+			// Deep copy for UObjects using your custom exporter
+			UObject* ObjectToCopy = nullptr;
+			if (Selected->GetValue(ObjectToCopy) == FPropertyAccess::Success && ObjectToCopy)
+			{
+				FKzClipboardUtils::CopyObjectToClipboard(ObjectToCopy);
+			}
+		}
+		else
+		{
+			// Generic string copy for structs and primitive types
+			FString SerializedValue;
+			if (Selected->GetValueAsFormattedString(SerializedValue) == FPropertyAccess::Success)
+			{
+				FPlatformApplicationMisc::ClipboardCopy(*SerializedValue);
+			}
 		}
 	}
 }
@@ -596,33 +610,141 @@ bool SKzPropertyStack::CanCopyElement() const
 
 void SKzPropertyStack::PasteElement()
 {
-	if (ArrayHandle.IsValid())
+	if (!ArrayHandle.IsValid() || !RootHandle.IsValid())
 	{
-		FString ClipboardContent;
-		FPlatformApplicationMisc::ClipboardPaste(ClipboardContent);
+		return;
+	}
 
-		if (!ClipboardContent.IsEmpty())
+	FString ClipboardContent;
+	FPlatformApplicationMisc::ClipboardPaste(ClipboardContent);
+
+	if (ClipboardContent.IsEmpty())
+	{
+		return;
+	}
+
+	const FScopedTransaction Transaction(FText::Format(INVTEXT("Paste {0}"), ItemName));
+
+	if (bIsObjectArray && BaseObjectClass)
+	{
+		// 1. Setup Outer for the new object
+		TArray<UObject*> OuterObjects;
+		RootHandle->GetOuterObjects(OuterObjects);
+		UObject* OuterAsset = OuterObjects.Num() > 0 ? OuterObjects[0] : GetTransientPackage();
+
+		if (OuterAsset)
 		{
-			const FScopedTransaction Transaction(FText::Format(INVTEXT("Paste {0}"), ItemName));
+			OuterAsset->Modify();
+		}
 
-			ArrayHandle->AddItem();
+		// 2. Perform deep instantiation from clipboard
+		UObject* PastedObject = FKzClipboardUtils::PasteObjectFromClipboard(OuterAsset);
 
-			uint32 NumElements = 0;
-			ArrayHandle->GetNumElements(NumElements);
-
-			TSharedPtr<IPropertyHandle> NewElement = ArrayHandle->GetElement(NumElements - 1);
-			if (NewElement.IsValid())
+		if (PastedObject)
+		{
+			// Validate that the pasted object inherits from our allowed BaseClass
+			if (!PastedObject->IsA(BaseObjectClass))
 			{
-				NewElement->SetValueFromFormattedString(ClipboardContent);
+				PastedObject->ClearFlags(RF_Transactional);
+				PastedObject->MarkAsGarbage();
+				return;
 			}
 
-			RefreshStack();
-
-			if (ListViewWidget.IsValid())
+			// 3. Duplicate check logic
+			bool bExists = false;
+			if (!bAllowDuplicates)
 			{
-				ListViewWidget->SetSelection(NewElement);
-				OnItemSelectedDelegate.ExecuteIfBound(NewElement);
+				uint32 NumElements = 0;
+				ArrayHandle->GetNumElements(NumElements);
+				for (uint32 i = 0; i < NumElements; ++i)
+				{
+					TSharedPtr<IPropertyHandle> ElementHandle = ArrayHandle->GetElement(i);
+					if (ElementHandle.IsValid())
+					{
+						UObject* ExistingObj = nullptr;
+						if (ElementHandle->GetValue(ExistingObj) == FPropertyAccess::Success && ExistingObj)
+						{
+							if (ExistingObj->GetClass() == PastedObject->GetClass())
+							{
+								bExists = true;
+								break;
+							}
+						}
+					}
+				}
 			}
+
+			if (bExists)
+			{
+				FNotificationInfo Info(FText::Format(INVTEXT("{0} of type '{1}' already exists."), ItemName, PastedObject->GetClass()->GetDisplayNameText()));
+				Info.ExpireDuration = 3.0f;
+				Info.Image = FAppStyle::GetBrush("Icons.Warning");
+				FSlateNotificationManager::Get().AddNotification(Info);
+
+				PastedObject->ClearFlags(RF_Transactional);
+				PastedObject->MarkAsGarbage();
+			}
+			else
+			{
+				// 4. Inject the deep-copied object into the array
+				ArrayHandle->AddItem();
+
+				uint32 NumElements = 0;
+				ArrayHandle->GetNumElements(NumElements);
+				TSharedPtr<IPropertyHandle> NewElementHandle = ArrayHandle->GetElement(NumElements - 1);
+
+				if (NewElementHandle.IsValid())
+				{
+					NewElementHandle->SetValue(PastedObject);
+
+					// Force raw data injection just in case Unreal's standard SetValue misbehaves with Instanced objects
+					UObject* CheckObj = nullptr;
+					NewElementHandle->GetValue(CheckObj);
+
+					if (CheckObj != PastedObject)
+					{
+						if (FObjectPropertyBase* ObjProp = CastField<FObjectPropertyBase>(NewElementHandle->GetProperty()))
+						{
+							TArray<void*> RawData;
+							NewElementHandle->AccessRawData(RawData);
+							for (void* DataPtr : RawData)
+							{
+								ObjProp->SetObjectPropertyValue(DataPtr, PastedObject);
+							}
+						}
+					}
+
+					RefreshStack();
+
+					if (ListViewWidget.IsValid())
+					{
+						ListViewWidget->SetSelection(NewElementHandle);
+					}
+					OnItemSelectedDelegate.ExecuteIfBound(NewElementHandle);
+				}
+			}
+		}
+	}
+	else
+	{
+		// Generic Paste behavior for non-object arrays (Structs/Primitives)
+		ArrayHandle->AddItem();
+
+		uint32 NumElements = 0;
+		ArrayHandle->GetNumElements(NumElements);
+
+		TSharedPtr<IPropertyHandle> NewElementHandle = ArrayHandle->GetElement(NumElements - 1);
+		if (NewElementHandle.IsValid())
+		{
+			NewElementHandle->SetValueFromFormattedString(ClipboardContent);
+		}
+
+		RefreshStack();
+
+		if (ListViewWidget.IsValid())
+		{
+			ListViewWidget->SetSelection(NewElementHandle);
+			OnItemSelectedDelegate.ExecuteIfBound(NewElementHandle);
 		}
 	}
 }
