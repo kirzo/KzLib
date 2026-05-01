@@ -367,7 +367,7 @@ TSharedRef<ITableRow> SKzPropertyStack::OnGenerateRow(TSharedPtr<IPropertyHandle
 						]
 
 						+ SHorizontalBox::Slot()
-						.AutoWidth()
+						.FillWidth(1.0f)
 						.HAlign(HAlign_Left)
 						.VAlign(VAlign_Center)
 						.Padding(Margin)
@@ -375,14 +375,6 @@ TSharedRef<ITableRow> SKzPropertyStack::OnGenerateRow(TSharedPtr<IPropertyHandle
 							SNew(STextBlock)
 								.Text_Lambda([this, Item]() { return FText::FromString(GetHandleDisplayName(Item)); })
 								.HighlightText(this, &SKzPropertyStack::GetSearchText)
-						]
-
-						+ SHorizontalBox::Slot()
-						.HAlign(HAlign_Fill)
-						.FillWidth(1.0f)
-						[
-							SNew(SSpacer)
-								.Size(FVector2D(0.0f, 1.0f))
 						]
 
 						+ SHorizontalBox::Slot()
