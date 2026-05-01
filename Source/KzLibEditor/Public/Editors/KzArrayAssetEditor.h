@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Toolkits/AssetEditorToolkit.h"
+#include "Widgets/SKzPropertyStack.h"
 
 class IDetailsView;
 class SKzPropertyStack;
@@ -14,9 +15,46 @@ class KZLIBEDITOR_API FKzArrayAssetEditor : public FAssetEditorToolkit
 	friend class FKzArrayAssetDetailCustomization;
 
 public:
-	static TSharedRef<FKzArrayAssetEditor> CreateEditor(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& InitToolkitHost, const TArray<UObject*>& ObjectsToEdit, FName InArrayPropertyName, FText InItemName);
+	static TSharedRef<FKzArrayAssetEditor> CreateEditor(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& InitToolkitHost, const TArray<UObject*>& ObjectsToEdit, FName InArrayPropertyName, FText InItemName, SKzPropertyStack::FOnGetItemDisplayName InOnGetItemDisplayName = SKzPropertyStack::FOnGetItemDisplayName());
 
-	void InitArrayAssetEditor(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& InitToolkitHost, UObject* InAsset, FName InArrayPropertyName, FText InItemName);
+	/**
+	 * Creates a type-safe display name delegate for the property stack.
+	 * Automatically handles the memory extraction and casting from the IPropertyHandle.
+	 *
+	 * @param Lambda A function/lambda taking a pointer to your concrete type (TElement*) and returning an FString.
+	 */
+	template<typename TElement, typename FCallable>
+	static SKzPropertyStack::FOnGetItemDisplayName MakeDisplayDelegate(FCallable&& Lambda)
+	{
+		return SKzPropertyStack::FOnGetItemDisplayName::CreateLambda(
+			[Func = Forward<FCallable>(Lambda)](TSharedPtr<IPropertyHandle> Handle) -> FString
+			{
+				if (!Handle.IsValid()) return TEXT("Invalid");
+
+				if constexpr (TIsDerivedFrom<TElement, UObject>::IsDerived)
+				{
+					// For arrays of UObjects
+					UObject* Obj = nullptr;
+					if (Handle->GetValue(Obj) == FPropertyAccess::Success && Obj)
+					{
+						return Func(CastChecked<TElement>(Obj));
+					}
+				}
+				else
+				{
+					// For arrays of UStructs or primitives
+					void* RawData = nullptr;
+					if (Handle->GetValueData(RawData) == FPropertyAccess::Success && RawData)
+					{
+						return Func(static_cast<TElement*>(RawData));
+					}
+				}
+
+				return TEXT("Empty");
+			});
+	}
+
+	void InitArrayAssetEditor(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& InitToolkitHost, UObject* InAsset, FName InArrayPropertyName, FText InItemName, SKzPropertyStack::FOnGetItemDisplayName InOnGetItemDisplayName);
 
 	virtual void RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager) override;
 	virtual void UnregisterTabSpawners(const TSharedRef<FTabManager>& InTabManager) override;
@@ -33,6 +71,8 @@ private:
 	UObject* AssetToEdit = nullptr;
 	FName ArrayPropertyName;
 	FText ItemName;
+
+	SKzPropertyStack::FOnGetItemDisplayName OnGetItemDisplayNameDelegate;
 
 	TSharedPtr<IDetailsView> AssetDetailsView;
 	TSharedPtr<IDetailsView> ElementDetailsView;

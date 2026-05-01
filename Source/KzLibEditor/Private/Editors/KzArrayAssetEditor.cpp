@@ -1,7 +1,6 @@
 // Copyright 2026 kirzo
 
 #include "Editors/KzArrayAssetEditor.h"
-#include "Widgets/SKzPropertyStack.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
 #include "IDetailsView.h"
@@ -118,24 +117,25 @@ public:
 	}
 };
 
-TSharedRef<FKzArrayAssetEditor> FKzArrayAssetEditor::CreateEditor(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& InitToolkitHost, const TArray<UObject*>& ObjectsToEdit, FName InArrayPropertyName, FText InItemName)
+TSharedRef<FKzArrayAssetEditor> FKzArrayAssetEditor::CreateEditor(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& InitToolkitHost, const TArray<UObject*>& ObjectsToEdit, FName InArrayPropertyName, FText InItemName, SKzPropertyStack::FOnGetItemDisplayName InOnGetItemDisplayName)
 {
 	TSharedRef<FKzArrayAssetEditor> NewEditor(new FKzArrayAssetEditor());
 	if (ObjectsToEdit.Num() > 0)
 	{
 		if (UObject* Asset = ObjectsToEdit[0])
 		{
-			NewEditor->InitArrayAssetEditor(Mode, InitToolkitHost, Asset, InArrayPropertyName, InItemName);
+			NewEditor->InitArrayAssetEditor(Mode, InitToolkitHost, Asset, InArrayPropertyName, InItemName, InOnGetItemDisplayName);
 		}
 	}
 	return NewEditor;
 }
 
-void FKzArrayAssetEditor::InitArrayAssetEditor(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& InitToolkitHost, UObject* InAsset, FName InArrayPropertyName, FText InItemName)
+void FKzArrayAssetEditor::InitArrayAssetEditor(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& InitToolkitHost, UObject* InAsset, FName InArrayPropertyName, FText InItemName, SKzPropertyStack::FOnGetItemDisplayName InOnGetItemDisplayName)
 {
 	AssetToEdit = InAsset;
 	ArrayPropertyName = InArrayPropertyName;
 	ItemName = InItemName;
+	OnGetItemDisplayNameDelegate = InOnGetItemDisplayName;
 
 	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 
@@ -235,6 +235,7 @@ TSharedRef<SDockTab> FKzArrayAssetEditor::SpawnTab_ArrayStack(const FSpawnTabArg
 	SAssignNew(PropertyStackWidget, SKzPropertyStack, ArrayPropertyHandle)
 		.bAllowDuplicates(false)
 		.ItemName(ItemName)
+		.OnGetItemDisplayName(OnGetItemDisplayNameDelegate)
 		.OnItemSelected(this, &FKzArrayAssetEditor::OnElementSelected);
 
 	return SNew(SDockTab)

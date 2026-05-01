@@ -34,6 +34,7 @@ class KZLIBEDITOR_API SKzPropertyStack : public SCompoundWidget, public FEditorU
 {
 public:
 	DECLARE_DELEGATE_OneParam(FOnItemSelected, TSharedPtr<IPropertyHandle> /*SelectedHandle*/);
+	DECLARE_DELEGATE_RetVal_OneParam(FString, FOnGetItemDisplayName, TSharedPtr<IPropertyHandle> /*ItemHandle*/);
 
 	SLATE_BEGIN_ARGS(SKzPropertyStack)
 		: _bAllowDuplicates(false)
@@ -42,6 +43,7 @@ public:
 		SLATE_ARGUMENT(bool, bAllowDuplicates)
 		SLATE_ARGUMENT(FText, ItemName)
 		SLATE_EVENT(FOnItemSelected, OnItemSelected)
+		SLATE_EVENT(FOnGetItemDisplayName, OnGetItemDisplayName)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs, TSharedPtr<IPropertyHandle> InPropertyHandle);
@@ -67,6 +69,7 @@ private:
 	UClass* BaseObjectClass = nullptr;
 
 	FOnItemSelected OnItemSelectedDelegate;
+	FOnGetItemDisplayName OnGetItemDisplayNameDelegate;
 	TSharedPtr<SListView<TSharedPtr<IPropertyHandle>>> ListViewWidget;
 	TSharedPtr<FUICommandList> CommandList;
 

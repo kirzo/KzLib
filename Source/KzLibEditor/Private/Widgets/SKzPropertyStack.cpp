@@ -27,6 +27,7 @@ void SKzPropertyStack::Construct(const FArguments& InArgs, TSharedPtr<IPropertyH
 {
 	bAllowDuplicates = InArgs._bAllowDuplicates;
 	OnItemSelectedDelegate = InArgs._OnItemSelected;
+	OnGetItemDisplayNameDelegate = InArgs._OnGetItemDisplayName;
 	ItemName = InArgs._ItemName.IsEmpty() ? INVTEXT("Element") : InArgs._ItemName;
 
 	TextFilter = MakeShared<FTextFilterExpressionEvaluator>(ETextFilterExpressionEvaluatorMode::BasicString);
@@ -170,7 +171,17 @@ FString SKzPropertyStack::GetHandleDisplayName(TSharedPtr<IPropertyHandle> Handl
 {
 	if (!Handle.IsValid()) return TEXT("Invalid");
 
-	// 1. Try to use the TitleProperty meta if defined
+	// 1. Custom Delegate
+	if (OnGetItemDisplayNameDelegate.IsBound())
+	{
+		FString CustomName = OnGetItemDisplayNameDelegate.Execute(Handle);
+		if (!CustomName.IsEmpty())
+		{
+			return CustomName;
+		}
+	}
+
+	// 2. Try to use the TitleProperty meta if defined
 	if (!TitlePropertyMeta.IsEmpty())
 	{
 		TSharedPtr<IPropertyHandle> TitleHandle = Handle->GetChildHandle(*TitlePropertyMeta);
@@ -185,7 +196,7 @@ FString SKzPropertyStack::GetHandleDisplayName(TSharedPtr<IPropertyHandle> Handl
 		}
 	}
 
-	// 2. Try to use the Object Class Name
+	// 3. Try to use the Object Class Name
 	if (bIsObjectArray)
 	{
 		UObject* ObjectValue = nullptr;
@@ -195,7 +206,7 @@ FString SKzPropertyStack::GetHandleDisplayName(TSharedPtr<IPropertyHandle> Handl
 		}
 	}
 
-	// 3. Fallback to generic index name
+	// 4. Fallback to generic index name
 	return FString::Printf(TEXT("%s %s"), *ItemName.ToString(), *Handle->GetPropertyDisplayName().ToString());
 }
 
