@@ -45,6 +45,7 @@ private:
 	TSharedRef<SDockTab> SpawnTab_AssetDetails(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_ArrayStack(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_ElementDetails(const FSpawnTabArgs& Args);
+	TSharedRef<SDockTab> SpawnTab_Validation(const FSpawnTabArgs& Args);
 
 	UObject* AssetToEdit = nullptr;
 	FName ArrayPropertyName;
@@ -53,6 +54,7 @@ private:
 	TSharedPtr<IDetailsView> AssetDetailsView;
 	TSharedPtr<IDetailsView> ElementDetailsView;
 	TSharedPtr<class SBox> ElementDetailsContainer;
+	TSharedPtr<class SKzValidationPanel> ValidationPanel;
 
 	TSharedPtr<IPropertyHandle> ArrayPropertyHandle;
 	TSharedPtr<SKzPropertyStack> PropertyStackWidget;
@@ -63,6 +65,19 @@ private:
 	static const FName AssetDetailsTabId;
 	static const FName ArrayStackTabId;
 	static const FName ElementDetailsTabId;
+	static const FName ValidationTabId;
 
 	void OnElementSelected(TSharedPtr<IPropertyHandle> SelectedHandle);
+
+	/** Toolbar handler. */
+	void OnRunValidation();
+
+	/** Bridge from the panel: jump to the issue's element in the property stack. */
+	void HandleValidationIssueActivated(const struct FKzValidationIssue& Issue);
+
+	/** Bridge from the panel: invoke the validation utils on the current asset. */
+	TArray<struct FKzValidationIssue> HandleRunValidation();
+
+	/** Add validation entries to the standard toolkit toolbar. */
+	void ExtendToolbar();
 };

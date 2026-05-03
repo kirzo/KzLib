@@ -91,6 +91,20 @@ public:
 	}
 
 	// ---------------------------------------------------------------------------
+	// Context resolution (used by validation jump-to and other navigation features)
+	// ---------------------------------------------------------------------------
+
+	/**
+	 * Resolve a context GUID (e.g. a dialogue line's LineId) to the property handle
+	 * representing it. Customizers that work with structs containing stable IDs
+	 * override this to enable navigation features. Default: not implemented.
+	 */
+	virtual bool TryResolveContextId(const FGuid& ContextId, const TArray<TSharedPtr<IPropertyHandle>>& /*Handles*/, TSharedPtr<IPropertyHandle>& OutHandle) const
+	{
+		return false;
+	}
+
+	// ---------------------------------------------------------------------------
 	// Helpers for subclasses
 	// ---------------------------------------------------------------------------
 

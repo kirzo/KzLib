@@ -336,6 +336,31 @@ TSharedPtr<IPropertyHandle> SKzPropertyStack::GetSelectedPropertyHandle() const
 	return nullptr;
 }
 
+bool SKzPropertyStack::SelectByIndex(int32 Index)
+{
+	if (!ListViewWidget.IsValid() || !AllHandles.IsValidIndex(Index)) { return false; }
+
+	TSharedPtr<IPropertyHandle> Target = AllHandles[Index];
+	ListViewWidget->SetSelection(Target);
+	ListViewWidget->RequestScrollIntoView(Target);
+	OnItemSelectedDelegate.ExecuteIfBound(Target);
+	return true;
+}
+
+bool SKzPropertyStack::SelectByContextId(const FGuid& ContextId)
+{
+	if (!RowCustomizer.IsValid() || !ListViewWidget.IsValid()) { return false; }
+
+	TSharedPtr<IPropertyHandle> Resolved;
+	if (!RowCustomizer->TryResolveContextId(ContextId, AllHandles, Resolved)) { return false; }
+	if (!Resolved.IsValid()) { return false; }
+
+	ListViewWidget->SetSelection(Resolved);
+	ListViewWidget->RequestScrollIntoView(Resolved);
+	OnItemSelectedDelegate.ExecuteIfBound(Resolved);
+	return true;
+}
+
 TSharedRef<ITableRow> SKzPropertyStack::OnGenerateRow(TSharedPtr<IPropertyHandle> Item, const TSharedRef<STableViewBase>& OwnerTable)
 {
 	FText Tooltip = GetHandleToolTip(Item);

@@ -54,6 +54,19 @@ public:
 	void SetPropertyHandle(TSharedPtr<IPropertyHandle> InPropertyHandle);
 	TSharedPtr<IPropertyHandle> GetSelectedPropertyHandle() const;
 
+	/**
+	 * Programmatically select a row by its index in the underlying array.
+	 * Returns true if the selection was applied.
+	 */
+	bool SelectByIndex(int32 Index);
+
+	/**
+	 * Programmatically select a row by a context GUID, asking the row customizer
+	 * to resolve which handle it corresponds to.
+	 * Returns true if resolved and selected.
+	 */
+	bool SelectByContextId(const FGuid& ContextId);
+
 	//~ Begin FEditorUndoClient Interface
 	virtual void PostUndo(bool bSuccess) override;
 	virtual void PostRedo(bool bSuccess) override;

@@ -17,9 +17,15 @@
 #include "Widgets/Layout/SBox.h"
 #include "UObject/StructOnScope.h"
 
+#include "Widgets/SKzValidationPanel.h"
+#include "Validation/KzAssetValidationUtils.h"
+#include "Widgets/KzPropertyStackRowCustomizer.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
+
 const FName FKzArrayAssetEditor::AssetDetailsTabId(TEXT("KzArrayEditor_AssetDetails"));
 const FName FKzArrayAssetEditor::ArrayStackTabId(TEXT("KzArrayEditor_ArrayStack"));
 const FName FKzArrayAssetEditor::ElementDetailsTabId(TEXT("KzArrayEditor_ElementDetails"));
+const FName FKzArrayAssetEditor::ValidationTabId(TEXT("KzArrayEditor_Validation"));
 
 class FKzArrayAssetDetailCustomization : public IDetailCustomization
 {
@@ -199,15 +205,29 @@ void FKzArrayAssetEditor::InitArrayAssetEditor(
 			)
 			->Split
 			(
-				FTabManager::NewStack()
+				FTabManager::NewSplitter()->SetOrientation(Orient_Vertical)
 				->SetSizeCoefficient(0.6f)
-				->AddTab(ElementDetailsTabId, ETabState::OpenedTab)
+				->Split
+				(
+					FTabManager::NewStack()
+					->SetSizeCoefficient(0.65f)
+					->AddTab(ElementDetailsTabId, ETabState::OpenedTab)
+				)
+				->Split
+				(
+					FTabManager::NewStack()
+					->SetSizeCoefficient(0.35f)
+					->AddTab(ValidationTabId, ETabState::OpenedTab)
+				)
 			)
 		);
 
 	const bool bCreateDefaultStandaloneMenu = true;
 	const bool bCreateDefaultToolbar = true;
 	InitAssetEditor(Mode, InitToolkitHost, FName("KzArrayEditorApp"), StandaloneDefaultLayout, bCreateDefaultStandaloneMenu, bCreateDefaultToolbar, AssetToEdit);
+
+	ExtendToolbar();
+	RegenerateMenusAndToolbars();
 }
 
 void FKzArrayAssetEditor::OnClose()
@@ -239,6 +259,11 @@ void FKzArrayAssetEditor::RegisterTabSpawners(const TSharedRef<FTabManager>& InT
 		.SetDisplayName(FText::Format(NSLOCTEXT("KzArrayEditor", "ElementDetailsTab", "{0} Details"), ItemName))
 		.SetGroup(WorkspaceMenuCategory.ToSharedRef())
 		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Properties"));
+
+	InTabManager->RegisterTabSpawner(ValidationTabId, FOnSpawnTab::CreateSP(this, &FKzArrayAssetEditor::SpawnTab_Validation))
+		.SetDisplayName(NSLOCTEXT("KzArrayEditor", "ValidationTab", "Validation"))
+		.SetGroup(WorkspaceMenuCategory.ToSharedRef())
+		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.WarningWithColor"));
 }
 
 void FKzArrayAssetEditor::UnregisterTabSpawners(const TSharedRef<FTabManager>& InTabManager)
@@ -248,6 +273,7 @@ void FKzArrayAssetEditor::UnregisterTabSpawners(const TSharedRef<FTabManager>& I
 	InTabManager->UnregisterTabSpawner(AssetDetailsTabId);
 	InTabManager->UnregisterTabSpawner(ArrayStackTabId);
 	InTabManager->UnregisterTabSpawner(ElementDetailsTabId);
+	InTabManager->UnregisterTabSpawner(ValidationTabId);
 }
 
 TSharedRef<SDockTab> FKzArrayAssetEditor::SpawnTab_AssetDetails(const FSpawnTabArgs& Args)
@@ -282,6 +308,19 @@ TSharedRef<SDockTab> FKzArrayAssetEditor::SpawnTab_ElementDetails(const FSpawnTa
 		.Label(FText::Format(NSLOCTEXT("KzArrayEditor", "ElementDetailsTitle", "{0} Details"), ItemName))
 		[
 			ElementDetailsContainer.ToSharedRef()
+		];
+}
+
+TSharedRef<SDockTab> FKzArrayAssetEditor::SpawnTab_Validation(const FSpawnTabArgs& Args)
+{
+	SAssignNew(ValidationPanel, SKzValidationPanel)
+		.OnIssueActivated(SKzValidationPanel::FOnIssueActivated::CreateSP(this, &FKzArrayAssetEditor::HandleValidationIssueActivated))
+		.OnRunValidation(SKzValidationPanel::FOnRunValidation::CreateSP(this, &FKzArrayAssetEditor::HandleRunValidation));
+
+	return SNew(SDockTab)
+		.Label(NSLOCTEXT("KzArrayEditor", "ValidationTitle", "Validation"))
+		[
+			ValidationPanel.ToSharedRef()
 		];
 }
 
@@ -365,4 +404,62 @@ void FKzArrayAssetEditor::OnElementSelected(TSharedPtr<IPropertyHandle> Selected
 		);
 		return;
 	}
+}
+
+void FKzArrayAssetEditor::OnRunValidation()
+{
+	// Open the tab if it was closed and trigger a refresh.
+	TSharedPtr<FTabManager> TabManagerPin = GetTabManager();
+	if (TabManagerPin.IsValid())
+	{
+		TabManagerPin->TryInvokeTab(ValidationTabId);
+	}
+	if (ValidationPanel.IsValid())
+	{
+		ValidationPanel->RefreshIssues();
+	}
+}
+
+TArray<FKzValidationIssue> FKzArrayAssetEditor::HandleRunValidation()
+{
+	return FKzAssetValidationUtils::RunValidation(AssetToEdit);
+}
+
+void FKzArrayAssetEditor::HandleValidationIssueActivated(const FKzValidationIssue& Issue)
+{
+	if (!PropertyStackWidget.IsValid()) { return; }
+
+	// Try GUID first, fall back to array index.
+	if (Issue.ContextId.IsValid())
+	{
+		if (PropertyStackWidget->SelectByContextId(Issue.ContextId)) { return; }
+	}
+	if (Issue.ContextIndex != INDEX_NONE)
+	{
+		PropertyStackWidget->SelectByIndex(Issue.ContextIndex);
+	}
+}
+
+void FKzArrayAssetEditor::ExtendToolbar()
+{
+	TSharedPtr<FExtender> Extender = MakeShared<FExtender>();
+	Extender->AddToolBarExtension(
+		"Asset",
+		EExtensionHook::After,
+		GetToolkitCommands(),
+		FToolBarExtensionDelegate::CreateLambda([this](FToolBarBuilder& ToolbarBuilder)
+			{
+				ToolbarBuilder.BeginSection("Validation");
+				{
+					ToolbarBuilder.AddToolBarButton(
+						FUIAction(FExecuteAction::CreateSP(this, &FKzArrayAssetEditor::OnRunValidation)),
+						NAME_None,
+						NSLOCTEXT("KzArrayEditor", "ValidateBtn", "Validate"),
+						NSLOCTEXT("KzArrayEditor", "ValidateBtnTip", "Run validation on this asset and open the Validation tab"),
+						FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Refresh"));
+				}
+				ToolbarBuilder.EndSection();
+			}));
+
+	AddToolbarExtender(Extender);
 }
