@@ -1,6 +1,8 @@
 // Copyright 2026 kirzo
 
 #include "Editors/KzArrayAssetEditor.h"
+#include "Widgets/SKzPropertyStack.h"
+#include "Widgets/KzPropertyStackRowCustomizer.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
 #include "IDetailsView.h"
@@ -117,25 +119,43 @@ public:
 	}
 };
 
-TSharedRef<FKzArrayAssetEditor> FKzArrayAssetEditor::CreateEditor(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& InitToolkitHost, const TArray<UObject*>& ObjectsToEdit, FName InArrayPropertyName, FText InItemName, SKzPropertyStack::FOnGetItemDisplayName InOnGetItemDisplayName)
+TSharedRef<FKzArrayAssetEditor> FKzArrayAssetEditor::CreateEditor(
+	const EToolkitMode::Type Mode,
+	const TSharedPtr<IToolkitHost>& InitToolkitHost,
+	const TArray<UObject*>& ObjectsToEdit,
+	FName InArrayPropertyName,
+	FText InItemName,
+	TSharedPtr<FKzPropertyStackRowCustomizer> InRowCustomizer)
 {
 	TSharedRef<FKzArrayAssetEditor> NewEditor(new FKzArrayAssetEditor());
 	if (ObjectsToEdit.Num() > 0)
 	{
 		if (UObject* Asset = ObjectsToEdit[0])
 		{
-			NewEditor->InitArrayAssetEditor(Mode, InitToolkitHost, Asset, InArrayPropertyName, InItemName, InOnGetItemDisplayName);
+			NewEditor->InitArrayAssetEditor(Mode, InitToolkitHost, Asset, InArrayPropertyName, InItemName, InRowCustomizer);
 		}
 	}
 	return NewEditor;
 }
 
-void FKzArrayAssetEditor::InitArrayAssetEditor(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& InitToolkitHost, UObject* InAsset, FName InArrayPropertyName, FText InItemName, SKzPropertyStack::FOnGetItemDisplayName InOnGetItemDisplayName)
+void FKzArrayAssetEditor::InitArrayAssetEditor(
+	const EToolkitMode::Type Mode,
+	const TSharedPtr<IToolkitHost>& InitToolkitHost,
+	UObject* InAsset,
+	FName InArrayPropertyName,
+	FText InItemName,
+	TSharedPtr<FKzPropertyStackRowCustomizer> InRowCustomizer)
 {
 	AssetToEdit = InAsset;
 	ArrayPropertyName = InArrayPropertyName;
 	ItemName = InItemName;
-	OnGetItemDisplayNameDelegate = InOnGetItemDisplayName;
+	RowCustomizer = InRowCustomizer;
+
+	// Notify the customizer it's been bound to a host editor.
+	if (RowCustomizer.IsValid())
+	{
+		RowCustomizer->OnRegister(this);
+	}
 
 	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 
@@ -190,6 +210,15 @@ void FKzArrayAssetEditor::InitArrayAssetEditor(const EToolkitMode::Type Mode, co
 	InitAssetEditor(Mode, InitToolkitHost, FName("KzArrayEditorApp"), StandaloneDefaultLayout, bCreateDefaultStandaloneMenu, bCreateDefaultToolbar, AssetToEdit);
 }
 
+void FKzArrayAssetEditor::OnClose()
+{
+	if (RowCustomizer.IsValid())
+	{
+		RowCustomizer->OnUnregister();
+	}
+	FAssetEditorToolkit::OnClose();
+}
+
 void FKzArrayAssetEditor::RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager)
 {
 	FAssetEditorToolkit::RegisterTabSpawners(InTabManager);
@@ -235,7 +264,7 @@ TSharedRef<SDockTab> FKzArrayAssetEditor::SpawnTab_ArrayStack(const FSpawnTabArg
 	SAssignNew(PropertyStackWidget, SKzPropertyStack, ArrayPropertyHandle)
 		.bAllowDuplicates(false)
 		.ItemName(ItemName)
-		.OnGetItemDisplayName(OnGetItemDisplayNameDelegate)
+		.RowCustomizer(RowCustomizer)
 		.OnItemSelected(this, &FKzArrayAssetEditor::OnElementSelected);
 
 	return SNew(SDockTab)

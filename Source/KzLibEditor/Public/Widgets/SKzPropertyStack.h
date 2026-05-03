@@ -13,13 +13,14 @@ class IPropertyHandleArray;
 class FTextFilterExpressionEvaluator;
 class SSearchBox;
 class FUICommandList;
+class FKzPropertyStackRowCustomizer;
 
 class FKzPropertyDragDropOp : public FDragDropOperation
 {
 public:
 	DRAG_DROP_OPERATOR_TYPE(FKzPropertyDragDropOp, FDragDropOperation)
 
-	TSharedPtr<IPropertyHandle> HandleToDrag;
+		TSharedPtr<IPropertyHandle> HandleToDrag;
 
 	static TSharedRef<FKzPropertyDragDropOp> New(TSharedPtr<IPropertyHandle> InHandleToDrag)
 	{
@@ -34,7 +35,6 @@ class KZLIBEDITOR_API SKzPropertyStack : public SCompoundWidget, public FEditorU
 {
 public:
 	DECLARE_DELEGATE_OneParam(FOnItemSelected, TSharedPtr<IPropertyHandle> /*SelectedHandle*/);
-	DECLARE_DELEGATE_RetVal_OneParam(FString, FOnGetItemDisplayName, TSharedPtr<IPropertyHandle> /*ItemHandle*/);
 
 	SLATE_BEGIN_ARGS(SKzPropertyStack)
 		: _bAllowDuplicates(false)
@@ -42,8 +42,10 @@ public:
 		}
 		SLATE_ARGUMENT(bool, bAllowDuplicates)
 		SLATE_ARGUMENT(FText, ItemName)
+		/** Optional row customizer. When null, the stack falls back to its default
+		 *  presentation (display text from TitleProperty meta, no leading/trailing widgets). */
+		SLATE_ARGUMENT(TSharedPtr<FKzPropertyStackRowCustomizer>, RowCustomizer)
 		SLATE_EVENT(FOnItemSelected, OnItemSelected)
-		SLATE_EVENT(FOnGetItemDisplayName, OnGetItemDisplayName)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs, TSharedPtr<IPropertyHandle> InPropertyHandle);
@@ -68,8 +70,10 @@ private:
 	bool bIsObjectArray = false;
 	UClass* BaseObjectClass = nullptr;
 
+	/** Optional customizer providing leading/trailing widgets, display text overrides, etc. */
+	TSharedPtr<FKzPropertyStackRowCustomizer> RowCustomizer;
+
 	FOnItemSelected OnItemSelectedDelegate;
-	FOnGetItemDisplayName OnGetItemDisplayNameDelegate;
 	TSharedPtr<SListView<TSharedPtr<IPropertyHandle>>> ListViewWidget;
 	TSharedPtr<FUICommandList> CommandList;
 

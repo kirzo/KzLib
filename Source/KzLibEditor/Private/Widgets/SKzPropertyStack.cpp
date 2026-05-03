@@ -2,6 +2,7 @@
 
 #include "Widgets/SKzPropertyStack.h"
 #include "PropertyHandle.h"
+#include "Widgets/KzPropertyStackRowCustomizer.h"
 #include "Widgets/SKzClassCombo.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Views/STableRow.h"
@@ -27,8 +28,8 @@ void SKzPropertyStack::Construct(const FArguments& InArgs, TSharedPtr<IPropertyH
 {
 	bAllowDuplicates = InArgs._bAllowDuplicates;
 	OnItemSelectedDelegate = InArgs._OnItemSelected;
-	OnGetItemDisplayNameDelegate = InArgs._OnGetItemDisplayName;
 	ItemName = InArgs._ItemName.IsEmpty() ? INVTEXT("Element") : InArgs._ItemName;
+	RowCustomizer = InArgs._RowCustomizer;
 
 	TextFilter = MakeShared<FTextFilterExpressionEvaluator>(ETextFilterExpressionEvaluatorMode::BasicString);
 
@@ -171,13 +172,13 @@ FString SKzPropertyStack::GetHandleDisplayName(TSharedPtr<IPropertyHandle> Handl
 {
 	if (!Handle.IsValid()) return TEXT("Invalid");
 
-	// 1. Custom Delegate
-	if (OnGetItemDisplayNameDelegate.IsBound())
+	// 1. Customizer takes precedence over everything else.
+	if (RowCustomizer.IsValid())
 	{
-		FString CustomName = OnGetItemDisplayNameDelegate.Execute(Handle);
-		if (!CustomName.IsEmpty())
+		const FText Override = RowCustomizer->GetDisplayText(Handle);
+		if (!Override.IsEmpty())
 		{
-			return CustomName;
+			return Override.ToString();
 		}
 	}
 
@@ -188,7 +189,6 @@ FString SKzPropertyStack::GetHandleDisplayName(TSharedPtr<IPropertyHandle> Handl
 		if (TitleHandle.IsValid())
 		{
 			FString TitleValue;
-			// GetValueAsDisplayString formats FText, FName, numeric values, etc., cleanly for UI
 			if (TitleHandle->GetValueAsDisplayString(TitleValue) == FPropertyAccess::Success && !TitleValue.IsEmpty())
 			{
 				return TitleValue;
@@ -213,6 +213,16 @@ FString SKzPropertyStack::GetHandleDisplayName(TSharedPtr<IPropertyHandle> Handl
 FText SKzPropertyStack::GetHandleToolTip(TSharedPtr<IPropertyHandle> Handle) const
 {
 	if (!Handle.IsValid()) return FText::GetEmpty();
+
+	// Customizer takes precedence.
+	if (RowCustomizer.IsValid())
+	{
+		const FText Override = RowCustomizer->GetTooltipText(Handle);
+		if (!Override.IsEmpty())
+		{
+			return Override;
+		}
+	}
 
 	if (bIsObjectArray)
 	{
@@ -334,6 +344,12 @@ TSharedRef<ITableRow> SKzPropertyStack::OnGenerateRow(TSharedPtr<IPropertyHandle
 	const float VerticalPadding = 3.0f;
 	const FMargin Margin(HorizontalPadding, VerticalPadding);
 
+	// Pre-resolve customizer-provided slot widgets so the row layout is stable.
+	TSharedRef<SWidget> LeadingWidget = RowCustomizer.IsValid()
+		? RowCustomizer->BuildLeadingWidget(Item) : SNullWidget::NullWidget;
+	TSharedRef<SWidget> TrailingWidget = RowCustomizer.IsValid()
+		? RowCustomizer->BuildTrailingWidget(Item) : SNullWidget::NullWidget;
+
 	return SNew(STableRow<TSharedPtr<IPropertyHandle>>, OwnerTable)
 		.ShowSelection(false)
 		.Padding(Margin)
@@ -345,16 +361,26 @@ TSharedRef<ITableRow> SKzPropertyStack::OnGenerateRow(TSharedPtr<IPropertyHandle
 				.ToolTipText(Tooltip)
 				.BorderImage_Lambda([this, Item]()
 					{
-						if (ListViewWidget.IsValid() && ListViewWidget->IsItemSelected(Item))
+						const bool bIsSelected = ListViewWidget.IsValid() && ListViewWidget->IsItemSelected(Item);
+
+						// Customizer override takes precedence.
+						if (RowCustomizer.IsValid())
 						{
-							return FKzLibEditorStyle::Get().GetBrush("Kz.CardBorderSelected");
+							if (const FSlateBrush* CustomBrush = RowCustomizer->GetBackgroundBrush(Item, bIsSelected))
+							{
+								return CustomBrush;
+							}
 						}
-						return FKzLibEditorStyle::Get().GetBrush("Kz.CardBorder");
+
+						return bIsSelected
+							? FKzLibEditorStyle::Get().GetBrush("Kz.CardBorderSelected")
+							: FKzLibEditorStyle::Get().GetBrush("Kz.CardBorder");
 					})
 				.Padding(Margin * 1.5f)
 				[
 					SNew(SHorizontalBox)
 
+						// Drag handle
 						+ SHorizontalBox::Slot()
 						.MaxWidth(18)
 						.AutoWidth()
@@ -366,8 +392,18 @@ TSharedRef<ITableRow> SKzPropertyStack::OnGenerateRow(TSharedPtr<IPropertyHandle
 								.Image(FAppStyle::GetBrush("VerticalBoxDragIndicatorShort"))
 						]
 
+						// Leading widget (customizer slot — empty by default)
 						+ SHorizontalBox::Slot()
-						.FillWidth(1.0f)
+						.AutoWidth()
+						.VAlign(VAlign_Center)
+						.Padding(Margin)
+						[
+							LeadingWidget
+						]
+
+						// Display text
+						+ SHorizontalBox::Slot()
+						.AutoWidth()
 						.HAlign(HAlign_Left)
 						.VAlign(VAlign_Center)
 						.Padding(Margin)
@@ -377,6 +413,23 @@ TSharedRef<ITableRow> SKzPropertyStack::OnGenerateRow(TSharedPtr<IPropertyHandle
 								.HighlightText(this, &SKzPropertyStack::GetSearchText)
 						]
 
+						+ SHorizontalBox::Slot()
+						.HAlign(HAlign_Fill)
+						.FillWidth(1.0f)
+						[
+							SNew(SSpacer).Size(FVector2D(0.0f, 1.0f))
+						]
+
+						// Trailing widget (customizer slot — empty by default)
+						+ SHorizontalBox::Slot()
+						.AutoWidth()
+						.VAlign(VAlign_Center)
+						.Padding(Margin)
+						[
+							TrailingWidget
+						]
+
+						// Delete button
 						+ SHorizontalBox::Slot()
 						.AutoWidth()
 						.HAlign(HAlign_Right)
