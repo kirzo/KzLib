@@ -67,7 +67,7 @@ private:
 	static const FName ElementDetailsTabId;
 	static const FName ValidationTabId;
 
-	void OnElementSelected(TSharedPtr<IPropertyHandle> SelectedHandle);
+	void OnElementsSelected(const TArray<TSharedPtr<IPropertyHandle>>& SelectedHandles);
 
 	/** Toolbar handler. */
 	void OnRunValidation();

@@ -15,17 +15,18 @@ class SSearchBox;
 class FUICommandList;
 class FKzPropertyStackRowCustomizer;
 
+/** Drag&drop payload supporting multiple property handles. */
 class FKzPropertyDragDropOp : public FDragDropOperation
 {
 public:
 	DRAG_DROP_OPERATOR_TYPE(FKzPropertyDragDropOp, FDragDropOperation)
 
-		TSharedPtr<IPropertyHandle> HandleToDrag;
+		TArray<TSharedPtr<IPropertyHandle>> HandlesToDrag;
 
-	static TSharedRef<FKzPropertyDragDropOp> New(TSharedPtr<IPropertyHandle> InHandleToDrag)
+	static TSharedRef<FKzPropertyDragDropOp> New(const TArray<TSharedPtr<IPropertyHandle>>& InHandlesToDrag)
 	{
 		TSharedRef<FKzPropertyDragDropOp> Operation = MakeShared<FKzPropertyDragDropOp>();
-		Operation->HandleToDrag = InHandleToDrag;
+		Operation->HandlesToDrag = InHandlesToDrag;
 		Operation->Construct();
 		return Operation;
 	}
@@ -34,7 +35,7 @@ public:
 class KZLIBEDITOR_API SKzPropertyStack : public SCompoundWidget, public FEditorUndoClient
 {
 public:
-	DECLARE_DELEGATE_OneParam(FOnItemSelected, TSharedPtr<IPropertyHandle> /*SelectedHandle*/);
+	DECLARE_DELEGATE_OneParam(FOnSelectionChanged, const TArray<TSharedPtr<IPropertyHandle>>& /*SelectedHandles*/);
 
 	SLATE_BEGIN_ARGS(SKzPropertyStack)
 		: _bAllowDuplicates(false)
@@ -42,28 +43,35 @@ public:
 		}
 		SLATE_ARGUMENT(bool, bAllowDuplicates)
 		SLATE_ARGUMENT(FText, ItemName)
-		/** Optional row customizer. When null, the stack falls back to its default
-		 *  presentation (display text from TitleProperty meta, no leading/trailing widgets). */
 		SLATE_ARGUMENT(TSharedPtr<FKzPropertyStackRowCustomizer>, RowCustomizer)
-		SLATE_EVENT(FOnItemSelected, OnItemSelected)
+		/** Fired when the selection changes. The array contains all currently selected
+		 *  handles, in the order the list view returns them (typically top-to-bottom). */
+		SLATE_EVENT(FOnSelectionChanged, OnSelectionChanged)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs, TSharedPtr<IPropertyHandle> InPropertyHandle);
 	virtual ~SKzPropertyStack();
 
 	void SetPropertyHandle(TSharedPtr<IPropertyHandle> InPropertyHandle);
-	TSharedPtr<IPropertyHandle> GetSelectedPropertyHandle() const;
+
+	/** Returns all selected handles in their current list order. */
+	TArray<TSharedPtr<IPropertyHandle>> GetSelectedHandles() const;
 
 	/**
-	 * Programmatically select a row by its index in the underlying array.
-	 * Returns true if the selection was applied.
+	 * Returns the "primary" handle (last clicked) or null.
+	 * Convenience for consumers that don't care about multi-select.
+	 */
+	TSharedPtr<IPropertyHandle> GetPrimarySelectedHandle() const;
+
+	/**
+	 * Programmatically select a row by its index in the underlying
+	 * array, replacing any existing selection. Returns true if applied.
 	 */
 	bool SelectByIndex(int32 Index);
 
 	/**
-	 * Programmatically select a row by a context GUID, asking the row customizer
-	 * to resolve which handle it corresponds to.
-	 * Returns true if resolved and selected.
+	 * Programmatically select a row by a context GUID, asking the row customizer to
+	 * resolve which handle it corresponds to. Returns true if resolved and selected.
 	 */
 	bool SelectByContextId(const FGuid& ContextId);
 
@@ -83,10 +91,9 @@ private:
 	bool bIsObjectArray = false;
 	UClass* BaseObjectClass = nullptr;
 
-	/** Optional customizer providing leading/trailing widgets, display text overrides, etc. */
 	TSharedPtr<FKzPropertyStackRowCustomizer> RowCustomizer;
 
-	FOnItemSelected OnItemSelectedDelegate;
+	FOnSelectionChanged OnSelectionChangedDelegate;
 	TSharedPtr<SListView<TSharedPtr<IPropertyHandle>>> ListViewWidget;
 	TSharedPtr<FUICommandList> CommandList;
 
@@ -124,12 +131,16 @@ private:
 	FReply OnAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone, TSharedPtr<IPropertyHandle> TargetItem);
 
 	void BindCommands();
-	void CopySelectedElement();
-	bool CanCopyElement() const;
+
+	// Multi-aware command implementations.
+	void CopySelectedElements();
+	bool CanCopyElements() const;
 	void PasteElement();
 	bool CanPasteElement() const;
-	void CutSelectedElement();
-	bool CanCutElement() const;
-	void DeleteSelectedElement();
-	bool CanDeleteElement() const;
+	void CutSelectedElements();
+	bool CanCutElements() const;
+	void DeleteSelectedElements();
+	bool CanDeleteElements() const;
+	void DuplicateSelectedElements();
+	bool CanDuplicateElements() const;
 };

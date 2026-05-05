@@ -105,6 +105,17 @@ public:
 	}
 
 	// ---------------------------------------------------------------------------
+	// Multi-selection
+	// ---------------------------------------------------------------------------
+
+	/**
+	 * Whether the property stack should allow selecting multiple rows at once.
+	 * Customizers that don't make sense in multi (e.g. an audition widget that
+	 * plays one sound at a time) can return false to force single-selection mode.
+	 */
+	virtual bool AllowsMultiSelect() const { return true; }
+
+	// ---------------------------------------------------------------------------
 	// Helpers for subclasses
 	// ---------------------------------------------------------------------------
 

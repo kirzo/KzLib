@@ -57,26 +57,45 @@ private:
 	FKzArrayAssetEditor* Editor;
 };
 
-// Safely provides dynamic memory addresses for struct properties inside an array
+/**
+ * Safely provides dynamic memory addresses for one or more struct properties so the
+ * details view can multi-edit. When more than one handle is provided, the details
+ * view automatically merges values and shows "Multiple Values" where they differ.
+ */
 class FKzStructProvider : public IStructureDataProvider
 {
 public:
-	TSharedPtr<IPropertyHandle> StructHandle;
+	TArray<TSharedPtr<IPropertyHandle>> StructHandles;
 
-	FKzStructProvider(TSharedPtr<IPropertyHandle> InHandle) : StructHandle(InHandle) {}
+	explicit FKzStructProvider(TSharedPtr<IPropertyHandle> InHandle)
+	{
+		if (InHandle.IsValid()) { StructHandles.Add(InHandle); }
+	}
+
+	explicit FKzStructProvider(const TArray<TSharedPtr<IPropertyHandle>>& InHandles)
+		: StructHandles(InHandles)
+	{
+	}
 
 	virtual bool IsValid() const override
 	{
-		return StructHandle.IsValid() && StructHandle->IsValidHandle();
+		for (const TSharedPtr<IPropertyHandle>& Handle : StructHandles)
+		{
+			if (Handle.IsValid() && Handle->IsValidHandle()) { return true; }
+		}
+		return false;
 	}
 
 	virtual const UStruct* GetBaseStructure() const override
 	{
-		if (IsValid())
+		for (const TSharedPtr<IPropertyHandle>& Handle : StructHandles)
 		{
-			if (FStructProperty* StructProp = CastField<FStructProperty>(StructHandle->GetProperty()))
+			if (Handle.IsValid() && Handle->IsValidHandle())
 			{
-				return StructProp->Struct;
+				if (FStructProperty* StructProp = CastField<FStructProperty>(Handle->GetProperty()))
+				{
+					return StructProp->Struct;
+				}
 			}
 		}
 		return nullptr;
@@ -84,17 +103,19 @@ public:
 
 	virtual void GetInstances(TArray<TSharedPtr<FStructOnScope>>& OutInstances, const UStruct* ExpectedBaseStructure) const override
 	{
-		if (IsValid())
+		for (const TSharedPtr<IPropertyHandle>& Handle : StructHandles)
 		{
+			if (!Handle.IsValid() || !Handle->IsValidHandle()) { continue; }
+
 			void* Data = nullptr;
-			if (StructHandle->GetValueData(Data) == FPropertyAccess::Success && Data)
+			if (Handle->GetValueData(Data) == FPropertyAccess::Success && Data)
 			{
 				// Provide a non-owning struct on scope. It views the data without taking ownership.
 				TSharedPtr<FStructOnScope> StructOnScope = MakeShared<FStructOnScope>(ExpectedBaseStructure, (uint8*)Data);
 
 				// We retrieve the outer asset package and inject it into the scope.
 				TArray<UObject*> OuterObjects;
-				StructHandle->GetOuterObjects(OuterObjects);
+				Handle->GetOuterObjects(OuterObjects);
 				if (OuterObjects.Num() > 0 && OuterObjects[0])
 				{
 					StructOnScope->SetPackage(OuterObjects[0]->GetPackage());
@@ -112,11 +133,12 @@ public:
 
 	virtual uint8* GetValueBaseAddress(uint8* ParentValueAddress, const UStruct* ExpectedBaseStructure) const override
 	{
-		if (IsValid())
+		// Only meaningful for single selection. Multi-edit goes through GetInstances.
+		if (StructHandles.Num() == 1 && StructHandles[0].IsValid())
 		{
 			void* Data = nullptr;
 			// Automatically fetches the valid pointer even if the array reallocates
-			if (StructHandle->GetValueData(Data) == FPropertyAccess::Success)
+			if (StructHandles[0]->GetValueData(Data) == FPropertyAccess::Success)
 			{
 				return (uint8*)Data;
 			}
@@ -291,7 +313,7 @@ TSharedRef<SDockTab> FKzArrayAssetEditor::SpawnTab_ArrayStack(const FSpawnTabArg
 		.bAllowDuplicates(false)
 		.ItemName(ItemName)
 		.RowCustomizer(RowCustomizer)
-		.OnItemSelected(this, &FKzArrayAssetEditor::OnElementSelected);
+		.OnSelectionChanged(this, &FKzArrayAssetEditor::OnElementsSelected);
 
 	return SNew(SDockTab)
 		.Label(FText::Format(NSLOCTEXT("KzArrayEditor", "ArrayStackTitle", "{0}s"), ItemName))
@@ -329,81 +351,122 @@ FText FKzArrayAssetEditor::GetBaseToolkitName() const { return NSLOCTEXT("KzArra
 FString FKzArrayAssetEditor::GetWorldCentricTabPrefix() const { return TEXT("ArrayAssetEditor"); }
 FLinearColor FKzArrayAssetEditor::GetWorldCentricTabColorScale() const { return FLinearColor::White; }
 
-void FKzArrayAssetEditor::OnElementSelected(TSharedPtr<IPropertyHandle> SelectedHandle)
+void FKzArrayAssetEditor::OnElementsSelected(const TArray<TSharedPtr<IPropertyHandle>>& SelectedHandles)
 {
-	if (!ElementDetailsContainer.IsValid())
-	{
-		return;
-	}
+	if (!ElementDetailsContainer.IsValid()) { return; }
 
-	// Ensure previous views are completely cleared before inspecting new handles
+	// Reset state.
 	ElementDetailsContainer->SetContent(SNullWidget::NullWidget);
 	if (ElementDetailsView.IsValid())
 	{
 		ElementDetailsView->SetObject(nullptr);
 	}
 
-	if (SelectedHandle.IsValid() && SelectedHandle->IsValidHandle())
+	if (SelectedHandles.Num() == 0) { return; }
+
+	// Inspect the property type of the first valid handle. If subsequent handles have
+	// different property types we fall back to showing only the first.
+	TSharedPtr<IPropertyHandle> First;
+	for (const TSharedPtr<IPropertyHandle>& Handle : SelectedHandles)
 	{
-		FProperty* Prop = SelectedHandle->GetProperty();
+		if (Handle.IsValid() && Handle->IsValidHandle()) { First = Handle; break; }
+	}
+	if (!First.IsValid()) { return; }
 
-		// 1. Handle UObjects
-		if (CastField<FObjectPropertyBase>(Prop))
+	FProperty* FirstProp = First->GetProperty();
+	if (!FirstProp) { return; }
+
+	// ---------------------------------------------------------------------------------
+	// UObjects: SetObjects on the standard details view handles multi-edit (showing
+	// only the common base properties when classes differ).
+	// ---------------------------------------------------------------------------------
+	if (CastField<FObjectPropertyBase>(FirstProp))
+	{
+		TArray<UObject*> Objects;
+		Objects.Reserve(SelectedHandles.Num());
+		for (const TSharedPtr<IPropertyHandle>& Handle : SelectedHandles)
 		{
-			UObject* SelectedObj = nullptr;
-			SelectedHandle->GetValue(SelectedObj);
-
-			if (ElementDetailsView.IsValid())
+			if (!Handle.IsValid()) { continue; }
+			UObject* Obj = nullptr;
+			if (Handle->GetValue(Obj) == FPropertyAccess::Success && Obj)
 			{
-				ElementDetailsView->SetObject(SelectedObj);
-				ElementDetailsContainer->SetContent(ElementDetailsView.ToSharedRef());
+				Objects.Add(Obj);
 			}
-			return;
 		}
 
-		// 2. Handle UStructs via our custom DataProvider
-		if (CastField<FStructProperty>(Prop))
+		if (Objects.Num() > 0 && ElementDetailsView.IsValid())
 		{
-			FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
-
-			FDetailsViewArgs DetailsViewArgs;
-			DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
-			DetailsViewArgs.bHideSelectionTip = true;
-
-			FStructureDetailsViewArgs StructViewArgs;
-			StructViewArgs.bShowObjects = true;
-			StructViewArgs.bShowAssets = true;
-			StructViewArgs.bShowClasses = true;
-			StructViewArgs.bShowInterfaces = true;
-
-			TSharedPtr<IStructureDataProvider> Provider = MakeShared<FKzStructProvider>(SelectedHandle);
-			TSharedRef<IStructureDetailsView> StructView = PropertyEditorModule.CreateStructureProviderDetailView(DetailsViewArgs, StructViewArgs, Provider);
-
-			// Listen to changes inside the raw struct view and manually notify the property handle
-			StructView->GetOnFinishedChangingPropertiesDelegate().AddLambda([this, SelectedHandle](const FPropertyChangedEvent& Event)
-				{
-					if (SelectedHandle.IsValid() && SelectedHandle->IsValidHandle())
-					{
-						// This forces Unreal to fire the normal property chain events on the outer UObject
-						SelectedHandle->NotifyPostChange(EPropertyChangeType::ValueSet);
-					}
-				});
-
-			ElementDetailsContainer->SetContent(StructView->GetWidget().ToSharedRef());
-			return;
+			ElementDetailsView->SetObjects(Objects);
+			ElementDetailsContainer->SetContent(ElementDetailsView.ToSharedRef());
 		}
-
-		// 3. Handle Primitive Types (int, float, FName, etc.)
-		ElementDetailsContainer->SetContent(
-			SNew(SBox)
-			.Padding(10.0f)
-			.VAlign(VAlign_Top)
-			[
-				SelectedHandle->CreatePropertyValueWidget()
-			]
-		);
 		return;
 	}
+
+	// ---------------------------------------------------------------------------------
+	// Structs: build a multi-handle FKzStructProvider and feed it to a structure
+	// details view. The view internally shows "Multiple Values" where they differ.
+	// ---------------------------------------------------------------------------------
+	if (CastField<FStructProperty>(FirstProp))
+	{
+		// Filter to only struct handles of the same type as the first one (mixed types
+		// inside a polymorphic array shouldn't happen in well-formed assets, but we
+		// guard anyway).
+		const UStruct* FirstStruct = CastField<FStructProperty>(FirstProp)->Struct;
+		TArray<TSharedPtr<IPropertyHandle>> Compatible;
+		for (const TSharedPtr<IPropertyHandle>& Handle : SelectedHandles)
+		{
+			if (!Handle.IsValid()) { continue; }
+			if (FStructProperty* SP = CastField<FStructProperty>(Handle->GetProperty()))
+			{
+				if (SP->Struct == FirstStruct) { Compatible.Add(Handle); }
+			}
+		}
+		if (Compatible.Num() == 0) { return; }
+
+		FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+
+		FDetailsViewArgs DetailsViewArgs;
+		DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
+		DetailsViewArgs.bHideSelectionTip = true;
+
+		FStructureDetailsViewArgs StructViewArgs;
+		StructViewArgs.bShowObjects = true;
+		StructViewArgs.bShowAssets = true;
+		StructViewArgs.bShowClasses = true;
+		StructViewArgs.bShowInterfaces = true;
+
+		TSharedPtr<IStructureDataProvider> Provider = MakeShared<FKzStructProvider>(Compatible);
+		TSharedRef<IStructureDetailsView> StructView = PropertyEditorModule.CreateStructureProviderDetailView(
+			DetailsViewArgs, StructViewArgs, Provider);
+
+		StructView->GetOnFinishedChangingPropertiesDelegate().AddLambda(
+			[Compatible](const FPropertyChangedEvent& /*Event*/)
+			{
+				// Forward changes to each handle so undo/redo and serialization see them.
+				for (const TSharedPtr<IPropertyHandle>& H : Compatible)
+				{
+					if (H.IsValid() && H->IsValidHandle())
+					{
+						H->NotifyPostChange(EPropertyChangeType::ValueSet);
+					}
+				}
+			});
+
+		ElementDetailsContainer->SetContent(StructView->GetWidget().ToSharedRef());
+		return;
+	}
+
+	// ---------------------------------------------------------------------------------
+	// Primitives: multi-edit doesn't make sense in an array; show the first handle's
+	// value editor so the user can at least see something.
+	// ---------------------------------------------------------------------------------
+	ElementDetailsContainer->SetContent(
+		SNew(SBox)
+		.Padding(10.0f)
+		.VAlign(VAlign_Top)
+		[
+			First->CreatePropertyValueWidget()
+		]);
 }
 
 void FKzArrayAssetEditor::OnRunValidation()
