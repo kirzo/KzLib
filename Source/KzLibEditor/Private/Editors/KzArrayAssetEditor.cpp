@@ -346,9 +346,11 @@ TSharedRef<SDockTab> FKzArrayAssetEditor::SpawnTab_ArrayStack(const FSpawnTabArg
 		.OnSelectionChanged(this, &FKzArrayAssetEditor::OnElementsSelected);
 
 	const FText PluralLabel = Tabs[TabIndex].GetPluralItemName();
+
 	return SNew(SDockTab)
-		.Label(FText::Format(NSLOCTEXT("KzArrayEditor", "ArrayStackTitle", "{0}s"), Runtime.ItemName))
 		.Label(PluralLabel)
+		.OnTabActivated(SDockTab::FOnTabActivatedCallback::CreateSP(
+			this, &FKzArrayAssetEditor::OnArrayStackTabActivated, TabIndex))
 		[
 			Runtime.StackWidget.ToSharedRef()
 		];
@@ -483,6 +485,21 @@ void FKzArrayAssetEditor::OnElementsSelected(const TArray<TSharedPtr<IPropertyHa
 		[
 			First->CreatePropertyValueWidget()
 		]);
+}
+
+void FKzArrayAssetEditor::OnArrayStackTabActivated(TSharedRef<SDockTab> /*ActivatedTab*/, ETabActivationCause Cause, int32 TabIndex)
+{
+	// Only react to user-driven activations. Programmatic ones (e.g. layout restore at
+	// startup) shouldn't fight against the user's explicit selection in another tab.
+	if (Cause != ETabActivationCause::UserClickedOnTab) { return; }
+	if (!TabRuntimes.IsValidIndex(TabIndex)) { return; }
+
+	const FTabRuntime& Runtime = TabRuntimes[TabIndex];
+	if (!Runtime.StackWidget.IsValid()) { return; }
+
+	// Push the now-active tab's selection into the shared Element Details panel.
+	const TArray<TSharedPtr<IPropertyHandle>> Selection = Runtime.StackWidget->GetSelectedHandles();
+	OnElementsSelected(Selection);
 }
 
 // =======================================================================================

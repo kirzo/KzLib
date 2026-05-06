@@ -82,6 +82,7 @@ private:
 	TSharedRef<SDockTab> SpawnTab_Validation(const FSpawnTabArgs& Args);
 
 	void OnElementsSelected(const TArray<TSharedPtr<IPropertyHandle>>& SelectedHandles);
+	void OnArrayStackTabActivated(TSharedRef<SDockTab> ActivatedTab, ETabActivationCause Cause, int32 TabIndex);
 
 	void OnRunValidation();
 	TArray<struct FKzValidationIssue> HandleRunValidation();
