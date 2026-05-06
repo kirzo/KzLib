@@ -90,6 +90,19 @@ public:
 		return nullptr;
 	}
 
+	/**
+	 * Build a custom "Add" widget that replaces the stack's default add button.
+	 * Use this when adding an element requires more than just appending a default-
+	 * constructed value (e.g. opening a picker scoped to the current asset).
+	 *
+	 * Receives the array handle so the implementation can append items itself.
+	 * Return nullptr (default) to fall back to the stack's built-in add behavior.
+	 */
+	virtual TSharedPtr<SWidget> BuildAddWidget(TSharedPtr<class IPropertyHandleArray> /*ArrayHandle*/)
+	{
+		return nullptr;
+	}
+
 	// ---------------------------------------------------------------------------
 	// Context resolution (used by validation jump-to and other navigation features)
 	// ---------------------------------------------------------------------------

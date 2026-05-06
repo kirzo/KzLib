@@ -274,7 +274,11 @@ void SKzPropertyStack::SetPropertyHandle(TSharedPtr<IPropertyHandle> InPropertyH
 
 	if (AddWidgetContainer.IsValid())
 	{
-		if (bIsObjectArray && BaseObjectClass)
+		if (TSharedPtr<SWidget> Custom = RowCustomizer.IsValid() ? RowCustomizer->BuildAddWidget(ArrayHandle) : nullptr)
+		{
+			AddWidgetContainer->SetContent(Custom.ToSharedRef());
+		}
+		else if (bIsObjectArray && BaseObjectClass)
 		{
 			AddWidgetContainer->SetContent(
 				SNew(SKzClassCombo)
@@ -412,6 +416,7 @@ TSharedRef<ITableRow> SKzPropertyStack::OnGenerateRow(TSharedPtr<IPropertyHandle
 						[
 							SNew(STextBlock)
 								.Text_Lambda([this, Item]() { return FText::FromString(GetHandleDisplayName(Item)); })
+								.OverflowPolicy(ETextOverflowPolicy::Ellipsis)
 								.HighlightText(this, &SKzPropertyStack::GetSearchText)
 						]
 
