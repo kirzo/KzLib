@@ -29,6 +29,8 @@
 #include "Widgets/Views/STableRow.h"
 #include "SPositiveActionButton.h"
 
+#include "Misc/MessageDialog.h"
+
 #define LOCTEXT_NAMESPACE "SKzPropertyStack"
 
 void SKzPropertyStack::Construct(const FArguments& InArgs, TSharedPtr<IPropertyHandle> InPropertyHandle)
@@ -84,13 +86,29 @@ void SKzPropertyStack::Construct(const FArguments& InArgs, TSharedPtr<IPropertyH
 								[
 									SearchBox.ToSharedRef()
 								]
+
+								+ SHorizontalBox::Slot()
+								.VAlign(VAlign_Center).HAlign(HAlign_Right).AutoWidth().Padding(3.0f, 3.0f)
+								[
+									SNew(SButton)
+										.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+										.ToolTipText(NSLOCTEXT("KzPropertyStack", "ClearAllTip", "Remove all elements"))
+										.IsEnabled(this, &SKzPropertyStack::CanClearAll)
+										.OnClicked(this, &SKzPropertyStack::OnClearAllClicked)
+										.ContentPadding(FMargin(4.0f, 2.0f))
+										[
+											SNew(SImage)
+												.Image(FAppStyle::Get().GetBrush("Icons.Delete"))
+												.ColorAndOpacity(FSlateColor::UseForeground())
+										]
+								]
 						]
 				]
 
 			+ SVerticalBox::Slot().Padding(0.0f).FillHeight(1.0f)
 				[
 					SNew(SHorizontalBox)
-						+ SHorizontalBox::Slot().FillWidth(1.f).Padding(5.0f)
+						+ SHorizontalBox::Slot().FillWidth(1.f).Padding(InArgs._ListPadding)
 						[
 							SAssignNew(ListViewWidget, SListView<TSharedPtr<IPropertyHandle>>)
 								.ListItemsSource(&FilteredHandles)
@@ -235,6 +253,40 @@ void SKzPropertyStack::OnSearchBoxTextChanged(const FText& InSearchText)
 FText SKzPropertyStack::GetSearchText() const
 {
 	return TextFilter->GetFilterText();
+}
+
+FReply SKzPropertyStack::OnClearAllClicked()
+{
+	if (!ArrayHandle.IsValid()) { return FReply::Handled(); }
+
+	uint32 NumElements = 0;
+	ArrayHandle->GetNumElements(NumElements);
+	if (NumElements == 0) { return FReply::Handled(); }
+
+	const FText PluralName = ItemNamePlural.IsEmpty() ? FText::Format(INVTEXT("{0}s"), ItemName) : ItemNamePlural;
+
+	const FText ConfirmText = FText::Format(
+		NSLOCTEXT("KzPropertyStack", "ClearAllConfirm", "Remove all {0} {1}?"),
+		FText::AsNumber(NumElements),
+		PluralName);
+
+	if (FMessageDialog::Open(EAppMsgType::YesNo, ConfirmText) != EAppReturnType::Yes)
+	{
+		return FReply::Handled();
+	}
+
+	const FScopedTransaction Transaction(FText::Format(NSLOCTEXT("KzPropertyStack", "ClearAllTrans", "Clear all {0}"), PluralName));
+	ArrayHandle->EmptyArray();
+
+	return FReply::Handled();
+}
+
+bool SKzPropertyStack::CanClearAll() const
+{
+	if (!ArrayHandle.IsValid()) { return false; }
+	uint32 NumElements = 0;
+	ArrayHandle->GetNumElements(NumElements);
+	return NumElements > 0;
 }
 
 FReply SKzPropertyStack::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)

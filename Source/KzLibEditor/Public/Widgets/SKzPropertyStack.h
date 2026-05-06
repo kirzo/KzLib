@@ -39,12 +39,14 @@ public:
 
 	SLATE_BEGIN_ARGS(SKzPropertyStack)
 		: _bAllowDuplicates(false)
+		, _ListPadding(FMargin(5.0f))
 		{
 		}
 		SLATE_ARGUMENT(bool, bAllowDuplicates)
 		SLATE_ARGUMENT(FText, ItemName)
 		SLATE_ARGUMENT(FText, ItemNamePlural)
 		SLATE_ARGUMENT(TSharedPtr<FKzPropertyStackRowCustomizer>, RowCustomizer)
+		SLATE_ARGUMENT(FMargin, ListPadding)
 		/** Fired when the selection changes. The array contains all currently selected
 		 *  handles, in the order the list view returns them (typically top-to-bottom). */
 		SLATE_EVENT(FOnSelectionChanged, OnSelectionChanged)
@@ -110,6 +112,9 @@ private:
 	void GenerateFilteredList();
 	void OnSearchBoxTextChanged(const FText& InSearchText);
 	FText GetSearchText() const;
+
+	FReply OnClearAllClicked();
+	bool CanClearAll() const;
 
 	FString GetHandleDisplayName(TSharedPtr<IPropertyHandle> Handle) const;
 	FText GetHandleToolTip(TSharedPtr<IPropertyHandle> Handle) const;
