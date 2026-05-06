@@ -90,15 +90,18 @@ public:
 		return nullptr;
 	}
 
+	virtual bool HasAddMenu() const { return false; }
+
 	/**
-	 * Build a custom "Add" widget that replaces the stack's default add button.
-	 * Use this when adding an element requires more than just appending a default-
-	 * constructed value (e.g. opening a picker scoped to the current asset).
+	 * Build a custom menu shown when the user clicks the stack's "Add" button.
+	 * When this returns a non-null widget, the stack converts its add button into a
+	 * combo button that opens this menu instead of appending a default item.
 	 *
-	 * Receives the array handle so the implementation can append items itself.
-	 * Return nullptr (default) to fall back to the stack's built-in add behavior.
+	 * The widget is typically a picker, list, or any other selection UI. The
+	 * customizer is responsible for appending items to the array (via the array
+	 * handle it captured during OnRegister or via a closure).
 	 */
-	virtual TSharedPtr<SWidget> BuildAddWidget(TSharedPtr<class IPropertyHandleArray> /*ArrayHandle*/)
+	virtual TSharedPtr<SWidget> BuildAddMenu(TSharedPtr<class IPropertyHandleArray> /*ArrayHandle*/)
 	{
 		return nullptr;
 	}

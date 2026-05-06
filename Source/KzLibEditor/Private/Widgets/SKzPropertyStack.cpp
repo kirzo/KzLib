@@ -274,9 +274,25 @@ void SKzPropertyStack::SetPropertyHandle(TSharedPtr<IPropertyHandle> InPropertyH
 
 	if (AddWidgetContainer.IsValid())
 	{
-		if (TSharedPtr<SWidget> Custom = RowCustomizer.IsValid() ? RowCustomizer->BuildAddWidget(ArrayHandle) : nullptr)
+		if (RowCustomizer.IsValid() && RowCustomizer->HasAddMenu())
 		{
-			AddWidgetContainer->SetContent(Custom.ToSharedRef());
+			AddWidgetContainer->SetContent(
+				SNew(SPositiveActionButton)
+				.Icon(FAppStyle::Get().GetBrush("Icons.Plus"))
+				.Text(FText::Format(INVTEXT("Add {0}"), ItemName))
+				//.OnComboBoxOpened(this, &SKzClassCombo::OnMenuOpened)
+				.OnGetMenuContent_Lambda([this]() -> TSharedRef<SWidget>
+					{
+						if (RowCustomizer.IsValid())
+						{
+							if (TSharedPtr<SWidget> Menu = RowCustomizer->BuildAddMenu(ArrayHandle))
+							{
+								return Menu.ToSharedRef();
+							}
+						}
+						return SNullWidget::NullWidget;
+					})
+			);
 		}
 		else if (bIsObjectArray && BaseObjectClass)
 		{
