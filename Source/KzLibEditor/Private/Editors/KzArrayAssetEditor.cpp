@@ -3,6 +3,9 @@
 #include "Editors/KzArrayAssetEditor.h"
 #include "Widgets/SKzPropertyStack.h"
 #include "Widgets/KzPropertyStackRowCustomizer.h"
+#include "Widgets/SKzValidationPanel.h"
+#include "Validation/KzAssetValidationUtils.h"
+
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
 #include "IDetailsView.h"
@@ -16,16 +19,15 @@
 #include "IStructureDataProvider.h"
 #include "Widgets/Layout/SBox.h"
 #include "UObject/StructOnScope.h"
-
-#include "Widgets/SKzValidationPanel.h"
-#include "Validation/KzAssetValidationUtils.h"
-#include "Widgets/KzPropertyStackRowCustomizer.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 
 const FName FKzArrayAssetEditor::AssetDetailsTabId(TEXT("KzArrayEditor_AssetDetails"));
-const FName FKzArrayAssetEditor::ArrayStackTabId(TEXT("KzArrayEditor_ArrayStack"));
-const FName FKzArrayAssetEditor::ElementDetailsTabId(TEXT("KzArrayEditor_ElementDetails"));
 const FName FKzArrayAssetEditor::ValidationTabId(TEXT("KzArrayEditor_Validation"));
+
+// =======================================================================================
+// IDetailCustomization that hides each configured array property from the asset details
+// view (so the user only edits arrays via the tabs, not the details panel).
+// =======================================================================================
 
 class FKzArrayAssetDetailCustomization : public IDetailCustomization
 {
@@ -39,16 +41,17 @@ public:
 
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override
 	{
-		if (Editor)
+		if (!Editor) { return; }
+
+		for (FKzArrayAssetEditor::FTabRuntime& Runtime : Editor->TabRuntimes)
 		{
-			TSharedPtr<IPropertyHandle> Handle = DetailBuilder.GetProperty(Editor->ArrayPropertyName);
+			TSharedPtr<IPropertyHandle> Handle = DetailBuilder.GetProperty(Runtime.ArrayPropertyName);
 			DetailBuilder.HideProperty(Handle);
 
-			Editor->ArrayPropertyHandle = Handle;
-
-			if (Editor->PropertyStackWidget.IsValid())
+			Runtime.ArrayPropertyHandle = Handle;
+			if (Runtime.StackWidget.IsValid())
 			{
-				Editor->PropertyStackWidget->SetPropertyHandle(Handle);
+				Runtime.StackWidget->SetPropertyHandle(Handle);
 			}
 		}
 	}
@@ -57,11 +60,10 @@ private:
 	FKzArrayAssetEditor* Editor;
 };
 
-/**
- * Safely provides dynamic memory addresses for one or more struct properties so the
- * details view can multi-edit. When more than one handle is provided, the details
- * view automatically merges values and shows "Multiple Values" where they differ.
- */
+// =======================================================================================
+// Multi-handle struct provider (unchanged from previous version).
+// =======================================================================================
+
 class FKzStructProvider : public IStructureDataProvider
 {
 public:
@@ -73,28 +75,27 @@ public:
 	}
 
 	explicit FKzStructProvider(const TArray<TSharedPtr<IPropertyHandle>>& InHandles)
-		: StructHandles(InHandles)
-	{
+		: StructHandles(InHandles) {
 	}
 
 	virtual bool IsValid() const override
 	{
-		for (const TSharedPtr<IPropertyHandle>& Handle : StructHandles)
+		for (const TSharedPtr<IPropertyHandle>& H : StructHandles)
 		{
-			if (Handle.IsValid() && Handle->IsValidHandle()) { return true; }
+			if (H.IsValid() && H->IsValidHandle()) { return true; }
 		}
 		return false;
 	}
 
 	virtual const UStruct* GetBaseStructure() const override
 	{
-		for (const TSharedPtr<IPropertyHandle>& Handle : StructHandles)
+		for (const TSharedPtr<IPropertyHandle>& H : StructHandles)
 		{
-			if (Handle.IsValid() && Handle->IsValidHandle())
+			if (H.IsValid() && H->IsValidHandle())
 			{
-				if (FStructProperty* StructProp = CastField<FStructProperty>(Handle->GetProperty()))
+				if (FStructProperty* SP = CastField<FStructProperty>(H->GetProperty()))
 				{
-					return StructProp->Struct;
+					return SP->Struct;
 				}
 			}
 		}
@@ -103,64 +104,50 @@ public:
 
 	virtual void GetInstances(TArray<TSharedPtr<FStructOnScope>>& OutInstances, const UStruct* ExpectedBaseStructure) const override
 	{
-		for (const TSharedPtr<IPropertyHandle>& Handle : StructHandles)
+		for (const TSharedPtr<IPropertyHandle>& H : StructHandles)
 		{
-			if (!Handle.IsValid() || !Handle->IsValidHandle()) { continue; }
-
+			if (!H.IsValid() || !H->IsValidHandle()) { continue; }
 			void* Data = nullptr;
-			if (Handle->GetValueData(Data) == FPropertyAccess::Success && Data)
+			if (H->GetValueData(Data) == FPropertyAccess::Success && Data)
 			{
-				// Provide a non-owning struct on scope. It views the data without taking ownership.
 				TSharedPtr<FStructOnScope> StructOnScope = MakeShared<FStructOnScope>(ExpectedBaseStructure, (uint8*)Data);
-
-				// We retrieve the outer asset package and inject it into the scope.
-				TArray<UObject*> OuterObjects;
-				Handle->GetOuterObjects(OuterObjects);
-				if (OuterObjects.Num() > 0 && OuterObjects[0])
-				{
-					StructOnScope->SetPackage(OuterObjects[0]->GetPackage());
-				}
-
+				TArray<UObject*> Outers;
+				H->GetOuterObjects(Outers);
+				if (Outers.Num() > 0 && Outers[0]) { StructOnScope->SetPackage(Outers[0]->GetPackage()); }
 				OutInstances.Add(StructOnScope);
 			}
 		}
 	}
 
-	virtual bool IsPropertyIndirection() const override
-	{
-		return false; // False indicates we are providing the direct memory block
-	}
+	virtual bool IsPropertyIndirection() const override { return false; }
 
-	virtual uint8* GetValueBaseAddress(uint8* ParentValueAddress, const UStruct* ExpectedBaseStructure) const override
+	virtual uint8* GetValueBaseAddress(uint8* /*ParentValueAddress*/, const UStruct* /*ExpectedBaseStructure*/) const override
 	{
-		// Only meaningful for single selection. Multi-edit goes through GetInstances.
 		if (StructHandles.Num() == 1 && StructHandles[0].IsValid())
 		{
 			void* Data = nullptr;
-			// Automatically fetches the valid pointer even if the array reallocates
-			if (StructHandles[0]->GetValueData(Data) == FPropertyAccess::Success)
-			{
-				return (uint8*)Data;
-			}
+			if (StructHandles[0]->GetValueData(Data) == FPropertyAccess::Success) { return (uint8*)Data; }
 		}
 		return nullptr;
 	}
 };
 
+// =======================================================================================
+// Editor lifecycle
+// =======================================================================================
+
 TSharedRef<FKzArrayAssetEditor> FKzArrayAssetEditor::CreateEditor(
 	const EToolkitMode::Type Mode,
 	const TSharedPtr<IToolkitHost>& InitToolkitHost,
 	const TArray<UObject*>& ObjectsToEdit,
-	FName InArrayPropertyName,
-	FText InItemName,
-	TSharedPtr<FKzPropertyStackRowCustomizer> InRowCustomizer)
+	const TArray<FKzArrayEditorTabConfig>& InTabs)
 {
 	TSharedRef<FKzArrayAssetEditor> NewEditor(new FKzArrayAssetEditor());
 	if (ObjectsToEdit.Num() > 0)
 	{
 		if (UObject* Asset = ObjectsToEdit[0])
 		{
-			NewEditor->InitArrayAssetEditor(Mode, InitToolkitHost, Asset, InArrayPropertyName, InItemName, InRowCustomizer);
+			NewEditor->InitArrayAssetEditor(Mode, InitToolkitHost, Asset, InTabs);
 		}
 	}
 	return NewEditor;
@@ -170,21 +157,31 @@ void FKzArrayAssetEditor::InitArrayAssetEditor(
 	const EToolkitMode::Type Mode,
 	const TSharedPtr<IToolkitHost>& InitToolkitHost,
 	UObject* InAsset,
-	FName InArrayPropertyName,
-	FText InItemName,
-	TSharedPtr<FKzPropertyStackRowCustomizer> InRowCustomizer)
+	const TArray<FKzArrayEditorTabConfig>& InTabs)
 {
 	AssetToEdit = InAsset;
-	ArrayPropertyName = InArrayPropertyName;
-	ItemName = InItemName;
-	RowCustomizer = InRowCustomizer;
+	Tabs = InTabs;
 
-	// Notify the customizer it's been bound to a host editor.
-	if (RowCustomizer.IsValid())
+	// Build per-tab runtime state.
+	TabRuntimes.Reset();
+	TabRuntimes.Reserve(Tabs.Num());
+	for (int32 i = 0; i < Tabs.Num(); ++i)
 	{
-		RowCustomizer->OnRegister(this);
+		FTabRuntime Runtime;
+		Runtime.ArrayPropertyName = Tabs[i].ArrayPropertyName;
+		Runtime.ItemName = Tabs[i].ItemName;
+		Runtime.Customizer = Tabs[i].RowCustomizer;
+		Runtime.TabId = MakeArrayStackTabId(i);
+		TabRuntimes.Add(MoveTemp(Runtime));
+
+		// Notify customizers of the host editor.
+		if (Runtime.Customizer.IsValid())
+		{
+			Runtime.Customizer->OnRegister(this);
+		}
 	}
 
+	// Asset Details view (shared).
 	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 
 	FDetailsViewArgs DetailsViewArgs;
@@ -192,19 +189,28 @@ void FKzArrayAssetEditor::InitArrayAssetEditor(
 	DetailsViewArgs.bHideSelectionTip = true;
 
 	AssetDetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
-
 	AssetDetailsView->RegisterInstancedCustomPropertyLayout(
 		AssetToEdit->GetClass(),
-		FOnGetDetailCustomizationInstance::CreateLambda([this]() {
-			return FKzArrayAssetDetailCustomization::MakeInstance(this);
-			})
-	);
-
+		FOnGetDetailCustomizationInstance::CreateLambda([this]()
+			{ return FKzArrayAssetDetailCustomization::MakeInstance(this); }));
 	AssetDetailsView->SetObject(AssetToEdit);
 
 	ElementDetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
 
-	const TSharedRef<FTabManager::FLayout> StandaloneDefaultLayout = FTabManager::NewLayout("Standalone_KzArrayEditor_Layout_v1")
+	// Build layout: each array stack on the left in its own tab, shared element/details
+	// + validation on the right.
+	TSharedRef<FTabManager::FStack> LeftStack = FTabManager::NewStack()->SetSizeCoefficient(0.4f);
+	for (const FTabRuntime& Runtime : TabRuntimes)
+	{
+		LeftStack->AddTab(Runtime.TabId, ETabState::OpenedTab);
+	}
+	// Make the first tab the foreground one.
+	if (TabRuntimes.Num() > 0)
+	{
+		LeftStack->SetForegroundTab(TabRuntimes[0].TabId);
+	}
+
+	const TSharedRef<FTabManager::FLayout> Layout = FTabManager::NewLayout("Standalone_KzArrayEditor_Layout_v4")
 		->AddArea
 		(
 			FTabManager::NewPrimaryArea()->SetOrientation(Orient_Horizontal)
@@ -218,12 +224,7 @@ void FKzArrayAssetEditor::InitArrayAssetEditor(
 					->SetSizeCoefficient(0.4f)
 					->AddTab(AssetDetailsTabId, ETabState::OpenedTab)
 				)
-				->Split
-				(
-					FTabManager::NewStack()
-					->SetSizeCoefficient(0.6f)
-					->AddTab(ArrayStackTabId, ETabState::OpenedTab)
-				)
+				->Split(LeftStack)
 			)
 			->Split
 			(
@@ -233,7 +234,7 @@ void FKzArrayAssetEditor::InitArrayAssetEditor(
 				(
 					FTabManager::NewStack()
 					->SetSizeCoefficient(0.65f)
-					->AddTab(ElementDetailsTabId, ETabState::OpenedTab)
+					->AddTab(GetElementDetailsTabId(), ETabState::OpenedTab)
 				)
 				->Split
 				(
@@ -246,41 +247,47 @@ void FKzArrayAssetEditor::InitArrayAssetEditor(
 
 	const bool bCreateDefaultStandaloneMenu = true;
 	const bool bCreateDefaultToolbar = true;
-	InitAssetEditor(Mode, InitToolkitHost, FName("KzArrayEditorApp"), StandaloneDefaultLayout, bCreateDefaultStandaloneMenu, bCreateDefaultToolbar, AssetToEdit);
+	InitAssetEditor(Mode, InitToolkitHost, FName("KzArrayEditorApp"), Layout,
+		bCreateDefaultStandaloneMenu, bCreateDefaultToolbar, AssetToEdit);
 
 	ExtendToolbar();
 	RegenerateMenusAndToolbars();
 }
 
-void FKzArrayAssetEditor::OnClose()
-{
-	if (RowCustomizer.IsValid())
-	{
-		RowCustomizer->OnUnregister();
-	}
-	FAssetEditorToolkit::OnClose();
-}
+// =======================================================================================
+// Tab registration
+// =======================================================================================
 
 void FKzArrayAssetEditor::RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager)
 {
 	FAssetEditorToolkit::RegisterTabSpawners(InTabManager);
 
-	WorkspaceMenuCategory = InTabManager->AddLocalWorkspaceMenuCategory(NSLOCTEXT("KzArrayEditor", "WorkspaceMenu", "Kz Array Editor"));
+	WorkspaceMenuCategory = InTabManager->AddLocalWorkspaceMenuCategory(
+		NSLOCTEXT("KzArrayEditor", "WorkspaceMenu", "Kz Array Editor"));
 
 	InTabManager->RegisterTabSpawner(AssetDetailsTabId, FOnSpawnTab::CreateSP(this, &FKzArrayAssetEditor::SpawnTab_AssetDetails))
 		.SetDisplayName(NSLOCTEXT("KzArrayEditor", "AssetDetailsTab", "Asset Details"))
 		.SetGroup(WorkspaceMenuCategory.ToSharedRef())
 		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Details"));
 
-	InTabManager->RegisterTabSpawner(ArrayStackTabId, FOnSpawnTab::CreateSP(this, &FKzArrayAssetEditor::SpawnTab_ArrayStack))
-		.SetDisplayName(FText::Format(NSLOCTEXT("KzArrayEditor", "ArrayStackTab", "{0}s"), ItemName))
-		.SetGroup(WorkspaceMenuCategory.ToSharedRef())
-		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Outliner"));
-
-	InTabManager->RegisterTabSpawner(ElementDetailsTabId, FOnSpawnTab::CreateSP(this, &FKzArrayAssetEditor::SpawnTab_ElementDetails))
-		.SetDisplayName(FText::Format(NSLOCTEXT("KzArrayEditor", "ElementDetailsTab", "{0} Details"), ItemName))
+	const FName ElementDetailsTabId = GetElementDetailsTabId();
+	InTabManager->RegisterTabSpawner(ElementDetailsTabId, FOnSpawnTab::CreateSP(
+		this, &FKzArrayAssetEditor::SpawnTab_ElementDetails, ElementDetailsTabId))
+		.SetDisplayName(NSLOCTEXT("KzArrayEditor", "ElementDetailsTab", "Element Details"))
 		.SetGroup(WorkspaceMenuCategory.ToSharedRef())
 		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Properties"));
+
+	for (int32 i = 0; i < TabRuntimes.Num(); ++i)
+	{
+		const FTabRuntime& Runtime = TabRuntimes[i];
+
+		InTabManager->RegisterTabSpawner(Runtime.TabId,
+			FOnSpawnTab::CreateSP(this, &FKzArrayAssetEditor::SpawnTab_ArrayStack, i))
+			.SetDisplayName(FText::Format(
+				NSLOCTEXT("KzArrayEditor", "ArrayStackTab", "{0}s"), Runtime.ItemName))
+			.SetGroup(WorkspaceMenuCategory.ToSharedRef())
+			.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Outliner"));
+	}
 
 	InTabManager->RegisterTabSpawner(ValidationTabId, FOnSpawnTab::CreateSP(this, &FKzArrayAssetEditor::SpawnTab_Validation))
 		.SetDisplayName(NSLOCTEXT("KzArrayEditor", "ValidationTab", "Validation"))
@@ -293,12 +300,20 @@ void FKzArrayAssetEditor::UnregisterTabSpawners(const TSharedRef<FTabManager>& I
 	FAssetEditorToolkit::UnregisterTabSpawners(InTabManager);
 
 	InTabManager->UnregisterTabSpawner(AssetDetailsTabId);
-	InTabManager->UnregisterTabSpawner(ArrayStackTabId);
-	InTabManager->UnregisterTabSpawner(ElementDetailsTabId);
+	InTabManager->UnregisterTabSpawner(GetElementDetailsTabId());
 	InTabManager->UnregisterTabSpawner(ValidationTabId);
+
+	for (const FTabRuntime& Runtime : TabRuntimes)
+	{
+		InTabManager->UnregisterTabSpawner(Runtime.TabId);
+	}
 }
 
-TSharedRef<SDockTab> FKzArrayAssetEditor::SpawnTab_AssetDetails(const FSpawnTabArgs& Args)
+// =======================================================================================
+// Tab spawners
+// =======================================================================================
+
+TSharedRef<SDockTab> FKzArrayAssetEditor::SpawnTab_AssetDetails(const FSpawnTabArgs& /*Args*/)
 {
 	return SNew(SDockTab)
 		.Label(NSLOCTEXT("KzArrayEditor", "AssetDetailsTitle", "Asset Details"))
@@ -307,33 +322,36 @@ TSharedRef<SDockTab> FKzArrayAssetEditor::SpawnTab_AssetDetails(const FSpawnTabA
 		];
 }
 
-TSharedRef<SDockTab> FKzArrayAssetEditor::SpawnTab_ArrayStack(const FSpawnTabArgs& Args)
-{
-	SAssignNew(PropertyStackWidget, SKzPropertyStack, ArrayPropertyHandle)
-		.bAllowDuplicates(false)
-		.ItemName(ItemName)
-		.RowCustomizer(RowCustomizer)
-		.OnSelectionChanged(this, &FKzArrayAssetEditor::OnElementsSelected);
-
-	return SNew(SDockTab)
-		.Label(FText::Format(NSLOCTEXT("KzArrayEditor", "ArrayStackTitle", "{0}s"), ItemName))
-		[
-			PropertyStackWidget.ToSharedRef()
-		];
-}
-
-TSharedRef<SDockTab> FKzArrayAssetEditor::SpawnTab_ElementDetails(const FSpawnTabArgs& Args)
+TSharedRef<SDockTab> FKzArrayAssetEditor::SpawnTab_ElementDetails(const FSpawnTabArgs& /*Args*/, FName /*ElementDetailsTabId*/)
 {
 	SAssignNew(ElementDetailsContainer, SBox);
 
 	return SNew(SDockTab)
-		.Label(FText::Format(NSLOCTEXT("KzArrayEditor", "ElementDetailsTitle", "{0} Details"), ItemName))
+		.Label(NSLOCTEXT("KzArrayEditor", "ElementDetailsTitle", "Element Details"))
 		[
 			ElementDetailsContainer.ToSharedRef()
 		];
 }
 
-TSharedRef<SDockTab> FKzArrayAssetEditor::SpawnTab_Validation(const FSpawnTabArgs& Args)
+TSharedRef<SDockTab> FKzArrayAssetEditor::SpawnTab_ArrayStack(const FSpawnTabArgs& /*Args*/, int32 TabIndex)
+{
+	check(TabRuntimes.IsValidIndex(TabIndex));
+	FTabRuntime& Runtime = TabRuntimes[TabIndex];
+
+	SAssignNew(Runtime.StackWidget, SKzPropertyStack, Runtime.ArrayPropertyHandle)
+		.bAllowDuplicates(false)
+		.ItemName(Runtime.ItemName)
+		.RowCustomizer(Runtime.Customizer)
+		.OnSelectionChanged(this, &FKzArrayAssetEditor::OnElementsSelected);
+
+	return SNew(SDockTab)
+		.Label(FText::Format(NSLOCTEXT("KzArrayEditor", "ArrayStackTitle", "{0}s"), Runtime.ItemName))
+		[
+			Runtime.StackWidget.ToSharedRef()
+		];
+}
+
+TSharedRef<SDockTab> FKzArrayAssetEditor::SpawnTab_Validation(const FSpawnTabArgs& /*Args*/)
 {
 	SAssignNew(ValidationPanel, SKzValidationPanel)
 		.OnIssueActivated(SKzValidationPanel::FOnIssueActivated::CreateSP(this, &FKzArrayAssetEditor::HandleValidationIssueActivated))
@@ -346,16 +364,35 @@ TSharedRef<SDockTab> FKzArrayAssetEditor::SpawnTab_Validation(const FSpawnTabArg
 		];
 }
 
+// =======================================================================================
+// Identity
+// =======================================================================================
+
 FName FKzArrayAssetEditor::GetToolkitFName() const { return FName("KzArrayAssetEditor"); }
 FText FKzArrayAssetEditor::GetBaseToolkitName() const { return NSLOCTEXT("KzArrayEditor", "AppLabel", "Array Asset Editor"); }
 FString FKzArrayAssetEditor::GetWorldCentricTabPrefix() const { return TEXT("ArrayAssetEditor"); }
 FLinearColor FKzArrayAssetEditor::GetWorldCentricTabColorScale() const { return FLinearColor::White; }
 
+void FKzArrayAssetEditor::OnClose()
+{
+	for (FTabRuntime& Runtime : TabRuntimes)
+	{
+		if (Runtime.Customizer.IsValid())
+		{
+			Runtime.Customizer->OnUnregister();
+		}
+	}
+	FAssetEditorToolkit::OnClose();
+}
+
+// =======================================================================================
+// Selection -> Element Details
+// =======================================================================================
+
 void FKzArrayAssetEditor::OnElementsSelected(const TArray<TSharedPtr<IPropertyHandle>>& SelectedHandles)
 {
 	if (!ElementDetailsContainer.IsValid()) { return; }
 
-	// Reset state.
 	ElementDetailsContainer->SetContent(SNullWidget::NullWidget);
 	if (ElementDetailsView.IsValid())
 	{
@@ -364,8 +401,6 @@ void FKzArrayAssetEditor::OnElementsSelected(const TArray<TSharedPtr<IPropertyHa
 
 	if (SelectedHandles.Num() == 0) { return; }
 
-	// Inspect the property type of the first valid handle. If subsequent handles have
-	// different property types we fall back to showing only the first.
 	TSharedPtr<IPropertyHandle> First;
 	for (const TSharedPtr<IPropertyHandle>& Handle : SelectedHandles)
 	{
@@ -376,10 +411,6 @@ void FKzArrayAssetEditor::OnElementsSelected(const TArray<TSharedPtr<IPropertyHa
 	FProperty* FirstProp = First->GetProperty();
 	if (!FirstProp) { return; }
 
-	// ---------------------------------------------------------------------------------
-	// UObjects: SetObjects on the standard details view handles multi-edit (showing
-	// only the common base properties when classes differ).
-	// ---------------------------------------------------------------------------------
 	if (CastField<FObjectPropertyBase>(FirstProp))
 	{
 		TArray<UObject*> Objects;
@@ -388,12 +419,8 @@ void FKzArrayAssetEditor::OnElementsSelected(const TArray<TSharedPtr<IPropertyHa
 		{
 			if (!Handle.IsValid()) { continue; }
 			UObject* Obj = nullptr;
-			if (Handle->GetValue(Obj) == FPropertyAccess::Success && Obj)
-			{
-				Objects.Add(Obj);
-			}
+			if (Handle->GetValue(Obj) == FPropertyAccess::Success && Obj) { Objects.Add(Obj); }
 		}
-
 		if (Objects.Num() > 0 && ElementDetailsView.IsValid())
 		{
 			ElementDetailsView->SetObjects(Objects);
@@ -402,15 +429,8 @@ void FKzArrayAssetEditor::OnElementsSelected(const TArray<TSharedPtr<IPropertyHa
 		return;
 	}
 
-	// ---------------------------------------------------------------------------------
-	// Structs: build a multi-handle FKzStructProvider and feed it to a structure
-	// details view. The view internally shows "Multiple Values" where they differ.
-	// ---------------------------------------------------------------------------------
 	if (CastField<FStructProperty>(FirstProp))
 	{
-		// Filter to only struct handles of the same type as the first one (mixed types
-		// inside a polymorphic array shouldn't happen in well-formed assets, but we
-		// guard anyway).
 		const UStruct* FirstStruct = CastField<FStructProperty>(FirstProp)->Struct;
 		TArray<TSharedPtr<IPropertyHandle>> Compatible;
 		for (const TSharedPtr<IPropertyHandle>& Handle : SelectedHandles)
@@ -442,7 +462,6 @@ void FKzArrayAssetEditor::OnElementsSelected(const TArray<TSharedPtr<IPropertyHa
 		StructView->GetOnFinishedChangingPropertiesDelegate().AddLambda(
 			[Compatible](const FPropertyChangedEvent& /*Event*/)
 			{
-				// Forward changes to each handle so undo/redo and serialization see them.
 				for (const TSharedPtr<IPropertyHandle>& H : Compatible)
 				{
 					if (H.IsValid() && H->IsValidHandle())
@@ -456,22 +475,19 @@ void FKzArrayAssetEditor::OnElementsSelected(const TArray<TSharedPtr<IPropertyHa
 		return;
 	}
 
-	// ---------------------------------------------------------------------------------
-	// Primitives: multi-edit doesn't make sense in an array; show the first handle's
-	// value editor so the user can at least see something.
-	// ---------------------------------------------------------------------------------
 	ElementDetailsContainer->SetContent(
-		SNew(SBox)
-		.Padding(10.0f)
-		.VAlign(VAlign_Top)
+		SNew(SBox).Padding(10.0f).VAlign(VAlign_Top)
 		[
 			First->CreatePropertyValueWidget()
 		]);
 }
 
+// =======================================================================================
+// Validation
+// =======================================================================================
+
 void FKzArrayAssetEditor::OnRunValidation()
 {
-	// Open the tab if it was closed and trigger a refresh.
 	TSharedPtr<FTabManager> TabManagerPin = GetTabManager();
 	if (TabManagerPin.IsValid())
 	{
@@ -490,16 +506,29 @@ TArray<FKzValidationIssue> FKzArrayAssetEditor::HandleRunValidation()
 
 void FKzArrayAssetEditor::HandleValidationIssueActivated(const FKzValidationIssue& Issue)
 {
-	if (!PropertyStackWidget.IsValid()) { return; }
-
-	// Try GUID first, fall back to array index.
+	// Try each tab's customizer to resolve the GUID, falling back to index.
 	if (Issue.ContextId.IsValid())
 	{
-		if (PropertyStackWidget->SelectByContextId(Issue.ContextId)) { return; }
+		for (const FTabRuntime& Runtime : TabRuntimes)
+		{
+			if (Runtime.StackWidget.IsValid() && Runtime.StackWidget->SelectByContextId(Issue.ContextId))
+			{
+				return;
+			}
+		}
 	}
+
 	if (Issue.ContextIndex != INDEX_NONE)
 	{
-		PropertyStackWidget->SelectByIndex(Issue.ContextIndex);
+		// Without further metadata we don't know which tab the index belongs to. Try
+		// each in order; the first stack with a matching index wins.
+		for (const FTabRuntime& Runtime : TabRuntimes)
+		{
+			if (Runtime.StackWidget.IsValid() && Runtime.StackWidget->SelectByIndex(Issue.ContextIndex))
+			{
+				return;
+			}
+		}
 	}
 }
 

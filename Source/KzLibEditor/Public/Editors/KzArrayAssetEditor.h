@@ -4,12 +4,20 @@
 
 #include "CoreMinimal.h"
 #include "Toolkits/AssetEditorToolkit.h"
+#include "Editors/KzArrayEditorTabConfig.h"
 
 class IDetailsView;
 class SKzPropertyStack;
 class IPropertyHandle;
-class FKzPropertyStackRowCustomizer;
+class SBox;
 
+/**
+ * Generic asset editor that displays one or more array-backed tabs (each a
+ * SKzPropertyStack) plus a shared Element Details panel and a Validation panel.
+ *
+ * Tabs are configured via FKzArrayEditorTabConfig. Customizers per tab decide how
+ * each row is rendered (display text, icons, action buttons).
+ */
 class KZLIBEDITOR_API FKzArrayAssetEditor : public FAssetEditorToolkit
 {
 	friend class FKzArrayAssetDetailCustomization;
@@ -19,17 +27,13 @@ public:
 		const EToolkitMode::Type Mode,
 		const TSharedPtr<IToolkitHost>& InitToolkitHost,
 		const TArray<UObject*>& ObjectsToEdit,
-		FName InArrayPropertyName,
-		FText InItemName,
-		TSharedPtr<FKzPropertyStackRowCustomizer> InRowCustomizer = nullptr);
+		const TArray<FKzArrayEditorTabConfig>& InTabs);
 
 	void InitArrayAssetEditor(
 		const EToolkitMode::Type Mode,
 		const TSharedPtr<IToolkitHost>& InitToolkitHost,
 		UObject* InAsset,
-		FName InArrayPropertyName,
-		FText InItemName,
-		TSharedPtr<FKzPropertyStackRowCustomizer> InRowCustomizer);
+		const TArray<FKzArrayEditorTabConfig>& InTabs);
 
 	virtual void RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager) override;
 	virtual void UnregisterTabSpawners(const TSharedRef<FTabManager>& InTabManager) override;
@@ -38,46 +42,59 @@ public:
 	virtual FString GetWorldCentricTabPrefix() const override;
 	virtual FLinearColor GetWorldCentricTabColorScale() const override;
 
-	/** Closes the editor cleanly. Calls customizer's OnUnregister before tearing down. */
 	virtual void OnClose() override;
 
-private:
-	TSharedRef<SDockTab> SpawnTab_AssetDetails(const FSpawnTabArgs& Args);
-	TSharedRef<SDockTab> SpawnTab_ArrayStack(const FSpawnTabArgs& Args);
-	TSharedRef<SDockTab> SpawnTab_ElementDetails(const FSpawnTabArgs& Args);
-	TSharedRef<SDockTab> SpawnTab_Validation(const FSpawnTabArgs& Args);
+	/** Accessor for customizers that need to inspect the asset (e.g. to look up
+	 *  cross-tab data like resolving an alias's lines). */
+	UObject* GetEditedAsset() const { return AssetToEdit; }
 
+private:
 	UObject* AssetToEdit = nullptr;
-	FName ArrayPropertyName;
-	FText ItemName;
+	TArray<FKzArrayEditorTabConfig> Tabs;
 
 	TSharedPtr<IDetailsView> AssetDetailsView;
 	TSharedPtr<IDetailsView> ElementDetailsView;
-	TSharedPtr<class SBox> ElementDetailsContainer;
+	TSharedPtr<SBox> ElementDetailsContainer;
+
+	/** Per-tab runtime state. */
+	struct FTabRuntime
+	{
+		FName ArrayPropertyName;
+		FText ItemName;
+		TSharedPtr<FKzPropertyStackRowCustomizer> Customizer;
+
+		TSharedPtr<IPropertyHandle> ArrayPropertyHandle;
+		TSharedPtr<SKzPropertyStack> StackWidget;
+
+		FName TabId;
+	};
+	TArray<FTabRuntime> TabRuntimes;
+
+	/** Validation panel (still global to the asset). */
 	TSharedPtr<class SKzValidationPanel> ValidationPanel;
 
-	TSharedPtr<IPropertyHandle> ArrayPropertyHandle;
-	TSharedPtr<SKzPropertyStack> PropertyStackWidget;
-
-	/** Optional customizer; lives for the lifetime of the editor. */
-	TSharedPtr<FKzPropertyStackRowCustomizer> RowCustomizer;
-
 	static const FName AssetDetailsTabId;
-	static const FName ArrayStackTabId;
-	static const FName ElementDetailsTabId;
 	static const FName ValidationTabId;
+
+	TSharedRef<SDockTab> SpawnTab_AssetDetails(const FSpawnTabArgs& Args);
+	TSharedRef<SDockTab> SpawnTab_ElementDetails(const FSpawnTabArgs& Args, FName ElementDetailsTabId);
+	TSharedRef<SDockTab> SpawnTab_ArrayStack(const FSpawnTabArgs& Args, int32 TabIndex);
+	TSharedRef<SDockTab> SpawnTab_Validation(const FSpawnTabArgs& Args);
 
 	void OnElementsSelected(const TArray<TSharedPtr<IPropertyHandle>>& SelectedHandles);
 
-	/** Toolbar handler. */
 	void OnRunValidation();
-
-	/** Bridge from the panel: jump to the issue's element in the property stack. */
+	TArray<struct FKzValidationIssue> HandleRunValidation();
 	void HandleValidationIssueActivated(const struct FKzValidationIssue& Issue);
 
-	/** Bridge from the panel: invoke the validation utils on the current asset. */
-	TArray<struct FKzValidationIssue> HandleRunValidation();
-
-	/** Add validation entries to the standard toolkit toolbar. */
 	void ExtendToolbar();
+
+	/** Returns "Element Details" tab id (singular per editor; only one details panel). */
+	static FName GetElementDetailsTabId() { return TEXT("KzArrayEditor_ElementDetails"); }
+
+	/** Returns the unique tab id for a given array stack tab. */
+	static FName MakeArrayStackTabId(int32 Index)
+	{
+		return FName(*FString::Printf(TEXT("KzArrayEditor_ArrayStack_%d"), Index));
+	}
 };
