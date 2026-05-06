@@ -6,9 +6,12 @@
 #include "Widgets/SKzValidationPanel.h"
 #include "Validation/KzAssetValidationUtils.h"
 
+#include "Editors/KzExternalStructHost.h"
+
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
 #include "IDetailsView.h"
+#include "DetailWidgetRow.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Styling/AppStyle.h"
 #include "DetailLayoutBuilder.h"
@@ -132,6 +135,55 @@ public:
 	}
 };
 
+/**
+ * Provider that wraps a list of pre-built FStructOnScope instances. Used to feed
+ * AddAllExternalStructureProperties for multi-edit.
+ */
+class FKzStructOnScopeProvider : public IStructureDataProvider
+{
+public:
+	explicit FKzStructOnScopeProvider(const TArray<TSharedPtr<FStructOnScope>>& InInstances)
+		: Instances(InInstances) {
+	}
+
+	virtual bool IsValid() const override
+	{
+		for (const TSharedPtr<FStructOnScope>& I : Instances)
+		{
+			if (I.IsValid() && I->IsValid()) { return true; }
+		}
+		return false;
+	}
+
+	virtual const UStruct* GetBaseStructure() const override
+	{
+		for (const TSharedPtr<FStructOnScope>& I : Instances)
+		{
+			if (I.IsValid() && I->IsValid()) { return I->GetStruct(); }
+		}
+		return nullptr;
+	}
+
+	virtual void GetInstances(TArray<TSharedPtr<FStructOnScope>>& OutInstances, const UStruct* /*ExpectedBaseStructure*/) const override
+	{
+		OutInstances = Instances;
+	}
+
+	virtual bool IsPropertyIndirection() const override { return false; }
+
+	virtual uint8* GetValueBaseAddress(uint8* /*ParentValueAddress*/, const UStruct* /*ExpectedBaseStructure*/) const override
+	{
+		if (Instances.Num() == 1 && Instances[0].IsValid())
+		{
+			return Instances[0]->GetStructMemory();
+		}
+		return nullptr;
+	}
+
+private:
+	TArray<TSharedPtr<FStructOnScope>> Instances;
+};
+
 // =======================================================================================
 // Editor lifecycle
 // =======================================================================================
@@ -161,6 +213,8 @@ void FKzArrayAssetEditor::InitArrayAssetEditor(
 {
 	AssetToEdit = InAsset;
 	Tabs = InTabs;
+
+	ExternalStructHost.Reset(NewObject<UKzExternalStructHost>(AssetToEdit));
 
 	// Build per-tab runtime state.
 	TabRuntimes.Reset();
@@ -380,6 +434,8 @@ FLinearColor FKzArrayAssetEditor::GetWorldCentricTabColorScale() const { return 
 
 void FKzArrayAssetEditor::OnClose()
 {
+	ExternalStructHost.Reset();
+
 	for (FTabRuntime& Runtime : TabRuntimes)
 	{
 		if (Runtime.Customizer.IsValid())
@@ -387,6 +443,17 @@ void FKzArrayAssetEditor::OnClose()
 			Runtime.Customizer->OnUnregister();
 		}
 	}
+
+	if (ElementDetailsView.IsValid())
+	{
+		ElementDetailsView->UnregisterInstancedCustomPropertyLayout(UKzExternalStructHost::StaticClass());
+		if (StructEditChangedHandle.IsValid())
+		{
+			ElementDetailsView->OnFinishedChangingProperties().Remove(StructEditChangedHandle);
+			StructEditChangedHandle.Reset();
+		}
+	}
+
 	FAssetEditorToolkit::OnClose();
 }
 
@@ -437,46 +504,122 @@ void FKzArrayAssetEditor::OnElementsSelected(const TArray<TSharedPtr<IPropertyHa
 	if (CastField<FStructProperty>(FirstProp))
 	{
 		const UStruct* FirstStruct = CastField<FStructProperty>(FirstProp)->Struct;
-		TArray<TSharedPtr<IPropertyHandle>> Compatible;
+
+		// Gather memory for all selected structs so the details view shows
+		// "Multiple Values" naturally where they differ.
+		TArray<TSharedPtr<FStructOnScope>> StructDataArray;
+		TArray<TSharedPtr<IPropertyHandle>> CompatibleHandles;
 		for (const TSharedPtr<IPropertyHandle>& Handle : SelectedHandles)
 		{
 			if (!Handle.IsValid()) { continue; }
-			if (FStructProperty* SP = CastField<FStructProperty>(Handle->GetProperty()))
+
+			FStructProperty* StructProp = CastField<FStructProperty>(Handle->GetProperty());
+			if (!StructProp || StructProp->Struct != FirstStruct) { continue; }
+
+			void* StructData = nullptr;
+			if (Handle->GetValueData(StructData) != FPropertyAccess::Success || !StructData) { continue; }
+
+			TSharedPtr<FStructOnScope> StructOnScope = MakeShared<FStructOnScope>(FirstStruct, (uint8*)StructData);
+
+			// Maintain package context for accurate undo/redo tracking.
+			TArray<UObject*> Outers;
+			Handle->GetOuterObjects(Outers);
+			if (Outers.Num() > 0 && Outers[0])
 			{
-				if (SP->Struct == FirstStruct) { Compatible.Add(Handle); }
+				StructOnScope->SetPackage(Outers[0]->GetPackage());
 			}
+
+			StructDataArray.Add(StructOnScope);
+			CompatibleHandles.Add(Handle);
 		}
-		if (Compatible.Num() == 0) { return; }
 
-		FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+		if (StructDataArray.Num() == 0) { return; }
 
-		FDetailsViewArgs DetailsViewArgs;
-		DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
-		DetailsViewArgs.bHideSelectionTip = true;
+		// Drop the previous customization (if any) so layouts don't stack across selections.
+		ElementDetailsView->UnregisterInstancedCustomPropertyLayout(UKzExternalStructHost::StaticClass());
 
-		FStructureDetailsViewArgs StructViewArgs;
-		StructViewArgs.bShowObjects = true;
-		StructViewArgs.bShowAssets = true;
-		StructViewArgs.bShowClasses = true;
-		StructViewArgs.bShowInterfaces = true;
-
-		TSharedPtr<IStructureDataProvider> Provider = MakeShared<FKzStructProvider>(Compatible);
-		TSharedRef<IStructureDetailsView> StructView = PropertyEditorModule.CreateStructureProviderDetailView(
-			DetailsViewArgs, StructViewArgs, Provider);
-
-		StructView->GetOnFinishedChangingPropertiesDelegate().AddLambda(
-			[Compatible](const FPropertyChangedEvent& /*Event*/)
-			{
-				for (const TSharedPtr<IPropertyHandle>& H : Compatible)
+		// Register a one-shot detail customization that injects the selected structs as
+		// external structures. IDetailsView (unlike IStructureDetailsView) applies
+		// IPropertyTypeCustomization to children, including externals — which is what
+		// gives us our FKzDialogueAlias customization for free.
+		ElementDetailsView->RegisterInstancedCustomPropertyLayout(
+			UKzExternalStructHost::StaticClass(),
+			FOnGetDetailCustomizationInstance::CreateLambda([StructDataArray]()
 				{
-					if (H.IsValid() && H->IsValidHandle())
+					class FKzExternalStructProxy : public IDetailCustomization
 					{
-						H->NotifyPostChange(EPropertyChangeType::ValueSet);
+					public:
+						explicit FKzExternalStructProxy(const TArray<TSharedPtr<FStructOnScope>>& InData)
+							: InnerStructs(InData) {
+						}
+
+						virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override
+						{
+							if (InnerStructs.Num() == 0) { return; }
+
+							const FText CategoryLabel = FText::Format(
+								NSLOCTEXT("KzArrayEditor", "SelectedCategory", "Selected {0}"),
+								InnerStructs[0]->GetStruct()->GetDisplayNameText());
+
+							IDetailCategoryBuilder& Category = DetailBuilder.EditCategory(
+								"SelectedElement",
+								NSLOCTEXT("KzArrayEditor", "DetailsCategory", "Details"),
+								ECategoryPriority::Important);
+
+							Category.InitiallyCollapsed(false);
+							Category.RestoreExpansionState(false);
+
+							if (InnerStructs.Num() == 1)
+							{
+								IDetailPropertyRow* Row = Category.AddExternalStructure(InnerStructs[0]);
+								if (Row)
+								{
+									if (TSharedPtr<IPropertyHandle> Handle = Row->GetPropertyHandle())
+									{
+										Handle->SetInstanceMetaData(TEXT("ShowOnlyInnerProperties"), TEXT("true"));
+									}
+									Row->ShouldAutoExpand(true);
+								}
+								return;
+							}
+
+							// Multi: provider as before
+							TSharedRef<IStructureDataProvider> Provider = MakeShared<FKzStructOnScopeProvider>(InnerStructs);
+							Category.AddAllExternalStructureProperties(Provider);
+						}
+
+						TArray<TSharedPtr<FStructOnScope>> InnerStructs;
+					};
+
+
+
+					return MakeShared<FKzExternalStructProxy>(StructDataArray);
+				}));
+
+		// Unbind any previous change subscription before adding a fresh one for the new
+		// selection. Calling Clear() would also remove unrelated listeners; remove only
+		// our handle.
+		if (StructEditChangedHandle.IsValid())
+		{
+			ElementDetailsView->OnFinishedChangingProperties().Remove(StructEditChangedHandle);
+			StructEditChangedHandle.Reset();
+		}
+
+		StructEditChangedHandle = ElementDetailsView->OnFinishedChangingProperties().AddLambda(
+			[CompatibleHandles](const FPropertyChangedEvent& /*Event*/)
+			{
+				for (const TSharedPtr<IPropertyHandle>& Handle : CompatibleHandles)
+				{
+					if (Handle.IsValid() && Handle->IsValidHandle())
+					{
+						Handle->NotifyPostChange(EPropertyChangeType::ValueSet);
 					}
 				}
 			});
 
-		ElementDetailsContainer->SetContent(StructView->GetWidget().ToSharedRef());
+
+		ElementDetailsView->SetObject(ExternalStructHost.Get());
+		ElementDetailsContainer->SetContent(ElementDetailsView.ToSharedRef());
 		return;
 	}
 

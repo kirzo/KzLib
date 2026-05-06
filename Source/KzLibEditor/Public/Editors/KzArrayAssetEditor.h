@@ -56,6 +56,10 @@ private:
 	TSharedPtr<IDetailsView> ElementDetailsView;
 	TSharedPtr<SBox> ElementDetailsContainer;
 
+	/** Handle for the property-change subscription on the element details view, so we. */
+	FDelegateHandle StructEditChangedHandle;
+	TStrongObjectPtr<class UKzExternalStructHost> ExternalStructHost;
+
 	/** Per-tab runtime state. */
 	struct FTabRuntime
 	{
