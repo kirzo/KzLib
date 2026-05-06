@@ -540,8 +540,7 @@ void FKzArrayAssetEditor::OnElementsSelected(const TArray<TSharedPtr<IPropertyHa
 
 		// Register a one-shot detail customization that injects the selected structs as
 		// external structures. IDetailsView (unlike IStructureDetailsView) applies
-		// IPropertyTypeCustomization to children, including externals — which is what
-		// gives us our FKzDialogueAlias customization for free.
+		// IPropertyTypeCustomization to children, including externals.
 		ElementDetailsView->RegisterInstancedCustomPropertyLayout(
 			UKzExternalStructHost::StaticClass(),
 			FOnGetDetailCustomizationInstance::CreateLambda([StructDataArray]()
@@ -549,6 +548,8 @@ void FKzArrayAssetEditor::OnElementsSelected(const TArray<TSharedPtr<IPropertyHa
 					class FKzExternalStructProxy : public IDetailCustomization
 					{
 					public:
+						TArray<TSharedPtr<FStructOnScope>> InnerStructs;
+
 						explicit FKzExternalStructProxy(const TArray<TSharedPtr<FStructOnScope>>& InData)
 							: InnerStructs(InData) {
 						}
@@ -556,10 +557,6 @@ void FKzArrayAssetEditor::OnElementsSelected(const TArray<TSharedPtr<IPropertyHa
 						virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override
 						{
 							if (InnerStructs.Num() == 0) { return; }
-
-							const FText CategoryLabel = FText::Format(
-								NSLOCTEXT("KzArrayEditor", "SelectedCategory", "Selected {0}"),
-								InnerStructs[0]->GetStruct()->GetDisplayNameText());
 
 							IDetailCategoryBuilder& Category = DetailBuilder.EditCategory(
 								"SelectedElement",
@@ -569,36 +566,50 @@ void FKzArrayAssetEditor::OnElementsSelected(const TArray<TSharedPtr<IPropertyHa
 							Category.InitiallyCollapsed(false);
 							Category.RestoreExpansionState(false);
 
-							if (InnerStructs.Num() == 1)
+							const UStruct* StructType = InnerStructs[0]->GetStruct();
+
+							// Check if the struct has a global IPropertyTypeCustomization registered.
+							FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+							const bool bHasCustomization = PropertyModule.IsCustomizedStruct(StructType, FCustomPropertyTypeLayoutMap());
+
+							if (InnerStructs.Num() == 1 && bHasCustomization)
 							{
+								// Customization path: AddExternalStructure applies the customization but wraps
+								// it in a "Element 0" header row. We override the wrapper row's
+								// NameContent with an empty widget while keeping the auto-generated value
+								// widget, so the header collapses visually but the children stay expanded.
 								IDetailPropertyRow* Row = Category.AddExternalStructure(InnerStructs[0]);
 								if (Row)
 								{
-									if (TSharedPtr<IPropertyHandle> Handle = Row->GetPropertyHandle())
-									{
-										Handle->SetInstanceMetaData(TEXT("ShowOnlyInnerProperties"), TEXT("true"));
-									}
 									Row->ShouldAutoExpand(true);
+
+									TSharedPtr<SWidget> OutNameWidget, OutValueWidget;
+									Row->GetDefaultWidgets(OutNameWidget, OutValueWidget);
+
+									Row->CustomWidget(/*bShowChildren=*/true)
+										.NameContent()
+										[
+											OutValueWidget.ToSharedRef()
+										]
+										.ValueContent()
+										[
+											SNullWidget::NullWidget
+										];
 								}
 								return;
 							}
 
-							// Multi: provider as before
+							// No customization (or multi-edit): inline children with no wrapper row.
 							TSharedRef<IStructureDataProvider> Provider = MakeShared<FKzStructOnScopeProvider>(InnerStructs);
 							Category.AddAllExternalStructureProperties(Provider);
 						}
-
-						TArray<TSharedPtr<FStructOnScope>> InnerStructs;
 					};
-
-
 
 					return MakeShared<FKzExternalStructProxy>(StructDataArray);
 				}));
 
-		// Unbind any previous change subscription before adding a fresh one for the new
-		// selection. Calling Clear() would also remove unrelated listeners; remove only
-		// our handle.
+		// Unbind any previous change subscription before adding a fresh one for the new selection.
+		// Calling Clear() would also remove unrelated listeners; remove only our handle.
 		if (StructEditChangedHandle.IsValid())
 		{
 			ElementDetailsView->OnFinishedChangingProperties().Remove(StructEditChangedHandle);
