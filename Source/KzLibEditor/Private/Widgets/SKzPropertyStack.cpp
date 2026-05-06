@@ -36,12 +36,15 @@ void SKzPropertyStack::Construct(const FArguments& InArgs, TSharedPtr<IPropertyH
 	bAllowDuplicates = InArgs._bAllowDuplicates;
 	OnSelectionChangedDelegate = InArgs._OnSelectionChanged;
 	ItemName = InArgs._ItemName.IsEmpty() ? INVTEXT("Element") : InArgs._ItemName;
+	ItemNamePlural = InArgs._ItemNamePlural.IsEmpty()
+		? FText::Format(INVTEXT("{0}s"), ItemName)
+		: InArgs._ItemNamePlural;
 	RowCustomizer = InArgs._RowCustomizer;
 
 	TextFilter = MakeShared<FTextFilterExpressionEvaluator>(ETextFilterExpressionEvaluatorMode::BasicString);
 
 	SAssignNew(SearchBox, SSearchBox)
-		.HintText(FText::Format(INVTEXT("Search {0}s"), ItemName))
+		.HintText(FText::Format(INVTEXT("Search {0}"), ItemNamePlural))
 		.OnTextChanged(this, &SKzPropertyStack::OnSearchBoxTextChanged);
 
 	BindCommands();

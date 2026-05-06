@@ -43,6 +43,7 @@ public:
 		}
 		SLATE_ARGUMENT(bool, bAllowDuplicates)
 		SLATE_ARGUMENT(FText, ItemName)
+		SLATE_ARGUMENT(FText, ItemNamePlural)
 		SLATE_ARGUMENT(TSharedPtr<FKzPropertyStackRowCustomizer>, RowCustomizer)
 		/** Fired when the selection changes. The array contains all currently selected
 		 *  handles, in the order the list view returns them (typically top-to-bottom). */
@@ -86,6 +87,7 @@ private:
 
 	bool bAllowDuplicates = false;
 	FText ItemName;
+	FText ItemNamePlural;
 	FString TitlePropertyMeta;
 
 	bool bIsObjectArray = false;

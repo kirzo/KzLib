@@ -280,11 +280,11 @@ void FKzArrayAssetEditor::RegisterTabSpawners(const TSharedRef<FTabManager>& InT
 	for (int32 i = 0; i < TabRuntimes.Num(); ++i)
 	{
 		const FTabRuntime& Runtime = TabRuntimes[i];
+		const FText PluralName = Tabs[i].GetPluralItemName();
 
 		InTabManager->RegisterTabSpawner(Runtime.TabId,
 			FOnSpawnTab::CreateSP(this, &FKzArrayAssetEditor::SpawnTab_ArrayStack, i))
-			.SetDisplayName(FText::Format(
-				NSLOCTEXT("KzArrayEditor", "ArrayStackTab", "{0}s"), Runtime.ItemName))
+			.SetDisplayName(PluralName)
 			.SetGroup(WorkspaceMenuCategory.ToSharedRef())
 			.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Outliner"));
 	}
@@ -341,11 +341,14 @@ TSharedRef<SDockTab> FKzArrayAssetEditor::SpawnTab_ArrayStack(const FSpawnTabArg
 	SAssignNew(Runtime.StackWidget, SKzPropertyStack, Runtime.ArrayPropertyHandle)
 		.bAllowDuplicates(false)
 		.ItemName(Runtime.ItemName)
+		.ItemNamePlural(Tabs[TabIndex].GetPluralItemName())
 		.RowCustomizer(Runtime.Customizer)
 		.OnSelectionChanged(this, &FKzArrayAssetEditor::OnElementsSelected);
 
+	const FText PluralLabel = Tabs[TabIndex].GetPluralItemName();
 	return SNew(SDockTab)
 		.Label(FText::Format(NSLOCTEXT("KzArrayEditor", "ArrayStackTitle", "{0}s"), Runtime.ItemName))
+		.Label(PluralLabel)
 		[
 			Runtime.StackWidget.ToSharedRef()
 		];
