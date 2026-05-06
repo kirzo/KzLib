@@ -427,18 +427,13 @@ TSharedRef<ITableRow> SKzPropertyStack::OnGenerateRow(TSharedPtr<IPropertyHandle
 							LeadingWidget
 						]
 
-						+ SHorizontalBox::Slot().AutoWidth()
+						+ SHorizontalBox::Slot().FillWidth(1.0f)
 						.HAlign(HAlign_Left).VAlign(VAlign_Center).Padding(Margin)
 						[
 							SNew(STextBlock)
 								.Text_Lambda([this, Item]() { return FText::FromString(GetHandleDisplayName(Item)); })
 								.OverflowPolicy(ETextOverflowPolicy::Ellipsis)
 								.HighlightText(this, &SKzPropertyStack::GetSearchText)
-						]
-
-						+ SHorizontalBox::Slot().HAlign(HAlign_Fill).FillWidth(1.0f)
-						[
-							SNew(SSpacer).Size(FVector2D(0.0f, 1.0f))
 						]
 
 						+ SHorizontalBox::Slot().AutoWidth()
