@@ -5,6 +5,14 @@
 #include "CoreMinimal.h"
 #include "KzTypes.generated.h"
 
+/** Generic validity status. */
+UENUM(BlueprintType)
+enum class EKzValidity : uint8
+{
+	Valid,
+	NotValid
+};
+
 /** 2D Axis flags. */
 UENUM(BlueprintType, meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
 enum class EKzAxis2D : uint8

@@ -6,14 +6,11 @@
 #include "Widgets/SCompoundWidget.h"
 #include "Core/KzParamDef.h"
 
-/**
- * A reusable Slate widget that displays a PinTypeSelector
- * but works directly with FKzParamDef data.
- */
+/** A reusable Slate widget that displays a type selector working directly with FKzParamDef. */
 class SKzParamDefSelector : public SCompoundWidget
 {
 public:
-	DECLARE_DELEGATE_OneParam(FOnParamDefChanged, const FKzParamDef& /*NewDef*/);
+	DECLARE_DELEGATE_OneParam(FOnParamDefChanged, const FKzParamDef&);
 
 	SLATE_BEGIN_ARGS(SKzParamDefSelector)
 		: _AllowArrays(true)
@@ -33,8 +30,7 @@ public:
 	void Construct(const FArguments& InArgs);
 
 private:
-	FEdGraphPinType GetPinType() const;
-	void OnPinTypeChanged(const FEdGraphPinType& InPinType);
+	void OnTypeChanged(EPropertyBagPropertyType NewValueType, const UObject* NewValueTypeObject, EPropertyBagContainerType NewContainerType);
 
 	TAttribute<FKzParamDef> ValueAttribute;
 	FOnParamDefChanged OnValueChangedDelegate;

@@ -29,6 +29,7 @@ public class KzLibEditor : ModuleRules
 				"KismetWidgets",
 				"ToolWidgets",
 				"ApplicationCore",
+				"EditorWidgets",
 				"KzLibUncooked"
 			});
 	}

@@ -1,49 +1,33 @@
 // Copyright 2026 kirzo
 
 #include "Widgets/SKzParamDefSelector.h"
-#include "KzParamDefEditorUtils.h"
-#include "Schemas/KzParamDefSchema.h"
-#include "SPinTypeSelector.h"
-#include "DetailLayoutBuilder.h"
+#include "Widgets/SKzTypeSelector.h"
 
 void SKzParamDefSelector::Construct(const FArguments& InArgs)
 {
 	ValueAttribute = InArgs._Value;
 	OnValueChangedDelegate = InArgs._OnValueChanged;
 
-	const UKzParamDefSchema* Schema = GetDefault<UKzParamDefSchema>();
-
 	ChildSlot
 		[
-			SNew(SBox)
-				.MaxDesiredHeight(20.0f)
-				[
-					SNew(SPinTypeSelector, FGetPinTypeTree::CreateUObject(Schema, &UKzParamDefSchema::GetKzParamTypeTree))
-						.Schema(Schema)
-						.TargetPinType(this, &SKzParamDefSelector::GetPinType)
-						.OnPinTypeChanged(this, &SKzParamDefSelector::OnPinTypeChanged)
-						.TypeTreeFilter(ETypeTreeFilter::None)
-						.bAllowArrays(InArgs._AllowArrays)
-						.Font(IDetailLayoutBuilder::GetDetailFont())
-				]
+			SNew(SKzTypeSelector)
+				.AllowArrays(InArgs._AllowArrays)
+				.ValueType_Lambda([this]() { return ValueAttribute.Get().ValueType; })
+				.ValueTypeObject_Lambda([this]() -> const UObject* { return ValueAttribute.Get().ValueTypeObject.Get(); })
+				.ContainerType_Lambda([this]() { return ValueAttribute.Get().ContainerType; })
+				.OnTypeChanged(this, &SKzParamDefSelector::OnTypeChanged)
 		];
 }
 
-FEdGraphPinType SKzParamDefSelector::GetPinType() const
-{
-	// FKzParamDef -> FEdGraphPinType
-	return KzLib::Editor::PinTypeFromDef(ValueAttribute.Get());
-}
-
-void SKzParamDefSelector::OnPinTypeChanged(const FEdGraphPinType& InPinType)
+void SKzParamDefSelector::OnTypeChanged(EPropertyBagPropertyType NewValueType, const UObject* NewValueTypeObject, EPropertyBagContainerType NewContainerType)
 {
 	if (OnValueChangedDelegate.IsBound())
 	{
-		// Preserve the existing name, update the type
-		FName CurrentName = ValueAttribute.Get().Name;
-
-		// FEdGraphPinType -> FKzParamDef
-		FKzParamDef NewDef = KzLib::Editor::DefFromPinType(CurrentName, InPinType);
+		FKzParamDef NewDef;
+		NewDef.Name = ValueAttribute.Get().Name;
+		NewDef.ValueType = NewValueType;
+		NewDef.ValueTypeObject = NewValueTypeObject;
+		NewDef.ContainerType = NewContainerType;
 
 		OnValueChangedDelegate.Execute(NewDef);
 	}

@@ -4,18 +4,18 @@
 
 #include "CoreMinimal.h"
 #include "EdGraph/EdGraphPin.h"
-#include "Core/KzParamDef.h"
 #include "EdGraphSchema_K2.h"
+#include "StructUtils/PropertyBag.h"
 
 namespace KzLib::Editor
 {
-	/** Helper to convert internal PropertyBag types to Editor Pin Types */
-	inline FEdGraphPinType PinTypeFromDef(const FKzParamDef& InDef)
+	/** Converts internal PropertyBag type info to an Editor Pin Type. */
+	inline FEdGraphPinType PinTypeFromBagType(EPropertyBagPropertyType ValueType, const UObject* ValueTypeObject, EPropertyBagContainerType ContainerType)
 	{
 		FEdGraphPinType PinType;
 
 		// 1. Container Type
-		switch (InDef.ContainerType)
+		switch (ContainerType)
 		{
 		case EPropertyBagContainerType::Array:
 			PinType.ContainerType = EPinContainerType::Array;
@@ -26,7 +26,7 @@ namespace KzLib::Editor
 		}
 
 		// 2. Value Type
-		switch (InDef.ValueType)
+		switch (ValueType)
 		{
 		case EPropertyBagPropertyType::Bool:
 			PinType.PinCategory = UEdGraphSchema_K2::PC_Boolean;
@@ -59,47 +59,44 @@ namespace KzLib::Editor
 			break;
 		case EPropertyBagPropertyType::Enum:
 			PinType.PinCategory = UEdGraphSchema_K2::PC_Byte;
-			PinType.PinSubCategoryObject = const_cast<UObject*>(InDef.ValueTypeObject.Get());
+			PinType.PinSubCategoryObject = const_cast<UObject*>(ValueTypeObject);
 			break;
 		case EPropertyBagPropertyType::Struct:
 			PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
-			PinType.PinSubCategoryObject = const_cast<UObject*>(InDef.ValueTypeObject.Get());
+			PinType.PinSubCategoryObject = const_cast<UObject*>(ValueTypeObject);
 			break;
 		case EPropertyBagPropertyType::Object:
 			PinType.PinCategory = UEdGraphSchema_K2::PC_Object;
-			PinType.PinSubCategoryObject = const_cast<UObject*>(InDef.ValueTypeObject.Get());
+			PinType.PinSubCategoryObject = const_cast<UObject*>(ValueTypeObject);
 			break;
 		case EPropertyBagPropertyType::SoftObject:
 			PinType.PinCategory = UEdGraphSchema_K2::PC_SoftObject;
-			PinType.PinSubCategoryObject = const_cast<UObject*>(InDef.ValueTypeObject.Get());
+			PinType.PinSubCategoryObject = const_cast<UObject*>(ValueTypeObject);
 			break;
 		case EPropertyBagPropertyType::Class:
 			PinType.PinCategory = UEdGraphSchema_K2::PC_Class;
-			PinType.PinSubCategoryObject = const_cast<UObject*>(InDef.ValueTypeObject.Get());
+			PinType.PinSubCategoryObject = const_cast<UObject*>(ValueTypeObject);
 			break;
 		case EPropertyBagPropertyType::SoftClass:
 			PinType.PinCategory = UEdGraphSchema_K2::PC_SoftClass;
-			PinType.PinSubCategoryObject = const_cast<UObject*>(InDef.ValueTypeObject.Get());
+			PinType.PinSubCategoryObject = const_cast<UObject*>(ValueTypeObject);
 			break;
 		}
 
 		return PinType;
 	}
 
-	/** Helper to convert Editor Pin Types to internal PropertyBag types */
-	inline FKzParamDef DefFromPinType(const FName& Name, const FEdGraphPinType& PinType)
+	/** Converts an Editor Pin Type to internal PropertyBag type info. */
+	inline void BagTypeFromPinType(const FEdGraphPinType& PinType, EPropertyBagPropertyType& OutValueType, const UObject*& OutValueTypeObject, EPropertyBagContainerType& OutContainerType)
 	{
-		FKzParamDef NewDef;
-		NewDef.Name = Name;
-
 		// 1. Container
 		switch (PinType.ContainerType)
 		{
 		case EPinContainerType::None:
-			NewDef.ContainerType = EPropertyBagContainerType::None;
+			OutContainerType = EPropertyBagContainerType::None;
 			break;
 		case EPinContainerType::Array:
-			NewDef.ContainerType = EPropertyBagContainerType::Array;
+			OutContainerType = EPropertyBagContainerType::Array;
 			break;
 		case EPinContainerType::Set:
 			ensureMsgf(false, TEXT("Unsuported container type [Set]"));
@@ -116,86 +113,84 @@ namespace KzLib::Editor
 
 		if (Cat == UEdGraphSchema_K2::PC_Boolean)
 		{
-			NewDef.ValueType = EPropertyBagPropertyType::Bool;
+			OutValueType = EPropertyBagPropertyType::Bool;
 		}
 		else if (Cat == UEdGraphSchema_K2::PC_Byte)
 		{
 			if (Cast<UEnum>(SubObj))
 			{
-				NewDef.ValueType = EPropertyBagPropertyType::Enum;
-				NewDef.ValueTypeObject = SubObj;
+				OutValueType = EPropertyBagPropertyType::Enum;
+				OutValueTypeObject = SubObj;
 			}
 			else
 			{
-				NewDef.ValueType = EPropertyBagPropertyType::Byte;
+				OutValueType = EPropertyBagPropertyType::Byte;
 			}
 		}
 		else if (Cat == UEdGraphSchema_K2::PC_Int)
 		{
-			NewDef.ValueType = EPropertyBagPropertyType::Int32;
+			OutValueType = EPropertyBagPropertyType::Int32;
 		}
 		else if (Cat == UEdGraphSchema_K2::PC_Int64)
 		{
-			NewDef.ValueType = EPropertyBagPropertyType::Int64;
+			OutValueType = EPropertyBagPropertyType::Int64;
 		}
 		else if (Cat == UEdGraphSchema_K2::PC_Real)
 		{
 			if (SubCat == UEdGraphSchema_K2::PC_Double)
 			{
-				NewDef.ValueType = EPropertyBagPropertyType::Double;
+				OutValueType = EPropertyBagPropertyType::Double;
 			}
 			else
 			{
-				NewDef.ValueType = EPropertyBagPropertyType::Float;
+				OutValueType = EPropertyBagPropertyType::Float;
 			}
 		}
 		else if (Cat == UEdGraphSchema_K2::PC_Name)
 		{
-			NewDef.ValueType = EPropertyBagPropertyType::Name;
+			OutValueType = EPropertyBagPropertyType::Name;
 		}
 		else if (Cat == UEdGraphSchema_K2::PC_String)
 		{
-			NewDef.ValueType = EPropertyBagPropertyType::String;
+			OutValueType = EPropertyBagPropertyType::String;
 		}
 		else if (Cat == UEdGraphSchema_K2::PC_Text)
 		{
-			NewDef.ValueType = EPropertyBagPropertyType::Text;
+			OutValueType = EPropertyBagPropertyType::Text;
 		}
 		else if (Cat == UEdGraphSchema_K2::PC_Enum)
 		{
-			NewDef.ValueType = EPropertyBagPropertyType::Enum;
-			NewDef.ValueTypeObject = SubObj;
+			OutValueType = EPropertyBagPropertyType::Enum;
+			OutValueTypeObject = SubObj;
 		}
 		else if (Cat == UEdGraphSchema_K2::PC_Struct)
 		{
-			NewDef.ValueType = EPropertyBagPropertyType::Struct;
-			NewDef.ValueTypeObject = SubObj;
+			OutValueType = EPropertyBagPropertyType::Struct;
+			OutValueTypeObject = SubObj;
 		}
 		else if (Cat == UEdGraphSchema_K2::PC_Object)
 		{
-			NewDef.ValueType = EPropertyBagPropertyType::Object;
-			NewDef.ValueTypeObject = SubObj;
+			OutValueType = EPropertyBagPropertyType::Object;
+			OutValueTypeObject = SubObj;
 		}
 		else if (Cat == UEdGraphSchema_K2::PC_SoftObject)
 		{
-			NewDef.ValueType = EPropertyBagPropertyType::SoftObject;
-			NewDef.ValueTypeObject = SubObj;
+			OutValueType = EPropertyBagPropertyType::SoftObject;
+			OutValueTypeObject = SubObj;
 		}
 		else if (Cat == UEdGraphSchema_K2::PC_Class)
 		{
-			NewDef.ValueType = EPropertyBagPropertyType::Class;
-			NewDef.ValueTypeObject = SubObj;
+			OutValueType = EPropertyBagPropertyType::Class;
+			OutValueTypeObject = SubObj;
 		}
 		else if (Cat == UEdGraphSchema_K2::PC_SoftClass)
 		{
-			NewDef.ValueType = EPropertyBagPropertyType::SoftClass;
-			NewDef.ValueTypeObject = SubObj;
+			OutValueType = EPropertyBagPropertyType::SoftClass;
+			OutValueTypeObject = SubObj;
 		}
 		else
 		{
 			ensureMsgf(false, TEXT("Unhandled pin category %s"), *PinType.PinCategory.ToString());
 		}
-
-		return NewDef;
 	}
 }

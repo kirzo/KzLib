@@ -1,7 +1,7 @@
 // Copyright 2026 kirzo
 
 #include "K2Node_EvaluateDatabaseAsset.h"
-#include "KzParamDefEditorUtils.h"
+#include "KzPinTypeUtils.h"
 #include "Kismet/KzDatabaseLibrary.h"
 #include "EdGraphSchema_K2.h"
 #include "K2Node_CallFunction.h"
@@ -37,14 +37,15 @@ void UK2Node_EvaluateDatabaseAsset::EarlyValidation(FCompilerResultsLog& Message
 		return;
 	}
 
+	const FKzParamDef& ParamDef = DatabaseAsset->GetDataType();
+
 	const UEdGraphPin* ResultPin = FindPin(TEXT("Result"));
-	const bool bAssetHasValidType = DatabaseAsset->GetDataType().IsValid();
+	const bool bAssetHasValidType = ParamDef.IsValid();
 
 	if (ResultPin && bAssetHasValidType)
 	{
 		// 1. We have a pin and the asset has a type. Let's compare them.
-		FEdGraphPinType ExpectedPinType = KzLib::Editor::PinTypeFromDef(DatabaseAsset->GetDataType());
-
+		FEdGraphPinType ExpectedPinType = KzLib::Editor::PinTypeFromBagType(ParamDef.ValueType, ParamDef.ValueTypeObject.Get(), ParamDef.ContainerType);
 		if (ResultPin->PinType != ExpectedPinType)
 		{
 			MessageLog.Error(*LOCTEXT("PinTypeMismatch", "The data type in the Database Asset for @@ has changed. Please right-click the node and select 'Refresh Node'.").ToString(), this);
@@ -81,7 +82,8 @@ void UK2Node_EvaluateDatabaseAsset::AllocateDefaultPins()
 		UEdGraphNode::FCreatePinParams PinParams;
 		UEdGraphPin* ResultPin = CreatePin(EGPD_Output, UEdGraphSchema_K2::PC_Wildcard, TEXT("Result"), PinParams);
 
-		ResultPin->PinType = KzLib::Editor::PinTypeFromDef(DatabaseAsset->GetDataType());
+		const FKzParamDef& ParamDef = DatabaseAsset->GetDataType();
+		ResultPin->PinType = KzLib::Editor::PinTypeFromBagType(ParamDef.ValueType, ParamDef.ValueTypeObject.Get(), ParamDef.ContainerType);
 	}
 }
 

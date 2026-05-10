@@ -5,6 +5,9 @@
 #include "KzLibEditor.h"
 #include "KzLibEditorStyle.h"
 
+#include "Core/KzVariant.h"
+#include "Customizations/KzVariantCustomization.h"
+
 #include "Core/KzParamDef.h"
 #include "Customizations/KzParamDefCustomization.h"
 
@@ -25,6 +28,7 @@ void FKzLibEditorModule::OnStartupModule()
 {
 	FKzLibEditorStyle::Initialize();
 
+	RegisterPropertyLayout<FKzVariant, FKzVariantCustomization>();
 	RegisterPropertyLayout<FKzParamDef, FKzParamDefCustomization>();
 	RegisterPropertyLayout<FKzDatabase, FKzDatabaseCustomization>();
 	RegisterPropertyLayout<FKzDatabaseItem, FKzDatabaseItemCustomization>();
