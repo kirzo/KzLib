@@ -45,7 +45,7 @@ void UK2Node_EvaluateDatabaseAsset::EarlyValidation(FCompilerResultsLog& Message
 	if (ResultPin && bAssetHasValidType)
 	{
 		// 1. We have a pin and the asset has a type. Let's compare them.
-		FEdGraphPinType ExpectedPinType = KzLib::Editor::PinTypeFromBagType(ParamDef.ValueType, ParamDef.ValueTypeObject.Get(), ParamDef.ContainerType);
+		FEdGraphPinType ExpectedPinType = KzLib::Editor::PinTypeFromBagType(ParamDef.Type.ValueType, ParamDef.Type.ValueTypeObject.Get(), ParamDef.Type.ContainerType);
 		if (ResultPin->PinType != ExpectedPinType)
 		{
 			MessageLog.Error(*LOCTEXT("PinTypeMismatch", "The data type in the Database Asset for @@ has changed. Please right-click the node and select 'Refresh Node'.").ToString(), this);
@@ -83,7 +83,7 @@ void UK2Node_EvaluateDatabaseAsset::AllocateDefaultPins()
 		UEdGraphPin* ResultPin = CreatePin(EGPD_Output, UEdGraphSchema_K2::PC_Wildcard, TEXT("Result"), PinParams);
 
 		const FKzParamDef& ParamDef = DatabaseAsset->GetDataType();
-		ResultPin->PinType = KzLib::Editor::PinTypeFromBagType(ParamDef.ValueType, ParamDef.ValueTypeObject.Get(), ParamDef.ContainerType);
+		ResultPin->PinType = KzLib::Editor::PinTypeFromBagType(ParamDef.Type.ValueType, ParamDef.Type.ValueTypeObject.Get(), ParamDef.Type.ContainerType);
 	}
 }
 

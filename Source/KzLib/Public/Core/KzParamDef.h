@@ -3,8 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "StructUtils/PropertyBag.h"
-#include "Core/KzPropertyBagHelpers.h"
+#include "Core/KzTypeDef.h"
 #include "KzParamDef.generated.h"
 
 /**
@@ -18,32 +17,29 @@ struct KZLIB_API FKzParamDef
 
 	FKzParamDef() = default;
 
+	FKzParamDef(const FName InName, const FKzTypeDef& InType)
+		: Name(InName)
+		, Type(InType)
+	{}
+
 	FKzParamDef(const FName InName, const EPropertyBagPropertyType InValueType, const UObject* InValueTypeObject = nullptr)
 		: Name(InName)
-		, ValueTypeObject(InValueTypeObject)
-		, ValueType(InValueType)
-	{
-	}
+		, Type(InValueType, InValueTypeObject)
+	{}
 
 	FKzParamDef(const FName InName, const EPropertyBagContainerType InContainerType, const EPropertyBagPropertyType InValueType, const UObject* InValueTypeObject = nullptr)
 		: Name(InName)
-		, ValueTypeObject(InValueTypeObject)
-		, ValueType(InValueType)
-		, ContainerType(InContainerType)
-	{
-	}
+		, Type(InContainerType, InValueType, InValueTypeObject)
+	{}
 
 	bool IsValid() const
 	{
-		return ValueType != EPropertyBagPropertyType::None;
+		return Type.IsValid();
 	}
 
 	friend bool operator==(const FKzParamDef& Lhs, const FKzParamDef& Rhs)
 	{
-		return Lhs.Name == Rhs.Name
-			&& Lhs.ValueType == Rhs.ValueType
-			&& Lhs.ValueTypeObject == Rhs.ValueTypeObject
-			&& Lhs.ContainerType == Rhs.ContainerType;
+		return Lhs.Name == Rhs.Name && Lhs.Type == Rhs.Type;
 	}
 
 	friend bool operator!=(const FKzParamDef& Lhs, const FKzParamDef& Rhs)
@@ -54,11 +50,7 @@ struct KZLIB_API FKzParamDef
 	friend uint32 GetTypeHash(const FKzParamDef& Def)
 	{
 		uint32 Hash = GetTypeHash(Def.Name);
-
-		Hash = HashCombine(Hash, GetTypeHash(Def.ValueType));
-		Hash = HashCombine(Hash, GetTypeHash(Def.ValueTypeObject));
-		Hash = HashCombine(Hash, GetTypeHash(Def.ContainerType));
-
+		Hash = HashCombine(Hash, GetTypeHash(Def.Type));
 		return Hash;
 	}
 
@@ -70,17 +62,7 @@ struct KZLIB_API FKzParamDef
 	template <typename T>
 	void Init()
 	{
-		// Detect Array Wrapper (TArray<T> -> T)
-		using UnwrappedT = typename KzPropertyBag::Private::TUnwrapArray<T>::Type;
-		constexpr bool bIsArray = KzPropertyBag::Private::TUnwrapArray<T>::IsArray;
-
-		// Get Traits from the inner type (std::decay_t to clean up const/references)
-		using Traits = KzPropertyBag::TPropertyBagType<std::decay_t<UnwrappedT>>;
-
-		// Fill Definition
-		ValueType = Traits::Type;
-		ValueTypeObject = Traits::GetObjectType();
-		ContainerType = bIsArray ? EPropertyBagContainerType::Array : EPropertyBagContainerType::None;
+		Type.Init<T>();
 	}
 
 	/** Initializes the type information based on T.
@@ -119,7 +101,7 @@ struct KZLIB_API FKzParamDef
 	 */
 	FPropertyBagPropertyDesc ToPropertyDesc() const
 	{
-		return FPropertyBagPropertyDesc(Name, ContainerType, ValueType, ValueTypeObject);
+		return FPropertyBagPropertyDesc(Name, Type.ContainerType, Type.ValueType, Type.ValueTypeObject);
 	}
 
 	/** Implicit conversion operator. */
@@ -132,15 +114,7 @@ struct KZLIB_API FKzParamDef
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Def")
 	FName Name = NAME_None;
 
-	/** Pointer to the object that defines the Enum, Struct, or Class (if applicable). */
+	/** Type signature. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Def")
-	TObjectPtr<const UObject> ValueTypeObject = nullptr;
-
-	/** The underlying type of the value (Bool, Int, Object, etc.). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Def")
-	EPropertyBagPropertyType ValueType = EPropertyBagPropertyType::Bool;
-
-	/** Type of the container described by this property. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Def")
-	EPropertyBagContainerType ContainerType = EPropertyBagContainerType::None;
+	FKzTypeDef Type;
 };

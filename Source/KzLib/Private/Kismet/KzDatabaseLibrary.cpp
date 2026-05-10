@@ -103,7 +103,7 @@ DEFINE_FUNCTION(UKzDatabaseLibrary::execAddDatabaseItem)
 
 		if (Database.Type.IsValid())
 		{
-			SchemaValidationBag.AddProperty(PropName, Database.Type.ValueType, Database.Type.ValueTypeObject.Get());
+			SchemaValidationBag.AddProperty(PropName, Database.Type.Type.ValueType, Database.Type.Type.ValueTypeObject.Get());
 		}
 
 		const UScriptStruct* SchemaStruct = SchemaValidationBag.GetPropertyBagStruct();

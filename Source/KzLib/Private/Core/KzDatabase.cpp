@@ -48,9 +48,9 @@ void FKzDatabaseItem::SyncType(const FKzParamDef& Def)
 
 	// Check if we need to update
 	bool bMatches = ExistingProp
-		&& ExistingProp->ValueType == Def.ValueType
-		&& ExistingProp->ValueTypeObject == Def.ValueTypeObject
-		&& ExistingProp->ContainerTypes.GetFirstContainerType() == Def.ContainerType;
+		&& ExistingProp->ValueType == Def.Type.ValueType
+		&& ExistingProp->ValueTypeObject == Def.Type.ValueTypeObject
+		&& ExistingProp->ContainerTypes.GetFirstContainerType() == Def.Type.ContainerType;
 
 	if (bMatches)
 	{
@@ -62,7 +62,7 @@ void FKzDatabaseItem::SyncType(const FKzParamDef& Def)
 
 	if (Def.IsValid())
 	{
-		Data.AddProperty(PropName, Def.ValueType, Def.ValueTypeObject.Get());
+		Data.AddProperty(PropName, Def.Type.ValueType, Def.Type.ValueTypeObject.Get());
 	}
 }
 

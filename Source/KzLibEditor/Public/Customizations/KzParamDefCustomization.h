@@ -23,14 +23,7 @@ public:
 
 private:
 	TSharedPtr<IPropertyHandle> StructHandle;
-	TAttribute<FEdGraphPinType> PinTypeAttribute;
 
 	/** Updates the struct when the Name text box changes */
 	void OnNameChanged();
-
-	/** Helper to retrieve the current FKzParamDef value from the property handle. */
-	FKzParamDef GetValue() const;
-
-	/** Callback executed when the selector widget updates the definition. */
-	void OnValueChanged(const FKzParamDef& NewDef);
 };

@@ -110,7 +110,7 @@ struct KZLIB_API FKzDatabase
 
 	FKzDatabase()
 	{
-		Type.ValueType = EPropertyBagPropertyType::None;
+		Type.Type.ValueType = EPropertyBagPropertyType::None;
 	}
 
 	/** Configures the Database Schema based on a C++ Type. */
@@ -152,7 +152,7 @@ struct KZLIB_API FKzDatabase
 		const UObject* InputObj = Traits::GetObjectType();
 
 		// Validate against Runtime Schema (this->Type)
-		bool bCompatible = (Type.ValueType == InputType);
+		bool bCompatible = (Type.Type.ValueType == InputType);
 
 		if (bCompatible && (InputType == EPropertyBagPropertyType::Object ||
 			InputType == EPropertyBagPropertyType::SoftObject ||
@@ -160,7 +160,7 @@ struct KZLIB_API FKzDatabase
 			InputType == EPropertyBagPropertyType::SoftClass))
 		{
 			// For objects, allow Child -> Parent assignment
-			const UClass* SchemaClass = Cast<UClass>(Type.ValueTypeObject);
+			const UClass* SchemaClass = Cast<UClass>(Type.Type.ValueTypeObject);
 			const UClass* InputClass = Cast<UClass>(InputObj);
 			if (SchemaClass && InputClass)
 			{
@@ -168,18 +168,18 @@ struct KZLIB_API FKzDatabase
 			}
 			else
 			{
-				bCompatible = (Type.ValueTypeObject == InputObj);
+				bCompatible = (Type.Type.ValueTypeObject == InputObj);
 			}
 		}
 		else if (bCompatible && (InputType == EPropertyBagPropertyType::Struct || InputType == EPropertyBagPropertyType::Enum))
 		{
 			// Structs and Enums must match exactly
-			bCompatible = (Type.ValueTypeObject == InputObj);
+			bCompatible = (Type.Type.ValueTypeObject == InputObj);
 		}
 
 		if (!ensureMsgf(bCompatible, TEXT("FKzDatabase Type Mismatch: Trying to add type '%d' object '%s' to DB expecting '%d' object '%s'"),
 			(int32)InputType, InputObj ? *InputObj->GetName() : TEXT("Null"),
-			(int32)Type.ValueType, Type.ValueTypeObject ? *Type.ValueTypeObject->GetName() : TEXT("Null")))
+			(int32)Type.Type.ValueType, Type.Type.ValueTypeObject ? *Type.Type.ValueTypeObject->GetName() : TEXT("Null")))
 		{
 			return nullptr;
 		}

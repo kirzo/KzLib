@@ -17,14 +17,13 @@ void FKzParamDefCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> Prope
 {
 	StructHandle = PropertyHandle;
 	TSharedPtr<IPropertyHandle> NameHandle = StructHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FKzParamDef, Name));
+	TSharedPtr<IPropertyHandle> TypeHandle = StructHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FKzParamDef, Type));
 
 	if (NameHandle.IsValid())
 	{
 		NameHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FKzParamDefCustomization::OnNameChanged));
 	}
 
-	const UKzParamDefSchema* Schema = GetDefault<UKzParamDefSchema>();
-	
 	// --- Metadata Checks ---
 	const bool bHideName = StructHandle->HasMetaData(TEXT("HideName"));
 	const bool bAllowArrays = !StructHandle->HasMetaData(TEXT("NoArrays"));
@@ -50,10 +49,7 @@ void FKzParamDefCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> Prope
 		.AutoWidth()
 		.VAlign(VAlign_Center)
 		[
-			SNew(SKzParamDefSelector)
-				.Value(this, &FKzParamDefCustomization::GetValue)
-				.OnValueChanged(this, &FKzParamDefCustomization::OnValueChanged)
-				.AllowArrays(bAllowArrays)
+			TypeHandle->CreatePropertyValueWidget()
 		];
 
 	HeaderRow
@@ -77,37 +73,6 @@ void FKzParamDefCustomization::OnNameChanged()
 	{
 		StructHandle->NotifyPostChange(EPropertyChangeType::ValueSet);
 	}
-}
-
-FKzParamDef FKzParamDefCustomization::GetValue() const
-{
-	if (!StructHandle.IsValid()) return FKzParamDef();
-
-	TArray<void*> RawData;
-	StructHandle->AccessRawData(RawData);
-	if (RawData.Num() > 0 && RawData[0])
-	{
-		return *static_cast<FKzParamDef*>(RawData[0]);
-	}
-	return FKzParamDef();
-}
-
-void FKzParamDefCustomization::OnValueChanged(const FKzParamDef& NewDef)
-{
-	if (!StructHandle.IsValid()) return;
-
-	// Transaction logic...
-	FScopedTransaction Transaction(LOCTEXT("ChangeParamType", "Change Parameter Type"));
-	StructHandle->NotifyPreChange();
-
-	TArray<void*> RawData;
-	StructHandle->AccessRawData(RawData);
-	for (void* Ptr : RawData)
-	{
-		if (Ptr) *static_cast<FKzParamDef*>(Ptr) = NewDef;
-	}
-
-	StructHandle->NotifyPostChange(EPropertyChangeType::ValueSet);
 }
 
 #undef LOCTEXT_NAMESPACE
