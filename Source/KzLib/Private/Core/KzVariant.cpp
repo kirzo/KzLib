@@ -39,11 +39,18 @@ void FKzVariant::SetType(EPropertyBagPropertyType NewType, const UObject* NewTyp
 		}
 	}
 	// For Class slot, similarly seed the class so the picker reflects the chosen UClass.
-	else if (NewType == EPropertyBagPropertyType::Class)
+	else if (NewType == EPropertyBagPropertyType::Class || NewType == EPropertyBagPropertyType::SoftClass)
 	{
 		if (const UClass* ChosenClass = Cast<UClass>(NewTypeObject))
 		{
 			ClassValue = const_cast<UClass*>(ChosenClass);
+		}
+	}
+	else if (NewType == EPropertyBagPropertyType::SoftObject)
+	{
+		if (const UClass* ChosenClass = Cast<UClass>(NewTypeObject))
+		{
+			ObjectValue = const_cast<UClass*>(ChosenClass);
 		}
 	}
 	else if (NewType == EPropertyBagPropertyType::Enum)
@@ -64,8 +71,8 @@ const UObject* FKzVariant::GetTypeObject() const
 		case EPropertyBagPropertyType::Struct:			return StructValue.GetScriptStruct();
 		case EPropertyBagPropertyType::Object:			return ObjectValue ? ObjectValue->GetClass() : nullptr;
 		case EPropertyBagPropertyType::Class:				return ClassValue;
-		case EPropertyBagPropertyType::SoftObject:	return nullptr; // soft refs don't carry type without resolving
-		case EPropertyBagPropertyType::SoftClass:		return nullptr;
+		case EPropertyBagPropertyType::SoftObject:	return ObjectValue;
+		case EPropertyBagPropertyType::SoftClass:		return ClassValue;
 		case EPropertyBagPropertyType::Enum:				return EnumType;
 		default:																		return nullptr;
 	}
@@ -132,6 +139,7 @@ FKzVariant FKzVariant::FromProperty(const FProperty* Property, const void* Value
 	{
 		FKzVariant V;
 		V.Type = EPropertyBagPropertyType::SoftClass;
+		V.ClassValue = P->MetaClass;
 		V.SoftClassValue = TSoftClassPtr<UObject>(P->GetPropertyValue(ValuePtr).ToSoftObjectPath());
 		return V;
 	}
@@ -146,6 +154,7 @@ FKzVariant FKzVariant::FromProperty(const FProperty* Property, const void* Value
 	{
 		FKzVariant V;
 		V.Type = EPropertyBagPropertyType::SoftObject;
+		V.ObjectValue = P->PropertyClass;
 		V.SoftObjectValue = TSoftObjectPtr<UObject>(P->GetPropertyValue(ValuePtr).ToSoftObjectPath());
 		return V;
 	}
@@ -187,12 +196,63 @@ bool FKzVariant::MatchesProperty(const FProperty* Property) const
 			const FStructProperty* SP = CastField<FStructProperty>(Property);
 			return SP && SP->Struct == StructValue.GetScriptStruct();
 		}
-		case EPropertyBagPropertyType::Object:			return Property->IsA<FObjectProperty>();
-		case EPropertyBagPropertyType::SoftObject:	return Property->IsA<FSoftObjectProperty>();
-		case EPropertyBagPropertyType::Class:				return Property->IsA<FClassProperty>();
-		case EPropertyBagPropertyType::SoftClass:		return Property->IsA<FSoftClassProperty>();
-		default:																		return false;
+		case EPropertyBagPropertyType::Object:
+		{
+			const FObjectProperty* OP = CastField<FObjectProperty>(Property);
+			if (!OP) { return false; }
+			if (!ObjectValue) { return true; } // null value is assignable to any object property
+			return OP->PropertyClass && ObjectValue->GetClass()->IsChildOf(OP->PropertyClass);
+		}
+		case EPropertyBagPropertyType::SoftObject:
+		{
+			const FSoftObjectProperty* SOP = CastField<FSoftObjectProperty>(Property);
+			if (!SOP) { return false; }
+			const UClass* ExpectedClass = Cast<UClass>(ObjectValue.Get());
+			if (!ExpectedClass) { return true; }
+			return SOP->PropertyClass && SOP->PropertyClass->IsChildOf(ExpectedClass);
+		}
+		case EPropertyBagPropertyType::Class:
+		{
+			const FClassProperty* CP = CastField<FClassProperty>(Property);
+			if (!CP) { return false; }
+			if (!ClassValue) { return true; }
+			return CP->MetaClass && ClassValue->IsChildOf(CP->MetaClass);
+		}
+		case EPropertyBagPropertyType::SoftClass:
+		{
+			const FSoftClassProperty* SCP = CastField<FSoftClassProperty>(Property);
+			if (!SCP) { return false; }
+			if (!ClassValue) { return true; }
+			return SCP->MetaClass && SCP->MetaClass->IsChildOf(ClassValue);
+		}
+		default: return false;
 	}
+}
+
+bool FKzVariant::MatchesType(const FKzTypeDef& TypeDef) const
+{
+	// Variants always store scalars (for now) — reject any container type.
+	if (TypeDef.ContainerType != EPropertyBagContainerType::None) { return false; }
+
+	if (Type != TypeDef.ValueType) { return false; }
+
+	const UObject* HeldTypeObj = GetTypeObject();
+	const UObject* ExpectedTypeObj = TypeDef.ValueTypeObject;
+
+	// Primitives without an associated UObject (bool, numbers, string, name, text, byte): match as long as ValueType matches.
+	if (!ExpectedTypeObj && !HeldTypeObj) { return true; }
+	if (!ExpectedTypeObj || !HeldTypeObj) { return false; }
+
+	// Object/Class refs: allow polymorphism (held type is child of expected).
+	if (Type == EPropertyBagPropertyType::Object || Type == EPropertyBagPropertyType::SoftObject || Type == EPropertyBagPropertyType::Class || Type == EPropertyBagPropertyType::SoftClass)
+	{
+		const UClass* ExpectedClass = Cast<UClass>(ExpectedTypeObj);
+		const UClass* HeldClass = Cast<UClass>(HeldTypeObj);
+		return ExpectedClass && HeldClass && HeldClass->IsChildOf(ExpectedClass);
+	}
+
+	// Struct and Enum: strict identity match.
+	return ExpectedTypeObj == HeldTypeObj;
 }
 
 bool FKzVariant::ToProperty(const FProperty* Property, void* ValuePtr) const
@@ -256,9 +316,9 @@ bool FKzVariant::operator==(const FKzVariant& Other) const
 		case EPropertyBagPropertyType::Text:				return TextValue.EqualTo(Other.TextValue);
 		case EPropertyBagPropertyType::Struct:			return StructValue == Other.StructValue;
 		case EPropertyBagPropertyType::Object:			return ObjectValue == Other.ObjectValue;
-		case EPropertyBagPropertyType::SoftObject:	return SoftObjectValue == Other.SoftObjectValue;
+		case EPropertyBagPropertyType::SoftObject:	return ObjectValue == Other.ObjectValue && SoftObjectValue == Other.SoftObjectValue;
 		case EPropertyBagPropertyType::Class:				return ClassValue == Other.ClassValue;
-		case EPropertyBagPropertyType::SoftClass:		return SoftClassValue == Other.SoftClassValue;
+		case EPropertyBagPropertyType::SoftClass:		return ClassValue == Other.ClassValue && SoftClassValue == Other.SoftClassValue;
 		default:																		return false;
 	}
 }
@@ -300,7 +360,14 @@ bool FKzVariant::NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bOutSuccess)
 			if (Ar.IsLoading()) ObjectValue = Obj;
 			break;
 		}
-		case EPropertyBagPropertyType::SoftObject:	Ar << SoftObjectValue;	break;
+		case EPropertyBagPropertyType::SoftObject:
+		{
+			UObject* Obj = ObjectValue.Get();
+			Ar << Obj;
+			if (Ar.IsLoading()) { ObjectValue = Obj; }
+			Ar << SoftObjectValue;
+			break;
+		}
 		case EPropertyBagPropertyType::Class:
 		{
 			UClass* Cls = ClassValue.Get();
@@ -308,7 +375,14 @@ bool FKzVariant::NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bOutSuccess)
 			if (Ar.IsLoading()) ClassValue = Cls;
 			break;
 		}
-		case EPropertyBagPropertyType::SoftClass:	Ar << SoftClassValue;	break;
+		case EPropertyBagPropertyType::SoftClass:
+		{
+			UClass* Cls = ClassValue.Get();
+			Ar << Cls;
+			if (Ar.IsLoading()) { ClassValue = Cls; }
+			Ar << SoftClassValue;
+			break;
+		}
 		default:
 			ensureMsgf(false, TEXT("FKzVariant::NetSerialize: unhandled type %d"), (int32)Type);
 			break;

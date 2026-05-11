@@ -16,11 +16,10 @@ void UK2Node_ResolveDatabaseQuery::AllocateDefaultPins()
 {
 	Super::AllocateDefaultPins();
 
-	const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
-
 	// Execs
 	CreatePin(EGPD_Input, UEdGraphSchema_K2::PC_Exec, UEdGraphSchema_K2::PN_Execute);
-	CreatePin(EGPD_Output, UEdGraphSchema_K2::PC_Exec, UEdGraphSchema_K2::PN_Execute);
+	CreatePin(EGPD_Output, UEdGraphSchema_K2::PC_Exec, TEXT("Found"));
+	CreatePin(EGPD_Output, UEdGraphSchema_K2::PC_Exec, TEXT("NotFound"));
 
 	// Target Component
 	CreatePin(EGPD_Input, UEdGraphSchema_K2::PC_Object, UKzDatabaseComponent::StaticClass(), TEXT("Component"));
@@ -28,9 +27,6 @@ void UK2Node_ResolveDatabaseQuery::AllocateDefaultPins()
 	// Query
 	UScriptStruct* QueryStruct = FKzDatabaseQuery::StaticStruct();
 	CreatePin(EGPD_Input, UEdGraphSchema_K2::PC_Struct, QueryStruct, TEXT("Query"));
-
-	// Outputs
-	CreatePin(EGPD_Output, UEdGraphSchema_K2::PC_Boolean, TEXT("bSuccess"));
 
 	// The Wildcard Result Pin (Starts as undetermined)
 	UEdGraphNode::FCreatePinParams PinParams;
@@ -69,7 +65,6 @@ void UK2Node_ResolveDatabaseQuery::ExpandNode(FKismetCompilerContext& CompilerCo
 
 	UEdGraphPin* ResultPin = FindPinChecked(TEXT("Result"));
 
-	// Prevent compilation if the pin is still grey (not connected)
 	if (ResultPin->PinType.PinCategory == UEdGraphSchema_K2::PC_Wildcard)
 	{
 		CompilerContext.MessageLog.Error(*LOCTEXT("UndeterminedTypeError", "The type of @@ is undetermined. Connect something to imply a specific type.").ToString(), ResultPin);
@@ -77,7 +72,6 @@ void UK2Node_ResolveDatabaseQuery::ExpandNode(FKismetCompilerContext& CompilerCo
 		return;
 	}
 
-	// 1. Manually spawn the intermediate node to avoid LNK2019
 	UK2Node_CallFunction* CallFuncNode = NewObject<UK2Node_CallFunction>(SourceGraph);
 	CallFuncNode->SetFlags(RF_Transactional);
 	SourceGraph->AddNode(CallFuncNode);
@@ -94,14 +88,15 @@ void UK2Node_ResolveDatabaseQuery::ExpandNode(FKismetCompilerContext& CompilerCo
 			if (Source && Dest) Schema->MovePinLinks(*Source, *Dest, true);
 		};
 
-	// 2. Map standard pins
 	MoveLinks(GetExecPin(), CallFuncNode->GetExecPin());
-	MoveLinks(FindPinChecked(UEdGraphSchema_K2::PN_Execute, EGPD_Output), CallFuncNode->GetThenPin());
+
+	// ExpandEnumAsExecs generates one exec pin per enum value, named after the value.
+	MoveLinks(FindPinChecked(TEXT("Found")), CallFuncNode->FindPinChecked(TEXT("Found")));
+	MoveLinks(FindPinChecked(TEXT("NotFound")), CallFuncNode->FindPinChecked(TEXT("NotFound")));
+
 	MoveLinks(FindPinChecked(TEXT("Component")), CallFuncNode->FindPinChecked(TEXT("Component")));
 	MoveLinks(FindPinChecked(TEXT("Query")), CallFuncNode->FindPinChecked(TEXT("Query")));
-	MoveLinks(FindPinChecked(TEXT("bSuccess")), CallFuncNode->GetReturnValuePin());
 
-	// 3. Map the magic typed pin
 	UEdGraphPin* InternalOutPin = CallFuncNode->FindPinChecked(TEXT("OutValue"));
 	InternalOutPin->PinType = ResultPin->PinType;
 	MoveLinks(ResultPin, InternalOutPin);

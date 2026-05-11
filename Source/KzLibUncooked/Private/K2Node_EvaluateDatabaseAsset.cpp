@@ -37,15 +37,15 @@ void UK2Node_EvaluateDatabaseAsset::EarlyValidation(FCompilerResultsLog& Message
 		return;
 	}
 
-	const FKzParamDef& ParamDef = DatabaseAsset->GetDataType();
+	const FKzTypeDef& TypeDef = DatabaseAsset->GetDataType();
 
 	const UEdGraphPin* ResultPin = FindPin(TEXT("Result"));
-	const bool bAssetHasValidType = ParamDef.IsValid();
+	const bool bAssetHasValidType = TypeDef.IsValid();
 
 	if (ResultPin && bAssetHasValidType)
 	{
 		// 1. We have a pin and the asset has a type. Let's compare them.
-		FEdGraphPinType ExpectedPinType = KzLib::Editor::PinTypeFromBagType(ParamDef.Type.ValueType, ParamDef.Type.ValueTypeObject.Get(), ParamDef.Type.ContainerType);
+		FEdGraphPinType ExpectedPinType = KzLib::Editor::PinTypeFromBagType(TypeDef.ValueType, TypeDef.ValueTypeObject.Get(), TypeDef.ContainerType);
 		if (ResultPin->PinType != ExpectedPinType)
 		{
 			MessageLog.Error(*LOCTEXT("PinTypeMismatch", "The data type in the Database Asset for @@ has changed. Please right-click the node and select 'Refresh Node'.").ToString(), this);
@@ -67,23 +67,20 @@ void UK2Node_EvaluateDatabaseAsset::AllocateDefaultPins()
 {
 	Super::AllocateDefaultPins();
 
-	const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
-
 	CreatePin(EGPD_Input, UEdGraphSchema_K2::PC_Exec, UEdGraphSchema_K2::PN_Execute);
-	CreatePin(EGPD_Output, UEdGraphSchema_K2::PC_Exec, UEdGraphSchema_K2::PN_Execute);
+	CreatePin(EGPD_Output, UEdGraphSchema_K2::PC_Exec, TEXT("Found"));
+	CreatePin(EGPD_Output, UEdGraphSchema_K2::PC_Exec, TEXT("NotFound"));
 
 	UScriptStruct* QueryStruct = FKzDatabaseQuery::StaticStruct();
 	CreatePin(EGPD_Input, UEdGraphSchema_K2::PC_Struct, QueryStruct, TEXT("Query"));
-
-	UEdGraphPin* SuccessPin = CreatePin(EGPD_Output, UEdGraphSchema_K2::PC_Boolean, TEXT("bSuccess"));
 
 	if (DatabaseAsset && DatabaseAsset->GetDataType().IsValid())
 	{
 		UEdGraphNode::FCreatePinParams PinParams;
 		UEdGraphPin* ResultPin = CreatePin(EGPD_Output, UEdGraphSchema_K2::PC_Wildcard, TEXT("Result"), PinParams);
 
-		const FKzParamDef& ParamDef = DatabaseAsset->GetDataType();
-		ResultPin->PinType = KzLib::Editor::PinTypeFromBagType(ParamDef.Type.ValueType, ParamDef.Type.ValueTypeObject.Get(), ParamDef.Type.ContainerType);
+		const FKzTypeDef& TypeDef = DatabaseAsset->GetDataType();
+		ResultPin->PinType = KzLib::Editor::PinTypeFromBagType(TypeDef.ValueType, TypeDef.ValueTypeObject.Get(), TypeDef.ContainerType);
 	}
 }
 
@@ -111,7 +108,6 @@ void UK2Node_EvaluateDatabaseAsset::ExpandNode(FKismetCompilerContext& CompilerC
 		return;
 	}
 
-	// 1. Manually spawn the intermediate node to avoid LNK2019 (bypassing unexported SpawnIntermediateNode)
 	UK2Node_CallFunction* CallFuncNode = NewObject<UK2Node_CallFunction>(SourceGraph);
 	CallFuncNode->SetFlags(RF_Transactional);
 	SourceGraph->AddNode(CallFuncNode);
@@ -119,15 +115,12 @@ void UK2Node_EvaluateDatabaseAsset::ExpandNode(FKismetCompilerContext& CompilerC
 	CallFuncNode->PostPlacedNewNode();
 	CompilerContext.MessageLog.NotifyIntermediateObjectCreation(CallFuncNode, this);
 
-	// Set up the actual function call
 	CallFuncNode->SetFromFunction(UKzDatabaseLibrary::StaticClass()->FindFunctionByName(GET_MEMBER_NAME_CHECKED(UKzDatabaseLibrary, EvaluateDatabaseAsset)));
 	CallFuncNode->AllocateDefaultPins();
 
-	// 2. Pass the selected DatabaseAsset directly to the hidden function
 	UEdGraphPin* FuncAssetPin = CallFuncNode->FindPinChecked(TEXT("Asset"));
 	CallFuncNode->GetSchema()->TrySetDefaultObject(*FuncAssetPin, DatabaseAsset);
 
-	// Helper to move pins safely using the Schema directly (bypassing unexported MovePinLinksToIntermediate)
 	const UEdGraphSchema* Schema = CompilerContext.GetSchema();
 	auto MoveLinks = [Schema](UEdGraphPin* Source, UEdGraphPin* Dest)
 		{
@@ -137,14 +130,14 @@ void UK2Node_EvaluateDatabaseAsset::ExpandNode(FKismetCompilerContext& CompilerC
 			}
 		};
 
-	// 3. Move connections from our visual node to the hidden CallFunction node
 	MoveLinks(GetExecPin(), CallFuncNode->GetExecPin());
-	MoveLinks(FindPinChecked(UEdGraphSchema_K2::PN_Execute, EGPD_Output), CallFuncNode->GetThenPin());
+
+	// ExpandEnumAsExecs generates one exec pin per enum value, named after the value.
+	MoveLinks(FindPinChecked(TEXT("Found")), CallFuncNode->FindPinChecked(TEXT("Found")));
+	MoveLinks(FindPinChecked(TEXT("NotFound")), CallFuncNode->FindPinChecked(TEXT("NotFound")));
 
 	MoveLinks(FindPinChecked(TEXT("Query")), CallFuncNode->FindPinChecked(TEXT("Query")));
-	MoveLinks(FindPinChecked(TEXT("bSuccess")), CallFuncNode->GetReturnValuePin());
 
-	// The magic connection: Map our strongly-typed Result pin to the Custom Thunk's Wildcard out pin
 	if (UEdGraphPin* ResultPin = FindPin(TEXT("Result")))
 	{
 		UEdGraphPin* InternalOutPin = CallFuncNode->FindPinChecked(TEXT("OutValue"));
@@ -152,7 +145,6 @@ void UK2Node_EvaluateDatabaseAsset::ExpandNode(FKismetCompilerContext& CompilerC
 		MoveLinks(ResultPin, InternalOutPin);
 	}
 
-	// Clean up our visual node
 	BreakAllNodeLinks();
 }
 

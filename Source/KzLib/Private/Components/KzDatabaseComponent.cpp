@@ -38,14 +38,14 @@ void UKzDatabaseComponent::PostEditChangeProperty(FPropertyChangedEvent& Propert
 
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(UKzDatabaseComponent, Databases))
 	{
-		TSet<FKzParamDef> SeenTypes;
+		TSet<FKzTypeDef> SeenTypes;
 		bool bFoundDuplicate = false;
 
 		for (UKzDatabaseAsset* Asset : Databases)
 		{
 			if (!Asset) continue;
 
-			FKzParamDef AssetType = Asset->GetDataType();
+			FKzTypeDef AssetType = Asset->GetDataType();
 			if (AssetType.IsValid())
 			{
 				if (SeenTypes.Contains(AssetType))

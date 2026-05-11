@@ -35,8 +35,8 @@ public:
 	template <typename T>
 	bool Resolve(const FKzDatabaseQuery& Query, T& OutValue) const
 	{
-		// 1. Generate the ParamDef locally to use as the Map Key
-		FKzParamDef SearchType = FKzParamDef::Make<T>();
+		// 1. Generate the TypeDef locally to use as the Map Key
+		FKzTypeDef SearchType = FKzTypeDef::Make<T>();
 
 		// 2. Find the correct Database Asset for this type
 		if (const TObjectPtr<UKzDatabaseAsset>* FoundAsset = DatabaseMap.Find(SearchType))
@@ -55,7 +55,7 @@ public:
 	 * Returns the Database Asset associated with a specific parameter type, if any.
 	 * Used internally by the Custom Thunk nodes to route queries dynamically.
 	 */
-	UKzDatabaseAsset* GetDatabaseAsset(const FKzParamDef& SearchType) const
+	UKzDatabaseAsset* GetDatabaseAsset(const FKzTypeDef& SearchType) const
 	{
 		if (const TObjectPtr<UKzDatabaseAsset>* FoundAsset = DatabaseMap.Find(SearchType))
 		{
@@ -77,5 +77,5 @@ private:
 	 * Built automatically during BeginPlay from the frontend 'Databases' array.
 	 */
 	UPROPERTY(Transient)
-	TMap<FKzParamDef, TObjectPtr<UKzDatabaseAsset>> DatabaseMap;
+	TMap<FKzTypeDef, TObjectPtr<UKzDatabaseAsset>> DatabaseMap;
 };

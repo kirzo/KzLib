@@ -5,8 +5,8 @@
 #include "CoreMinimal.h"
 #include "GameplayTagContainer.h"
 #include "StructUtils/PropertyBag.h"
-#include "Core/KzParamDef.h"
-#include "Core/KzPropertyBagHelpers.h"
+#include "Core/KzTypeDef.h"
+#include "Core/KzVariant.h"
 #include "KzDatabase.generated.h"
 
 /**
@@ -62,32 +62,32 @@ struct KZLIB_API FKzDatabaseItem
 	FGameplayTagContainer Tags;
 
 	/** The dynamic storage. */
-	UPROPERTY(EditAnywhere, Category = "Data", meta = (FixedLayout, ShowOnlyInnerProperties))
-	FInstancedPropertyBag Data;
+	UPROPERTY(EditAnywhere, Category = "Data", meta = (FixedType, ShowOnlyInnerProperties))
+	FKzVariant Value;
 
 public:
 	/**
 	 * Ensures the internal storage matches the Definition.
 	 * Must be called when creating the item or changing the Def.
 	 */
-	void SyncType(const FKzParamDef& Def);
+	void SyncType(const FKzTypeDef& TypeDef);
 
 	/** Returns true if the bag has a valid value set */
 	bool IsValid() const
 	{
-		return Data.IsValid();
+		return Value.IsValid();
 	}
 
 	template <typename T>
-	TValueOrError<T, EPropertyBagResult> GetValue() const
+	T GetValue() const
 	{
-		return KzPropertyBag::Get<T>(Data, FName("Data"));
+		return Value.Get<T>();
 	}
 
 	template <typename T>
 	void SetValue(const T& InValue)
 	{
-		KzPropertyBag::Set<T>(Data, FName("Data"), InValue);
+		Value.Set<T>(InValue);
 	}
 };
 
@@ -101,8 +101,8 @@ struct KZLIB_API FKzDatabase
 	GENERATED_BODY()
 
 	/** Defines the type of data stored in this database. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Database", meta = (HideName, NoArrays))
-	FKzParamDef Type;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Database", meta = (NoArrays))
+	FKzTypeDef Type;
 
 	/** The collection of items. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Database", meta = (TitleProperty = "ID"))
@@ -110,7 +110,7 @@ struct KZLIB_API FKzDatabase
 
 	FKzDatabase()
 	{
-		Type.Type.ValueType = EPropertyBagPropertyType::None;
+		Type.ValueType = EPropertyBagPropertyType::None;
 	}
 
 	/** Configures the Database Schema based on a C++ Type. */
@@ -152,7 +152,7 @@ struct KZLIB_API FKzDatabase
 		const UObject* InputObj = Traits::GetObjectType();
 
 		// Validate against Runtime Schema (this->Type)
-		bool bCompatible = (Type.Type.ValueType == InputType);
+		bool bCompatible = (Type.ValueType == InputType);
 
 		if (bCompatible && (InputType == EPropertyBagPropertyType::Object ||
 			InputType == EPropertyBagPropertyType::SoftObject ||
@@ -160,7 +160,7 @@ struct KZLIB_API FKzDatabase
 			InputType == EPropertyBagPropertyType::SoftClass))
 		{
 			// For objects, allow Child -> Parent assignment
-			const UClass* SchemaClass = Cast<UClass>(Type.Type.ValueTypeObject);
+			const UClass* SchemaClass = Cast<UClass>(Type.ValueTypeObject);
 			const UClass* InputClass = Cast<UClass>(InputObj);
 			if (SchemaClass && InputClass)
 			{
@@ -168,18 +168,18 @@ struct KZLIB_API FKzDatabase
 			}
 			else
 			{
-				bCompatible = (Type.Type.ValueTypeObject == InputObj);
+				bCompatible = (Type.ValueTypeObject == InputObj);
 			}
 		}
 		else if (bCompatible && (InputType == EPropertyBagPropertyType::Struct || InputType == EPropertyBagPropertyType::Enum))
 		{
 			// Structs and Enums must match exactly
-			bCompatible = (Type.Type.ValueTypeObject == InputObj);
+			bCompatible = (Type.ValueTypeObject == InputObj);
 		}
 
 		if (!ensureMsgf(bCompatible, TEXT("FKzDatabase Type Mismatch: Trying to add type '%d' object '%s' to DB expecting '%d' object '%s'"),
 			(int32)InputType, InputObj ? *InputObj->GetName() : TEXT("Null"),
-			(int32)Type.Type.ValueType, Type.Type.ValueTypeObject ? *Type.Type.ValueTypeObject->GetName() : TEXT("Null")))
+			(int32)Type.ValueType, Type.ValueTypeObject ? *Type.ValueTypeObject->GetName() : TEXT("Null")))
 		{
 			return nullptr;
 		}
@@ -227,14 +227,8 @@ struct KZLIB_API FKzDatabase
 		if (const FKzDatabaseItem* BestItem = FindBestMatch(Query))
 		{
 			OutID = BestItem->ID;
-
-			// Extract the value type-safely
-			TValueOrError<T, EPropertyBagResult> Result = BestItem->GetValue<T>();
-			if (Result.HasValue())
-			{
-				OutValue = Result.GetValue();
-				return true;
-			}
+			OutValue = BestItem->GetValue<T>();
+			return true;
 		}
 		return false;
 	}

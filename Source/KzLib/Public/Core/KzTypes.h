@@ -13,6 +13,13 @@ enum class EKzValidity : uint8
 	NotValid
 };
 
+UENUM(BlueprintType)
+enum class EKzSearchResult : uint8
+{
+	Found,
+	NotFound
+};
+
 /** 2D Axis flags. */
 UENUM(BlueprintType, meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
 enum class EKzAxis2D : uint8

@@ -4,6 +4,7 @@
 #include "Core/KzParamDef.h"
 #include "Schemas/KzParamDefSchema.h"
 #include "Widgets/SKzParamDefSelector.h"
+#include "Utils/KzEditorUtils.h"
 
 #include "DetailWidgetRow.h"
 #include "DetailLayoutBuilder.h"
@@ -25,8 +26,7 @@ void FKzParamDefCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> Prope
 	}
 
 	// --- Metadata Checks ---
-	const bool bHideName = StructHandle->HasMetaData(TEXT("HideName"));
-	const bool bAllowArrays = !StructHandle->HasMetaData(TEXT("NoArrays"));
+	const bool bHideName = FKzPropertyHandleUtils::HasMetaDataInHierarchy(StructHandle, TEXT("HideName"));
 
 	TSharedRef<SHorizontalBox> ValueBox = SNew(SHorizontalBox);
 

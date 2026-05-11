@@ -33,7 +33,7 @@ public:
 	 * Returns the parameter definition (Type) of the data stored in this asset.
 	 * Used by container components to route queries efficiently in O(1).
 	 */
-	FKzParamDef GetDataType() const
+	FKzTypeDef GetDataType() const
 	{
 		return Database.Type;
 	}
@@ -54,12 +54,8 @@ public:
 	{
 		if (const FKzDatabaseItem* BestItem = ResolveMatch(Query))
 		{
-			TValueOrError<T, EPropertyBagResult> Result = BestItem->GetValue<T>();
-			if (Result.HasValue())
-			{
-				OutValue = Result.GetValue();
-				return true;
-			}
+			OutValue = BestItem->GetValue<T>();
+			return true;
 		}
 		return false;
 	}

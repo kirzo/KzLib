@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Core/KzTypes.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Core/KzDatabase.h"
 #include "KzDatabaseLibrary.generated.h"
@@ -51,15 +52,15 @@ public:
 	 * Internal function used by the EvaluateDatabaseAsset node.
 	 * Evaluates the query against the asset and outputs the result in the wildcard out pin.
 	 */
-	UFUNCTION(BlueprintCallable, CustomThunk, meta = (BlueprintInternalUseOnly = "true", CustomStructureParam = "OutValue"))
-	static bool EvaluateDatabaseAsset(UKzDatabaseAsset* Asset, const FKzDatabaseQuery& Query, int32& OutValue);
+	UFUNCTION(BlueprintCallable, CustomThunk, meta = (BlueprintInternalUseOnly = "true", CustomStructureParam = "OutValue", ExpandEnumAsExecs = "Result"))
+	static void EvaluateDatabaseAsset(UKzDatabaseAsset* Asset, const FKzDatabaseQuery& Query, EKzSearchResult& Result, int32& OutValue);
 
 	/**
 	 * Internal function used by the ResolveDatabaseQuery node.
 	 * Asks the Database Component to resolve a query and output the matched item based on the pin type.
 	 */
-	UFUNCTION(BlueprintCallable, CustomThunk, meta = (BlueprintInternalUseOnly = "true", CustomStructureParam = "OutValue"))
-	static bool ResolveDatabaseQuery(UKzDatabaseComponent* Component, const FKzDatabaseQuery& Query, int32& OutValue);
+	UFUNCTION(BlueprintCallable, CustomThunk, meta = (BlueprintInternalUseOnly = "true", CustomStructureParam = "OutValue", ExpandEnumAsExecs = "Result"))
+	static void ResolveDatabaseQuery(UKzDatabaseComponent* Component, const FKzDatabaseQuery& Query, EKzSearchResult& Result, int32& OutValue);
 
 private:
 	// --- Internal Thunk Declarations ---

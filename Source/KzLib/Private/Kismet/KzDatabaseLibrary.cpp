@@ -92,24 +92,10 @@ DEFINE_FUNCTION(UKzDatabaseLibrary::execAddDatabaseItem)
 
 	bool bSuccess = false;
 
-	if (StackProp && StackPtr)
+	if (StackProp && StackPtr && Database.Type.IsValid())
 	{
-		// Validate Schema Compatibility BEFORE modification.
-		// We create a temporary lightweight bag definition matching the Database Type.
-		// This avoids adding "trash" items to the array if the type is wrong.
-
-		FInstancedPropertyBag SchemaValidationBag;
-		static const FName PropName("Data");
-
-		if (Database.Type.IsValid())
-		{
-			SchemaValidationBag.AddProperty(PropName, Database.Type.Type.ValueType, Database.Type.Type.ValueTypeObject.Get());
-		}
-
-		const UScriptStruct* SchemaStruct = SchemaValidationBag.GetPropertyBagStruct();
-		const FProperty* SchemaProp = SchemaStruct ? SchemaStruct->FindPropertyByName(PropName) : nullptr;
-
-		if (SchemaProp && ArePropertiesCompatible(StackProp, SchemaProp))
+		// Validate compatibility against the database's declared type before touching the items array.
+		if (Database.Type.MatchesProperty(StackProp))
 		{
 			FKzDatabaseItem* Item = Database.FindItem(ID);
 			if (!Item)
@@ -119,29 +105,14 @@ DEFINE_FUNCTION(UKzDatabaseLibrary::execAddDatabaseItem)
 			}
 
 			Item->Tags = Tags;
-			Item->SyncType(Database.Type); // Ensure internal memory matches Schema
-
-			FStructView MutableStruct = Item->Data.GetMutableValue();
-			uint8* StructMemory = MutableStruct.GetMemory();
-
-			if (StructMemory)
-			{
-				const FProperty* RealBagProp = Item->Data.GetPropertyBagStruct()->FindPropertyByName(PropName);
-
-				if (RealBagProp)
-				{
-					uint8* DestPtr = RealBagProp->ContainerPtrToValuePtr<uint8>(StructMemory);
-					RealBagProp->CopyCompleteValue(DestPtr, StackPtr);
-					bSuccess = true;
-				}
-			}
+			Item->Value = FKzVariant::FromProperty(StackProp, StackPtr);
+			bSuccess = Item->Value.IsValid();
 		}
 		else
 		{
-			FString ExpectedType = SchemaProp ? SchemaProp->GetCPPType() : TEXT("Invalid Schema");
 			FFrame::KismetExecutionMessage(
-				*FString::Printf(TEXT("AddDatabaseItem: Type mismatch for ID '%s'. DB expects '%s', input is '%s'."),
-					*ID.ToString(), *ExpectedType, *StackProp->GetCPPType()),
+				*FString::Printf(TEXT("AddDatabaseItem: Type mismatch for ID '%s'. Input is '%s'."),
+					*ID.ToString(), *StackProp->GetCPPType()),
 				ELogVerbosity::Warning
 			);
 		}
@@ -164,34 +135,20 @@ DEFINE_FUNCTION(UKzDatabaseLibrary::execSetDatabaseItemValue)
 	bool bSuccess = false;
 	FKzDatabaseItem* Item = Database.FindItem(ID);
 
-	if (Item && Item->IsValid() && StackProp && StackPtr)
+	if (Item && StackProp && StackPtr && Database.Type.IsValid())
 	{
-		static const FName PropName("Data");
-		const UScriptStruct* BagStruct = Item->Data.GetPropertyBagStruct();
-		const FProperty* BagProp = BagStruct ? BagStruct->FindPropertyByName(PropName) : nullptr;
-
-		if (BagProp)
+		if (Database.Type.MatchesProperty(StackProp))
 		{
-			if (ArePropertiesCompatible(StackProp, BagProp))
-			{
-				FStructView MutableStruct = Item->Data.GetMutableValue();
-				uint8* StructMemory = MutableStruct.GetMemory();
-
-				if (StructMemory)
-				{
-					uint8* DestPtr = BagProp->ContainerPtrToValuePtr<uint8>(StructMemory);
-					BagProp->CopyCompleteValue(DestPtr, StackPtr);
-					bSuccess = true;
-				}
-			}
-			else
-			{
-				FFrame::KismetExecutionMessage(
-					*FString::Printf(TEXT("SetDatabaseItemValue: Type mismatch for ID '%s'. DB expects '%s', input is '%s'."),
-						*ID.ToString(), *BagProp->GetCPPType(), *StackProp->GetCPPType()),
-					ELogVerbosity::Warning
-				);
-			}
+			Item->Value = FKzVariant::FromProperty(StackProp, StackPtr);
+			bSuccess = Item->Value.IsValid();
+		}
+		else
+		{
+			FFrame::KismetExecutionMessage(
+				*FString::Printf(TEXT("SetDatabaseItemValue: Type mismatch for ID '%s'. Input is '%s'."),
+					*ID.ToString(), *StackProp->GetCPPType()),
+				ELogVerbosity::Warning
+			);
 		}
 	}
 
@@ -212,28 +169,9 @@ DEFINE_FUNCTION(UKzDatabaseLibrary::execGetDatabaseItemValue)
 	bool bSuccess = false;
 	const FKzDatabaseItem* Item = Database.FindItem(ID);
 
-	if (Item && Item->IsValid() && StackProp && StackPtr)
+	if (Item && Item->Value.IsValid() && StackProp && StackPtr)
 	{
-		static const FName PropName("Data");
-		const UScriptStruct* BagStruct = Item->Data.GetPropertyBagStruct();
-		const FProperty* BagProp = BagStruct ? BagStruct->FindPropertyByName(PropName) : nullptr;
-
-		// Verify compatibility (Source -> Dest)
-		if (BagProp && ArePropertiesCompatible(BagProp, StackProp))
-		{
-			// Get Const Memory
-			FConstStructView ConstStruct = Item->Data.GetValue();
-			const uint8* StructMemory = ConstStruct.GetMemory();
-
-			if (StructMemory)
-			{
-				const uint8* SrcPtr = BagProp->ContainerPtrToValuePtr<uint8>(StructMemory);
-
-				// Copy from Bag to Stack
-				StackProp->CopyCompleteValue(StackPtr, SrcPtr);
-				bSuccess = true;
-			}
-		}
+		bSuccess = Item->Value.ToProperty(StackProp, StackPtr);
 	}
 
 	*(bool*)RESULT_PARAM = bSuccess;
@@ -245,7 +183,6 @@ DEFINE_FUNCTION(UKzDatabaseLibrary::execFindBestMatch)
 	P_GET_STRUCT_REF(FKzDatabaseQuery, Query);
 	P_GET_PROPERTY_REF(FNameProperty, OutID);
 
-	// Wildcard Value output
 	FProperty* ValueProp = nullptr;
 	void* ValuePtr = nullptr;
 	GetWildcardProperty(Stack, ValueProp, ValuePtr);
@@ -257,29 +194,13 @@ DEFINE_FUNCTION(UKzDatabaseLibrary::execFindBestMatch)
 	if (const FKzDatabaseItem* BestItem = Database.FindBestMatch(Query))
 	{
 		OutID = BestItem->ID;
+		bFound = true;
 
-		// Write Value
-		if (ValueProp && ValuePtr && BestItem->IsValid())
+		// Write the value out if the pin is connected and compatible. A type mismatch doesn't fail the search,
+		// it just leaves the out pin untouched — matching the previous behaviour.
+		if (ValueProp && ValuePtr && BestItem->Value.IsValid())
 		{
-			static const FName PropName("Data");
-			const UScriptStruct* BagStruct = BestItem->Data.GetPropertyBagStruct();
-			const FProperty* BagProp = BagStruct ? BagStruct->FindPropertyByName(PropName) : nullptr;
-
-			if (BagProp && ArePropertiesCompatible(BagProp, ValueProp))
-			{
-				FConstStructView ConstStruct = BestItem->Data.GetValue();
-				const uint8* SrcPtr = BagProp->ContainerPtrToValuePtr<uint8>(ConstStruct.GetMemory());
-				if (SrcPtr)
-				{
-					ValueProp->CopyCompleteValue(ValuePtr, SrcPtr);
-					bFound = true;
-				}
-			}
-		}
-		else
-		{
-			// Found item but didn't write value (maybe pin not connected or types mismatch), still success finding item
-			bFound = true;
+			BestItem->Value.ToProperty(ValueProp, ValuePtr);
 		}
 	}
 
@@ -290,6 +211,7 @@ DEFINE_FUNCTION(UKzDatabaseLibrary::execEvaluateDatabaseAsset)
 {
 	P_GET_OBJECT(UKzDatabaseAsset, Asset);
 	P_GET_STRUCT_REF(FKzDatabaseQuery, Query);
+	P_GET_ENUM_REF(EKzSearchResult, Result);
 
 	FProperty* OutValueProp = nullptr;
 	void* OutValuePtr = nullptr;
@@ -297,50 +219,39 @@ DEFINE_FUNCTION(UKzDatabaseLibrary::execEvaluateDatabaseAsset)
 
 	P_FINISH;
 
-	bool bSuccess = false;
+	Result = EKzSearchResult::NotFound;
 
 	if (Asset && OutValueProp && OutValuePtr)
 	{
 		if (const FKzDatabaseItem* BestItem = Asset->ResolveMatch(Query))
 		{
-			if (BestItem->IsValid())
+			if (BestItem->Value.IsValid())
 			{
-				static const FName PropName("Data");
-				const UScriptStruct* BagStruct = BestItem->Data.GetPropertyBagStruct();
-				const FProperty* BagProp = BagStruct ? BagStruct->FindPropertyByName(PropName) : nullptr;
-
-				// Type validation (Asset Schema vs Node Pin)
-				if (BagProp && ArePropertiesCompatible(BagProp, OutValueProp))
+				if (BestItem->Value.MatchesProperty(OutValueProp))
 				{
-					FConstStructView ConstStruct = BestItem->Data.GetValue();
-					const uint8* SrcPtr = BagProp->ContainerPtrToValuePtr<uint8>(ConstStruct.GetMemory());
-
-					if (SrcPtr)
+					if (BestItem->Value.ToProperty(OutValueProp, OutValuePtr))
 					{
-						// Copy memory directly to the Blueprint pin
-						OutValueProp->CopyCompleteValue(OutValuePtr, SrcPtr);
-						bSuccess = true;
+						Result = EKzSearchResult::Found;
 					}
 				}
 				else
 				{
 					FFrame::KismetExecutionMessage(
-						*FString::Printf(TEXT("EvaluateDatabaseAsset: Type mismatch on Asset '%s'. Asset provides '%s', but node pin is '%s'."),
-							*Asset->GetName(), BagProp ? *BagProp->GetCPPType() : TEXT("Unknown"), *OutValueProp->GetCPPType()),
+						*FString::Printf(TEXT("EvaluateDatabaseAsset: Type mismatch on Asset '%s'. Node pin is '%s'."),
+							*Asset->GetName(), *OutValueProp->GetCPPType()),
 						ELogVerbosity::Warning
 					);
 				}
 			}
 		}
 	}
-
-	*(bool*)RESULT_PARAM = bSuccess;
 }
 
 DEFINE_FUNCTION(UKzDatabaseLibrary::execResolveDatabaseQuery)
 {
 	P_GET_OBJECT(UKzDatabaseComponent, Component);
 	P_GET_STRUCT_REF(FKzDatabaseQuery, Query);
+	P_GET_ENUM_REF(EKzSearchResult, Result);
 
 	FProperty* OutValueProp = nullptr;
 	void* OutValuePtr = nullptr;
@@ -348,38 +259,26 @@ DEFINE_FUNCTION(UKzDatabaseLibrary::execResolveDatabaseQuery)
 
 	P_FINISH;
 
-	bool bSuccess = false;
+	Result = EKzSearchResult::NotFound;
 
 	if (Component && OutValueProp && OutValuePtr)
 	{
+		// Build the search type from the wildcard pin's FProperty.
 		FPropertyBagPropertyDesc Desc(NAME_None, OutValueProp);
-		FKzParamDef SearchType(Desc.Name, Desc.ContainerTypes.GetFirstContainerType(), Desc.ValueType, Desc.ValueTypeObject.Get());
+		const FKzTypeDef SearchType(Desc.ContainerTypes.GetFirstContainerType(), Desc.ValueType, Desc.ValueTypeObject.Get());
 
 		if (UKzDatabaseAsset* Asset = Component->GetDatabaseAsset(SearchType))
 		{
 			if (const FKzDatabaseItem* BestItem = Asset->ResolveMatch(Query))
 			{
-				if (BestItem->IsValid())
+				if (BestItem->Value.IsValid() && BestItem->Value.MatchesProperty(OutValueProp))
 				{
-					static const FName PropName("Data");
-					const UScriptStruct* BagStruct = BestItem->Data.GetPropertyBagStruct();
-					const FProperty* BagProp = BagStruct ? BagStruct->FindPropertyByName(PropName) : nullptr;
-
-					if (BagProp && ArePropertiesCompatible(BagProp, OutValueProp))
+					if (BestItem->Value.ToProperty(OutValueProp, OutValuePtr))
 					{
-						FConstStructView ConstStruct = BestItem->Data.GetValue();
-						const uint8* SrcPtr = BagProp->ContainerPtrToValuePtr<uint8>(ConstStruct.GetMemory());
-
-						if (SrcPtr)
-						{
-							OutValueProp->CopyCompleteValue(OutValuePtr, SrcPtr);
-							bSuccess = true;
-						}
+						Result = EKzSearchResult::Found;
 					}
 				}
 			}
 		}
 	}
-
-	*(bool*)RESULT_PARAM = bSuccess;
 }

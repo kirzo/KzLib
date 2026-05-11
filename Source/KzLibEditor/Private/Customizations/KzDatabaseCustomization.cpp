@@ -2,8 +2,8 @@
 
 #include "Customizations/KzDatabaseCustomization.h"
 #include "Core/KzDatabase.h"
-#include "Widgets/SKzParamDefSelector.h"
-
+#include "Widgets/SKzTypeSelector.h"
+#include "Utils/KzEditorUtils.h"
 #include "DetailWidgetRow.h"
 #include "DetailLayoutBuilder.h"
 #include "IDetailChildrenBuilder.h"
@@ -36,8 +36,8 @@ void FKzDatabaseItemCustomization::CustomizeChildren(TSharedRef<IPropertyHandle>
 	TSharedPtr<IPropertyHandle> TagsHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FKzDatabaseItem, Tags));
 	ChildBuilder.AddProperty(TagsHandle.ToSharedRef());
 
-	TSharedPtr<IPropertyHandle> DataHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FKzDatabaseItem, Data));
-	ChildBuilder.AddProperty(DataHandle.ToSharedRef());
+	TSharedPtr<IPropertyHandle> ValueHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FKzDatabaseItem, Value));
+	ChildBuilder.AddProperty(ValueHandle.ToSharedRef()).ShouldAutoExpand(true);
 }
 
 // -------------------------------------------------------------------------
@@ -48,12 +48,6 @@ void FKzDatabaseCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> Prope
 {
 	StructHandle = PropertyHandle;
 
-	// Check if the property has the "FixedType" metadata
-	const bool bIsFixedType = PropertyHandle->HasMetaData(TEXT("FixedType"));
-
-	TSharedPtr<IPropertyHandle> TypeHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FKzDatabase, Type));
-	const bool bAllowArrays = !TypeHandle->HasMetaData(TEXT("NoArrays"));
-
 	HeaderRow
 		.NameContent()
 		[
@@ -61,11 +55,13 @@ void FKzDatabaseCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> Prope
 		]
 		.ValueContent()
 		[
-			SNew(SKzParamDefSelector)
-				.Value(this, &FKzDatabaseCustomization::GetTypeValue)
-				.OnValueChanged(this, &FKzDatabaseCustomization::OnTypeChanged)
-				.AllowArrays(bAllowArrays)
-				.IsEnabled(!bIsFixedType)
+			SNew(SKzTypeSelector)
+				.AllowArrays(false)
+				.IsEnabled(!FKzPropertyHandleUtils::HasMetaDataInHierarchy(PropertyHandle, TEXT("FixedType")))
+				.ValueType_Lambda([this]() { const FKzDatabase* DB = GetDatabase(); return DB ? DB->Type.ValueType : EPropertyBagPropertyType::None; })
+				.ValueTypeObject_Lambda([this]() { const FKzDatabase* DB = GetDatabase(); return DB ? DB->Type.ValueTypeObject : nullptr; })
+				.ContainerType_Lambda([this]() { const FKzDatabase* DB = GetDatabase(); return DB ? DB->Type.ContainerType : EPropertyBagContainerType::None; })
+				.OnTypeChanged(this, &FKzDatabaseCustomization::OnTypeChanged)
 		];
 }
 
@@ -74,10 +70,8 @@ void FKzDatabaseCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> Pro
 	TSharedPtr<IPropertyHandle> ItemsHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FKzDatabase, Items));
 	if (ItemsHandle.IsValid())
 	{
-		// Draw the array
 		ChildBuilder.AddProperty(ItemsHandle.ToSharedRef());
 
-		// Hook into the array changes
 		TSharedPtr<IPropertyHandleArray> ArrayHandle = ItemsHandle->AsArray();
 		if (ArrayHandle.IsValid())
 		{
@@ -86,22 +80,18 @@ void FKzDatabaseCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> Pro
 	}
 }
 
-FKzParamDef FKzDatabaseCustomization::GetTypeValue() const
+const FKzDatabase* FKzDatabaseCustomization::GetDatabase() const
 {
-	if (!StructHandle.IsValid()) return FKzParamDef();
-
+	if (!StructHandle.IsValid()) { return nullptr; }
 	TArray<void*> RawData;
 	StructHandle->AccessRawData(RawData);
-	if (RawData.Num() > 0 && RawData[0])
-	{
-		return static_cast<const FKzDatabase*>(RawData[0])->Type;
-	}
-	return FKzParamDef();
+	if (RawData.Num() == 0 || !RawData[0]) { return nullptr; }
+	return static_cast<const FKzDatabase*>(RawData[0]);
 }
 
-void FKzDatabaseCustomization::OnTypeChanged(const FKzParamDef& NewDef)
+void FKzDatabaseCustomization::OnTypeChanged(EPropertyBagPropertyType NewType, const UObject* NewTypeObject, EPropertyBagContainerType NewContainerType)
 {
-	if (!StructHandle.IsValid()) return;
+	if (!StructHandle.IsValid()) { return; }
 
 	FScopedTransaction Transaction(LOCTEXT("SyncDatabaseType", "Sync Database Type"));
 	StructHandle->NotifyPreChange();
@@ -111,10 +101,10 @@ void FKzDatabaseCustomization::OnTypeChanged(const FKzParamDef& NewDef)
 
 	for (void* Ptr : RawData)
 	{
-		if (!Ptr) continue;
+		if (!Ptr) { continue; }
 		FKzDatabase* DB = static_cast<FKzDatabase*>(Ptr);
 
-		DB->Type = NewDef;
+		DB->Type = FKzTypeDef(NewContainerType, NewType, NewTypeObject);
 
 		for (FKzDatabaseItem& Item : DB->Items)
 		{
@@ -123,38 +113,29 @@ void FKzDatabaseCustomization::OnTypeChanged(const FKzParamDef& NewDef)
 	}
 
 	StructHandle->NotifyPostChange(EPropertyChangeType::ValueSet);
+	StructHandle->NotifyFinishedChangingProperties();
 }
 
 void FKzDatabaseCustomization::OnItemsArrayChanged()
 {
-	if (!StructHandle.IsValid()) return;
+	if (!StructHandle.IsValid()) { return; }
 
 	TArray<void*> RawData;
 	StructHandle->AccessRawData(RawData);
 
-	if (RawData.Num() > 0)
+	for (void* Ptr : RawData)
 	{
-		// We don't open a Transaction here because usually this callback 
-		// happens inside an existing Transaction (created by the "Add Item" button).
+		if (!Ptr) { continue; }
+		FKzDatabase* DB = static_cast<FKzDatabase*>(Ptr);
 
-		StructHandle->NotifyPreChange();
-
-		for (void* Ptr : RawData)
+		// Newly added items default-construct with an invalid FKzVariant. SyncType is a no-op for them
+		// (no type mismatch yet), so we need to be explicit: if there's no value, seed nothing — the
+		// Value will start invalid and the user fills it via the editor.
+		// For existing items, SyncType only resets if the type really doesn't match.
+		for (FKzDatabaseItem& Item : DB->Items)
 		{
-			if (!Ptr) continue;
-
-			FKzDatabase* DB = static_cast<FKzDatabase*>(Ptr);
-
-			// Iterate all items and ensure they match the DB definition.
-			// This covers new items (which will be empty) and existing ones (which will just return).
-			for (FKzDatabaseItem& Item : DB->Items)
-			{
-				// If the item is invalid (empty bag) or doesn't match, Sync it.
-				Item.SyncType(DB->Type);
-			}
+			Item.SyncType(DB->Type);
 		}
-
-		StructHandle->NotifyPostChange(EPropertyChangeType::ValueSet);
 	}
 }
 

@@ -4,7 +4,7 @@
 
 #include "Widgets/KzPropertyStackRowCustomizer.h"
 #include "Widgets/SKzClassCombo.h"
-#include "Utils/KzObjectEditorUtils.h"
+#include "Utils/KzEditorUtils.h"
 #include "KzLibEditorStyle.h"
 
 #include "PropertyHandle.h"

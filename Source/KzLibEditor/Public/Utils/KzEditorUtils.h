@@ -129,3 +129,34 @@ struct FKzClipboardUtils
 		return nullptr;
 	}
 };
+
+// --- PropertyHandle Utilities ---
+struct FKzPropertyHandleUtils
+{
+	/** Returns true if PropertyHandle or any of its ancestor handles have the given metadata. */
+	static bool HasMetaDataInHierarchy(TSharedPtr<IPropertyHandle> PropertyHandle, FName MetaKey)
+	{
+		for (TSharedPtr<IPropertyHandle> Current = PropertyHandle; Current.IsValid(); Current = Current->GetParentHandle())
+		{
+			if (Current->HasMetaData(MetaKey))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** Returns the metadata value of PropertyHandle or the nearest ancestor that has it. Empty string if not found. */
+	static const FString& GetMetaDataInHierarchy(TSharedPtr<IPropertyHandle> PropertyHandle, FName MetaKey)
+	{
+		for (TSharedPtr<IPropertyHandle> Current = PropertyHandle; Current.IsValid(); Current = Current->GetParentHandle())
+		{
+			if (Current->HasMetaData(MetaKey))
+			{
+				return Current->GetMetaData(MetaKey);
+			}
+		}
+		static const FString Empty;
+		return Empty;
+	}
+};

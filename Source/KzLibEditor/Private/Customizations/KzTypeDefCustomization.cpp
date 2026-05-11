@@ -3,7 +3,7 @@
 #include "Customizations/KzTypeDefCustomization.h"
 #include "Core/KzTypeDef.h"
 #include "Widgets/SKzTypeSelector.h"
-
+#include "Utils/KzEditorUtils.h"
 #include "DetailWidgetRow.h"
 #include "ScopedTransaction.h"
 
@@ -13,6 +13,9 @@ void FKzTypeDefCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> Proper
 {
 	StructHandle = PropertyHandle;
 
+	const bool bIsFixedType = FKzPropertyHandleUtils::HasMetaDataInHierarchy(PropertyHandle, TEXT("FixedType"));
+	const bool bAllowArrays = !FKzPropertyHandleUtils::HasMetaDataInHierarchy(PropertyHandle, TEXT("NoArrays"));
+
 	HeaderRow
 		.NameContent()
 		[
@@ -21,7 +24,8 @@ void FKzTypeDefCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> Proper
 		.ValueContent()
 		[
 			SNew(SKzTypeSelector)
-				.AllowArrays(!StructHandle->HasMetaData(TEXT("NoArrays")))
+				.IsEnabled(!bIsFixedType)
+				.AllowArrays(bAllowArrays)
 				.ValueType_Lambda([this]() { const FKzTypeDef* Td = GetTypeDef(); return Td ? Td->ValueType : EPropertyBagPropertyType::None; })
 				.ValueTypeObject_Lambda([this]() { const FKzTypeDef* Td = GetTypeDef(); return Td ? Td->ValueTypeObject : nullptr; })
 				.ContainerType_Lambda([this]() { const FKzTypeDef* Td = GetTypeDef(); return Td ? Td->ContainerType : EPropertyBagContainerType::None; })

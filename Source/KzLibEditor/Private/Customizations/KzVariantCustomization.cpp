@@ -3,6 +3,7 @@
 #include "Customizations/KzVariantCustomization.h"
 #include "Core/KzVariant.h"
 #include "Widgets/SKzTypeSelector.h"
+#include "Utils/KzEditorUtils.h"
 
 #include "DetailWidgetRow.h"
 #include "DetailLayoutBuilder.h"
@@ -92,16 +93,22 @@ void FKzVariantCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> Proper
 {
 	StructHandle = PropertyHandle;
 
+	if (FKzPropertyHandleUtils::HasMetaDataInHierarchy(PropertyHandle, TEXT("ShowOnlyInnerProperties")))
+	{
+		// Return early to prevent the HeaderRow from being generated
+		return;
+	}
+
 	HeaderRow
 		.NameContent()
 		[
 			PropertyHandle->CreatePropertyNameWidget()
 		]
 		.ValueContent()
-		.MinDesiredWidth(250.0f)
 		[
 			SNew(SKzTypeSelector)
 				.AllowArrays(false)
+				.Visibility_Lambda([this]() { return FKzPropertyHandleUtils::HasMetaDataInHierarchy(StructHandle, TEXT("FixedType")) ? EVisibility::Collapsed : EVisibility::Visible; })
 				.ValueType_Lambda([this]() { return GetCurrentType(); })
 				.ValueTypeObject_Lambda([this]() { return GetCurrentTypeObject(); })
 				.OnTypeChanged(this, &FKzVariantCustomization::OnTypeChanged)
@@ -151,8 +158,10 @@ void FKzVariantCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> Prop
 
 			if (SlotName == NAME_StructValue)
 			{
-				SlotHandle->SetExpanded(true);
-				Row.ShouldAutoExpand(true);
+				if (!SlotHandle->IsExpanded())
+				{
+					SlotHandle->SetExpanded(true);
+				}
 
 				// The type is already chosen by our type selector — hide FInstancedStruct's own struct picker.
 				// bShowChildren=true keeps the inner struct properties (e.g. X/Y/Z for Vector) as expandable children.

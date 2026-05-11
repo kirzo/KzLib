@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Core/KzTypeDef.h"
 #include "Core/KzPropertyBagHelpers.h"
 #include "StructUtils/InstancedStruct.h"
 #include "StructUtils/PropertyBag.h"
@@ -66,6 +67,9 @@ public:
 
 	/** True if Property's type and the variant's type are compatible (same category, same struct/class/enum if applicable). */
 	bool MatchesProperty(const FProperty* Property) const;
+
+	/** True if TypeDef and the variant's type are compatible. */
+	bool MatchesType(const FKzTypeDef& TypeDef) const;
 
 	/** Returns a pointer to the active slot's raw memory, or nullptr if invalid. */
 	void* GetData();
@@ -151,20 +155,28 @@ bool FKzVariant::MatchesType() const
 		return false;
 	}
 
-	// For Struct/Object/Class/Enum we also check the type object.
 	const UObject* ExpectedTypeObj = Traits::GetObjectType();
 	const UObject* HeldTypeObj = GetTypeObject();
 
+	// Primitive without UObject metadata: matching by ValueType is enough.
 	if (ExpectedTypeObj == nullptr && HeldTypeObj == nullptr)
 	{
 		return true;
 	}
-	if (ExpectedTypeObj == nullptr || HeldTypeObj == nullptr)
+
+	// No restriction stored — accept any compatible T.
+	if (HeldTypeObj == nullptr)
 	{
-		return false;
+		return true;
 	}
 
-	// Allow polymorphism for objects/classes (held is child of expected).
+	// T is generic (e.g. UObject*) but the variant stores a specific type — always compatible.
+	if (ExpectedTypeObj == nullptr)
+	{
+		return true;
+	}
+
+	// Object/Class refs: allow polymorphism (held type is child of expected).
 	if (Type == EPropertyBagPropertyType::Object ||
 		Type == EPropertyBagPropertyType::SoftObject ||
 		Type == EPropertyBagPropertyType::Class ||
@@ -266,6 +278,7 @@ void FKzVariant::Set(const T& Value)
 	else if constexpr (Traits::Type == EPropertyBagPropertyType::SoftObject)
 	{
 		SoftObjectValue = TSoftObjectPtr<UObject>(Value.ToSoftObjectPath());
+		ObjectValue = const_cast<UClass*>(Cast<UClass>(Traits::GetObjectType()));
 	}
 	else if constexpr (Traits::Type == EPropertyBagPropertyType::Class)
 	{
@@ -274,6 +287,7 @@ void FKzVariant::Set(const T& Value)
 	else if constexpr (Traits::Type == EPropertyBagPropertyType::SoftClass)
 	{
 		SoftClassValue = TSoftClassPtr<UObject>(Value.ToSoftObjectPath());
+		ClassValue = const_cast<UClass*>(Cast<UClass>(Traits::GetObjectType()));
 	}
 	else
 	{

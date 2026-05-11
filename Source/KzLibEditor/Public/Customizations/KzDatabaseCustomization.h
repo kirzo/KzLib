@@ -3,9 +3,10 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "StructUtils/PropertyBag.h"
 #include "IPropertyTypeCustomization.h"
 
-struct FKzParamDef;
+struct FKzDatabase;
 
 /**
  * Customization for FKzDatabaseItem.
@@ -39,8 +40,8 @@ public:
 	virtual void CustomizeChildren(TSharedRef<IPropertyHandle> PropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils) override;
 
 private:
-	FKzParamDef GetTypeValue() const;
-	void OnTypeChanged(const FKzParamDef& NewDef);
+	const FKzDatabase* GetDatabase() const;
+	void OnTypeChanged(EPropertyBagPropertyType NewType, const UObject* NewTypeObject, EPropertyBagContainerType NewContainerType);
 	void OnItemsArrayChanged();
 
 	TSharedPtr<IPropertyHandle> StructHandle;

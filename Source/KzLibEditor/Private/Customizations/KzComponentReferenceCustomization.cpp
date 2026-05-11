@@ -2,6 +2,7 @@
 
 #include "Customizations/KzComponentReferenceCustomization.h"
 #include "Components/KzComponentReference.h"
+#include "Utils/KzEditorUtils.h"
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"
 #include "IDetailChildrenBuilder.h"
@@ -93,7 +94,7 @@ void FKzComponentReferenceCustomization::GetAllowedComponentClasses(TArray<UClas
 		return;
 	}
 
-	const FString& AllowedClassesMeta = StructPropertyHandle->GetMetaData(TEXT("AllowedClasses"));
+	const FString& AllowedClassesMeta = FKzPropertyHandleUtils::GetMetaDataInHierarchy(StructPropertyHandle, TEXT("AllowedClasses"));
 	if (AllowedClassesMeta.IsEmpty())
 	{
 		return;
@@ -134,7 +135,7 @@ void FKzComponentReferenceCustomization::GetMustImplementInterfaces(TArray<UClas
 		return;
 	}
 
-	const FString& MustImplementMeta = StructPropertyHandle->GetMetaData(TEXT("MustImplement"));
+	const FString& MustImplementMeta = FKzPropertyHandleUtils::GetMetaDataInHierarchy(StructPropertyHandle, TEXT("MustImplement"));
 	if (MustImplementMeta.IsEmpty())
 	{
 		return;
@@ -179,7 +180,7 @@ void FKzComponentReferenceCustomization::CustomizeHeader(TSharedRef<IPropertyHan
 	}
 
 	// Determine if Sockets should be hidden either by metadata or because the struct doesn't have the property
-	bool bHideSocket = PropertyHandle->HasMetaData(TEXT("NoSocket")) || !SocketNameHandle.IsValid();
+	bool bHideSocket = FKzPropertyHandleUtils::HasMetaDataInHierarchy(PropertyHandle, TEXT("NoSocket")) || !SocketNameHandle.IsValid();
 
 	// If NoSocket is requested but the struct HAS a socket property, clear it safely
 	if (bHideSocket && SocketNameHandle.IsValid())
@@ -301,7 +302,7 @@ void FKzComponentReferenceCustomization::CustomizeHeader(TSharedRef<IPropertyHan
 void FKzComponentReferenceCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> PropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils)
 {
 	// Hide offset if metadata says so, or if the properties simply do not exist in the struct
-	bool bHideOffset = PropertyHandle->HasMetaData(TEXT("NoOffset")) ||
+	bool bHideOffset = FKzPropertyHandleUtils::HasMetaDataInHierarchy(PropertyHandle, TEXT("NoOffset")) ||
 		!RelativeLocationHandle.IsValid() ||
 		!RelativeRotationHandle.IsValid();
 

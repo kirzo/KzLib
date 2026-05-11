@@ -41,28 +41,11 @@ bool FKzDatabaseQuery::IsEmpty() const
 	return RequireTags.IsEmpty() && IgnoreTags.IsEmpty() && OptionalTags.IsEmpty() && TagQuery.IsEmpty();
 }
 
-void FKzDatabaseItem::SyncType(const FKzParamDef& Def)
+void FKzDatabaseItem::SyncType(const FKzTypeDef& TypeDef)
 {
-	static const FName PropName("Data");
-	const FPropertyBagPropertyDesc* ExistingProp = Data.FindPropertyDescByName(PropName);
-
-	// Check if we need to update
-	bool bMatches = ExistingProp
-		&& ExistingProp->ValueType == Def.Type.ValueType
-		&& ExistingProp->ValueTypeObject == Def.Type.ValueTypeObject
-		&& ExistingProp->ContainerTypes.GetFirstContainerType() == Def.Type.ContainerType;
-
-	if (bMatches)
+	if (!Value.MatchesType(TypeDef))
 	{
-		return;
-	}
-
-	// Reset and recreate
-	Data.Reset();
-
-	if (Def.IsValid())
-	{
-		Data.AddProperty(PropName, Def.Type.ValueType, Def.Type.ValueTypeObject.Get());
+		Value.SetType(TypeDef.ValueType, TypeDef.ValueTypeObject);
 	}
 }
 
