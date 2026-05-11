@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Toolkits/AssetEditorToolkit.h"
 #include "Editors/KzArrayEditorTabConfig.h"
+#include "Editors/KzExternalStructHost.h"
 
 class IDetailsView;
 class SKzPropertyStack;
@@ -58,12 +59,12 @@ private:
 
 	/** Handle for the property-change subscription on the element details view, so we. */
 	FDelegateHandle StructEditChangedHandle;
-	TStrongObjectPtr<class UKzExternalStructHost> ExternalStructHost;
+	TStrongObjectPtr<UKzExternalStructHost> ExternalStructHost;
 
 	/** Per-tab runtime state. */
 	struct FTabRuntime
 	{
-		FName ArrayPropertyName;
+		TArray<FName> PropertyPath;
 		FText ItemName;
 		TSharedPtr<FKzPropertyStackRowCustomizer> Customizer;
 

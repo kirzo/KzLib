@@ -4,6 +4,7 @@
 
 #include "KzLibEditor.h"
 #include "KzLibEditorStyle.h"
+#include "Editors/KzArrayAssetEditor.h"
 
 #include "Core/KzTypeDef.h"
 #include "Customizations/KzTypeDefCustomization.h"
@@ -41,7 +42,17 @@ void FKzLibEditorModule::OnStartupModule()
 
 	RegisterComponentVisualizer<UKzActorGroupComponent, FKzActorGroupVisualizer>();
 
-	RegisterAssetTypeAction<UKzDatabaseAsset>(KzAssetCategoryBit, INVTEXT("Database"), FColor::FromHex("#9B59B6"));
+	TArray<FKzArrayEditorTabConfig> DatabaseTabs;
+	DatabaseTabs.Add(FKzArrayEditorTabConfig(
+		TArray<FName>{ GET_MEMBER_NAME_CHECKED(UKzDatabaseAsset, Database), GET_MEMBER_NAME_CHECKED(FKzDatabase, Items) },
+		INVTEXT("Item")));
+
+	RegisterAssetTypeAction<UKzDatabaseAsset, FKzArrayAssetEditor>(
+		KzAssetCategoryBit,
+		INVTEXT("Database"),
+		FColor::FromHex("#9B59B6"),
+		TArray<FText>{},
+		DatabaseTabs);
 }
 
 void FKzLibEditorModule::OnShutdownModule()

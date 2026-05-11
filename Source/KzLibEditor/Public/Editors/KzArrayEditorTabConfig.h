@@ -13,11 +13,15 @@ class FKzPropertyStackRowCustomizer;
  * The editor spawns one SKzPropertyStack per config, all sharing the same Element
  * Details panel on the right. When the user selects items in any tab, the details
  * panel reflects that tab's selection.
+ *
+ * The array may live directly on the asset (PropertyPath = { "MyArray" }) or
+ * nested inside a struct (PropertyPath = { "Database", "Items" }).
  */
 struct KZLIBEDITOR_API FKzArrayEditorTabConfig
 {
-	/** Name of the array property on the asset (e.g. GET_MEMBER_NAME_CHECKED(UMyAsset, MyArray)). */
-	FName ArrayPropertyName;
+	/** Path to the array property, walked from the asset root. Single-element for
+	 *  direct properties, multi-element for arrays inside nested structs. */
+	TArray<FName> PropertyPath;
 
 	/** Singular noun used in UI: "Line", "Alias". */
 	FText ItemName;
@@ -30,17 +34,34 @@ struct KZLIBEDITOR_API FKzArrayEditorTabConfig
 
 	FKzArrayEditorTabConfig() = default;
 
-	FKzArrayEditorTabConfig(FName InArrayPropertyName, FText InItemName,
-		TSharedPtr<FKzPropertyStackRowCustomizer> InRowCustomizer = nullptr)
-		: ArrayPropertyName(InArrayPropertyName)
+	/** Convenience constructor for a direct array property on the asset. */
+	FKzArrayEditorTabConfig(FName InArrayPropertyName, FText InItemName, TSharedPtr<FKzPropertyStackRowCustomizer> InRowCustomizer = nullptr)
+		: PropertyPath({ InArrayPropertyName })
 		, ItemName(InItemName)
 		, RowCustomizer(InRowCustomizer)
 	{
 	}
 
-	FKzArrayEditorTabConfig(FName InArrayPropertyName, FText InItemName, FText InItemNamePlural,
-		TSharedPtr<FKzPropertyStackRowCustomizer> InRowCustomizer = nullptr)
-		: ArrayPropertyName(InArrayPropertyName)
+	/** Convenience constructor for a direct array property with an explicit plural form. */
+	FKzArrayEditorTabConfig(FName InArrayPropertyName, FText InItemName, FText InItemNamePlural, TSharedPtr<FKzPropertyStackRowCustomizer> InRowCustomizer = nullptr)
+		: PropertyPath({ InArrayPropertyName })
+		, ItemName(InItemName)
+		, ItemNamePlural(InItemNamePlural)
+		, RowCustomizer(InRowCustomizer)
+	{
+	}
+
+	/** Constructor for nested array properties (e.g. {"Database", "Items"}). */
+	FKzArrayEditorTabConfig(TArray<FName> InPropertyPath, FText InItemName, TSharedPtr<FKzPropertyStackRowCustomizer> InRowCustomizer = nullptr)
+		: PropertyPath(MoveTemp(InPropertyPath))
+		, ItemName(InItemName)
+		, RowCustomizer(InRowCustomizer)
+	{
+	}
+
+	/** Constructor for nested array properties with an explicit plural form. */
+	FKzArrayEditorTabConfig(TArray<FName> InPropertyPath, FText InItemName, FText InItemNamePlural, TSharedPtr<FKzPropertyStackRowCustomizer> InRowCustomizer = nullptr)
+		: PropertyPath(MoveTemp(InPropertyPath))
 		, ItemName(InItemName)
 		, ItemNamePlural(InItemNamePlural)
 		, RowCustomizer(InRowCustomizer)

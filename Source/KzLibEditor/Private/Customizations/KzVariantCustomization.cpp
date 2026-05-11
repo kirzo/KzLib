@@ -158,11 +158,6 @@ void FKzVariantCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> Prop
 
 			if (SlotName == NAME_StructValue)
 			{
-				if (!SlotHandle->IsExpanded())
-				{
-					SlotHandle->SetExpanded(true);
-				}
-
 				// The type is already chosen by our type selector — hide FInstancedStruct's own struct picker.
 				// bShowChildren=true keeps the inner struct properties (e.g. X/Y/Z for Vector) as expandable children.
 				Row.CustomWidget(/*bShowChildren=*/true)

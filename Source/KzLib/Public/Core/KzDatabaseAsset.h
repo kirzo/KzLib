@@ -26,7 +26,7 @@ public:
 	TObjectPtr<UKzDatabaseAsset> ParentDatabase;
 
 	/** The actual database storage containing the items and defining the schema type. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Database")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Database", meta = (HideItems))
 	FKzDatabase Database;
 
 	/**

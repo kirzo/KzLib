@@ -1,6 +1,7 @@
 // Copyright 2026 kirzo
 
 #include "Core/KzVariant.h"
+#include "UObject/TextProperty.h"
 
 const FKzVariant FKzVariant::Invalid = FKzVariant();
 

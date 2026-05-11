@@ -68,15 +68,23 @@ void FKzDatabaseCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> Prope
 void FKzDatabaseCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> PropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils)
 {
 	TSharedPtr<IPropertyHandle> ItemsHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FKzDatabase, Items));
-	if (ItemsHandle.IsValid())
+	if (!ItemsHandle.IsValid()) { return; }
+
+	const bool bHideItems = PropertyHandle->HasMetaData(TEXT("HideItems"));
+
+	// Only add to the details layout when not hidden. The HideItems flag is used by
+	// asset editors that manage Items via a dedicated tab, to avoid duplication.
+	if (!bHideItems)
 	{
 		ChildBuilder.AddProperty(ItemsHandle.ToSharedRef());
+	}
 
-		TSharedPtr<IPropertyHandleArray> ArrayHandle = ItemsHandle->AsArray();
-		if (ArrayHandle.IsValid())
-		{
-			ArrayHandle->SetOnNumElementsChanged(FSimpleDelegate::CreateSP(this, &FKzDatabaseCustomization::OnItemsArrayChanged));
-		}
+	// Always hook the array change callback. Items can be added/removed from a tab even
+	// when hidden in details, and SyncType must run on every new element regardless.
+	TSharedPtr<IPropertyHandleArray> ArrayHandle = ItemsHandle->AsArray();
+	if (ArrayHandle.IsValid())
+	{
+		ArrayHandle->SetOnNumElementsChanged(FSimpleDelegate::CreateSP(this, &FKzDatabaseCustomization::OnItemsArrayChanged));
 	}
 }
 

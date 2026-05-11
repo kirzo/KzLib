@@ -48,8 +48,26 @@ public:
 
 		for (FKzArrayAssetEditor::FTabRuntime& Runtime : Editor->TabRuntimes)
 		{
-			TSharedPtr<IPropertyHandle> Handle = DetailBuilder.GetProperty(Runtime.ArrayPropertyName);
-			DetailBuilder.HideProperty(Handle);
+			if (Runtime.PropertyPath.Num() == 0) { continue; }
+
+			// First segment must come from DetailBuilder (only it knows the asset root).
+			TSharedPtr<IPropertyHandle> Handle = DetailBuilder.GetProperty(Runtime.PropertyPath[0]);
+
+			// Subsequent segments are children of the previous handle.
+			for (int32 i = 1; i < Runtime.PropertyPath.Num() && Handle.IsValid(); ++i)
+			{
+				Handle = Handle->GetChildHandle(Runtime.PropertyPath[i]);
+			}
+
+			if (!Handle.IsValid()) { continue; }
+
+			// HideProperty only reliably hides top-level properties from the asset details.
+			// For nested arrays we don't hide here — the wrapping struct's own customization
+			// (or a meta flag on it) is responsible for suppressing the inner array.
+			if (Runtime.PropertyPath.Num() == 1)
+			{
+				DetailBuilder.HideProperty(Handle);
+			}
 
 			Runtime.ArrayPropertyHandle = Handle;
 			if (Runtime.StackWidget.IsValid())
@@ -222,7 +240,7 @@ void FKzArrayAssetEditor::InitArrayAssetEditor(
 	for (int32 i = 0; i < Tabs.Num(); ++i)
 	{
 		FTabRuntime Runtime;
-		Runtime.ArrayPropertyName = Tabs[i].ArrayPropertyName;
+		Runtime.PropertyPath = Tabs[i].PropertyPath;
 		Runtime.ItemName = Tabs[i].ItemName;
 		Runtime.Customizer = Tabs[i].RowCustomizer;
 		Runtime.TabId = MakeArrayStackTabId(i);

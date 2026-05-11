@@ -1,6 +1,7 @@
 // Copyright 2026 kirzo
 
 #include "Core/KzTypeDef.h"
+#include "UObject/TextProperty.h"
 
 const FKzTypeDef FKzTypeDef::Invalid = FKzTypeDef();
 
