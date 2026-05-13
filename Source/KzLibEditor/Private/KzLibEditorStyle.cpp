@@ -10,6 +10,9 @@ FKzLibEditorStyle::FKzLibEditorStyle()
 	FSlateColor OutlineColor = FSlateColor(FLinearColor(0.1843f, 0.1843f, 0.1843f, 0.5f));
 	FSlateColor OutlineColorSelected = FSlateColor(FLinearColor(0.1843f, 0.1843f, 0.1843f, 1.0f));
 
+	AddClassIcon(TEXT("KzDatabaseAsset"), TEXT("KzDatabase_16x"));
+	AddClassThumbnail(TEXT("KzDatabaseAsset"), TEXT("KzDatabase_64x"));
+
 	Set("Kz.CardBorder", new FSlateRoundedBoxBrush(
 		FStyleColors::Header, CoreStyleConstants::InputFocusRadius,
 		OutlineColor, CoreStyleConstants::InputFocusThickness));

@@ -50,7 +50,7 @@ void FKzLibEditorModule::OnStartupModule()
 	RegisterAssetTypeAction<UKzDatabaseAsset, FKzArrayAssetEditor>(
 		KzAssetCategoryBit,
 		INVTEXT("Database"),
-		FColor::FromHex("#9B59B6"),
+		FColor::FromHex("#3FF1B5"),
 		TArray<FText>{},
 		DatabaseTabs);
 }
