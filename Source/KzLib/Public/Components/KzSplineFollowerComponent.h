@@ -9,9 +9,7 @@
 
 class USplineComponent;
 
-/**
- * Component that automatically moves a specified SceneComponent along a SplineComponent.
- */
+/** Component that automatically moves a specified SceneComponent along a SplineComponent. */
 UCLASS(ClassGroup = ("Movement"), meta = (BlueprintSpawnableComponent))
 class KZLIB_API UKzSplineFollowerComponent : public UActorComponent
 {
@@ -47,7 +45,7 @@ public:
 	bool bTeleportPhysics = false;
 
 	/** Tick in editor (Useful for previewing paths in the editor). */
-	UPROPERTY(EditAnyWhere, BlueprintReadWrite, Category = "SplineFollower", AdvancedDisplay)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SplineFollower", AdvancedDisplay)
 	bool bShouldTickInEditor = false;
 
 	/** Fired when the component reaches the end of the spline and changes direction (Ping-Pong mode). */
@@ -86,9 +84,23 @@ public:
 	virtual void BeginPlay() override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-	/** Forces the component to find its references and reset its position based on StartAlpha. */
+	/** Forces the component to find its references and reset its position based on StartAlpha. Server-authoritative. */
 	UFUNCTION(BlueprintCallable, Category = "SplineFollower")
 	void Reset();
+
+	/**
+	 * Sets the current distance along the spline, applying loop/bounce/clamp rules based on the current mode.
+	 * Snaps the target component to the new location immediately. Server-authoritative.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "SplineFollower")
+	void SetDistance(float NewDistance);
+
+	/**
+	 * Sets the current position along the spline as a normalized alpha (0.0 to 1.0).
+	 * Snaps the target component to the new location immediately. Server-authoritative.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "SplineFollower")
+	void SetAlpha(float NewAlpha);
 
 	UFUNCTION(BlueprintPure, Category = "SplineFollower")
 	USplineComponent* GetSpline() const { return SplineComponent; }
@@ -98,4 +110,7 @@ public:
 
 private:
 	void InitializeReferences();
+
+	/** Applies the target component's transform at the given distance along the spline, killing any induced velocity. */
+	void SnapToDistance(float Distance);
 };

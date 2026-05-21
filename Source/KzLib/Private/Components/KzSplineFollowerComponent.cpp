@@ -68,8 +68,61 @@ void UKzSplineFollowerComponent::InitializeReferences()
 
 void UKzSplineFollowerComponent::Reset()
 {
+	const AActor* Owner = GetOwner();
+	if (Owner && !Owner->HasAuthority()) return;
+
 	InitializeReferences();
 	Speed = FMath::Abs(Speed); // Ensure forward movement on reset
+}
+
+void UKzSplineFollowerComponent::SetDistance(float NewDistance)
+{
+	const AActor* Owner = GetOwner();
+	if (Owner && !Owner->HasAuthority()) return;
+
+	if (!SplineComponent || !UpdatedComponent || SplineLength <= 0.0f) return;
+
+	// Apply mode-specific rules
+	if (SplineComponent->IsClosedLoop())
+	{
+		NewDistance = FMath::Fmod(NewDistance, SplineLength);
+		if (NewDistance < 0.0f)
+		{
+			NewDistance += SplineLength;
+		}
+	}
+	else
+	{
+		NewDistance = FMath::Clamp(NewDistance, 0.0f, SplineLength);
+	}
+
+	CurrentDistance = NewDistance;
+	SnapToDistance(CurrentDistance);
+}
+
+void UKzSplineFollowerComponent::SetAlpha(float NewAlpha)
+{
+	NewAlpha = FMath::Clamp(NewAlpha, 0.0f, 1.0f);
+	SetDistance(NewAlpha * SplineLength);
+}
+
+void UKzSplineFollowerComponent::SnapToDistance(float Distance)
+{
+	if (!SplineComponent || !UpdatedComponent) return;
+
+	const FVector NewLocation = SplineComponent->GetLocationAtDistanceAlongSpline(Distance, ESplineCoordinateSpace::World);
+
+	if (bMatchRotation)
+	{
+		const FRotator NewRotation = SplineComponent->GetRotationAtDistanceAlongSpline(Distance, ESplineCoordinateSpace::World);
+		UpdatedComponent->SetWorldLocationAndRotation(NewLocation, NewRotation, false, nullptr, ETeleportType::TeleportPhysics);
+	}
+	else
+	{
+		UpdatedComponent->SetWorldLocation(NewLocation, false, nullptr, ETeleportType::TeleportPhysics);
+	}
+
+	UpdatedComponent->ComponentVelocity = FVector::ZeroVector;
 }
 
 void UKzSplineFollowerComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -77,6 +130,9 @@ void UKzSplineFollowerComponent::TickComponent(float DeltaTime, ELevelTick TickT
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
 	if (!SplineComponent || !UpdatedComponent || SplineLength <= 0.0f) return;
+
+	const AActor* Owner = GetOwner();
+	if (Owner && !Owner->HasAuthority()) return;
 
 	// Clamp DeltaTime to avoid massive skips during hitches
 	const float SafeDeltaTime = FMath::Min(DeltaTime, MaxTickTime);
