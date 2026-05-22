@@ -8,6 +8,7 @@
 
 #include "Core/KzTypeDef.h"
 #include "Customizations/KzTypeDefCustomization.h"
+#include "Pins/KzTypeDefPinFactory.h"
 
 #include "Core/KzVariant.h"
 #include "Customizations/KzVariantCustomization.h"
@@ -33,6 +34,8 @@ void FKzLibEditorModule::OnStartupModule()
 	FKzLibEditorStyle::Initialize();
 
 	RegisterPropertyLayout<FKzTypeDef, FKzTypeDefCustomization>();
+	RegisterPinFactory<FKzTypeDefPinFactory>();
+
 	RegisterPropertyLayout<FKzVariant, FKzVariantCustomization>();
 	RegisterPropertyLayout<FKzParamDef, FKzParamDefCustomization>();
 	RegisterPropertyLayout<FKzDatabase, FKzDatabaseCustomization>();

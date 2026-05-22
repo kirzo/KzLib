@@ -10,6 +10,7 @@
 #include "AssetToolsModule.h"
 #include "IAssetTools.h"
 #include "ComponentVisualizers.h"
+#include "EdGraphUtilities.h"
 
 #include "AssetTools/KzAssetTypeActions_Base.h"
 
@@ -23,6 +24,7 @@ private:
 	TArray<FName> RegisteredClassLayouts;
 	TArray<FName> RegisteredPropertyLayouts;
 	TArray<FName> RegisteredComponentVisualizers;
+	TArray<TSharedPtr<FGraphPanelPinFactory>> RegisteredPinFactories;
 
 public:
 	/** IModuleInterface implementation */
@@ -44,6 +46,9 @@ public:
 	template<typename TComponent, typename TVisualizer>
 	void RegisterComponentVisualizer();
 
+	template<typename TPinFactory>
+	void RegisterPinFactory();
+
 protected:
 	virtual void OnStartupModule() {}
 	virtual void OnShutdownModule() {}
@@ -51,6 +56,7 @@ protected:
 private:
 	void UnregisterAssetTools();
 	void UnregisterLayouts();
+	void UnregisterPinFactories();
 };
 
 template<typename T>
@@ -114,4 +120,12 @@ void FKzLibEditorModule_Base::RegisterComponentVisualizer()
 
 	ComponentVisualizersModule.RegisterComponentVisualizer(ComponentName, MakeShareable(new TVisualizer()));
 	RegisteredComponentVisualizers.AddUnique(ComponentName);
+}
+
+template<typename TPinFactory>
+void FKzLibEditorModule_Base::RegisterPinFactory()
+{
+	TSharedPtr<FGraphPanelPinFactory> Factory = MakeShared<TPinFactory>();
+	FEdGraphUtilities::RegisterVisualPinFactory(Factory);
+	RegisteredPinFactories.Add(Factory);
 }

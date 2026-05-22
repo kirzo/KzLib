@@ -26,6 +26,7 @@ void SKzTypeSelector::Construct(const FArguments& InArgs)
 						.OnPinTypeChanged(this, &SKzTypeSelector::OnPinTypeChanged)
 						.TypeTreeFilter(ETypeTreeFilter::None)
 						.bAllowArrays(InArgs._AllowArrays)
+						.SelectorType(InArgs._SelectorType)
 						.Font(IDetailLayoutBuilder::GetDetailFont())
 				]
 		];

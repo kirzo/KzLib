@@ -16,6 +16,7 @@ void FKzLibEditorModule_Base::ShutdownModule()
 {
 	UnregisterAssetTools();
 	UnregisterLayouts();
+	UnregisterPinFactories();
 
 	OnShutdownModule();
 }
@@ -47,6 +48,15 @@ void FKzLibEditorModule_Base::UnregisterLayouts()
 			PropertyEditorModule.UnregisterCustomPropertyTypeLayout(TypeName);
 		}
 	}
+}
+
+void FKzLibEditorModule_Base::UnregisterPinFactories()
+{
+	for (TSharedPtr<FGraphPanelPinFactory>& Factory : RegisteredPinFactories)
+	{
+		FEdGraphUtilities::UnregisterVisualPinFactory(Factory);
+	}
+	RegisteredPinFactories.Reset();
 }
 
 #undef LOCTEXT_NAMESPACE

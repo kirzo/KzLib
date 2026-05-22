@@ -26,6 +26,7 @@ public class KzLibEditor : ModuleRules
 				"Projects",
 				"PropertyEditor",
 				"BlueprintGraph",
+				"GraphEditor",
 				"KismetWidgets",
 				"ToolWidgets",
 				"ApplicationCore",
