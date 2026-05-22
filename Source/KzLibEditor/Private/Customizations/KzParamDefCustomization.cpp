@@ -2,14 +2,11 @@
 
 #include "Customizations/KzParamDefCustomization.h"
 #include "Core/KzParamDef.h"
-#include "Schemas/KzParamDefSchema.h"
-#include "Widgets/SKzParamDefSelector.h"
+#include "Widgets/SKzTypeSelector.h"
 #include "Utils/KzEditorUtils.h"
 
 #include "DetailWidgetRow.h"
 #include "DetailLayoutBuilder.h"
-#include "SPinTypeSelector.h"
-#include "EdGraphSchema_K2.h"
 #include "ScopedTransaction.h"
 
 #define LOCTEXT_NAMESPACE "FKzParamDefCustomization"
@@ -18,7 +15,6 @@ void FKzParamDefCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> Prope
 {
 	StructHandle = PropertyHandle;
 	TSharedPtr<IPropertyHandle> NameHandle = StructHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FKzParamDef, Name));
-	TSharedPtr<IPropertyHandle> TypeHandle = StructHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FKzParamDef, Type));
 
 	if (NameHandle.IsValid())
 	{
@@ -27,10 +23,12 @@ void FKzParamDefCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> Prope
 
 	// --- Metadata Checks ---
 	const bool bHideName = FKzPropertyHandleUtils::HasMetaDataInHierarchy(StructHandle, TEXT("HideName"));
+	const bool bAllowArrays = !FKzPropertyHandleUtils::HasMetaDataInHierarchy(StructHandle, TEXT("NoArrays"));
+	const bool bIsFixedType = FKzPropertyHandleUtils::HasMetaDataInHierarchy(StructHandle, TEXT("FixedType"));
 
 	TSharedRef<SHorizontalBox> ValueBox = SNew(SHorizontalBox);
 
-	if (!bHideName)
+	if (!bHideName && NameHandle.IsValid())
 	{
 		ValueBox->AddSlot()
 			.AutoWidth()
@@ -49,7 +47,13 @@ void FKzParamDefCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> Prope
 		.AutoWidth()
 		.VAlign(VAlign_Center)
 		[
-			TypeHandle->CreatePropertyValueWidget()
+			SNew(SKzTypeSelector)
+				.AllowArrays(bAllowArrays)
+				.IsEnabled(!bIsFixedType)
+				.ValueType_Lambda([this]() { const FKzParamDef* PD = GetParamDef(); return PD ? PD->Type.ValueType : EPropertyBagPropertyType::None; })
+				.ValueTypeObject_Lambda([this]() -> const UObject* { const FKzParamDef* PD = GetParamDef(); return PD ? PD->Type.ValueTypeObject.Get() : nullptr; })
+				.ContainerType_Lambda([this]() { const FKzParamDef* PD = GetParamDef(); return PD ? PD->Type.ContainerType : EPropertyBagContainerType::None; })
+				.OnTypeChanged(this, &FKzParamDefCustomization::OnTypeChanged)
 		];
 
 	HeaderRow
@@ -67,12 +71,41 @@ void FKzParamDefCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> Pro
 {
 }
 
+const FKzParamDef* FKzParamDefCustomization::GetParamDef() const
+{
+	if (!StructHandle.IsValid()) { return nullptr; }
+	TArray<void*> RawData;
+	StructHandle->AccessRawData(RawData);
+	if (RawData.Num() != 1 || !RawData[0]) { return nullptr; }
+	return static_cast<const FKzParamDef*>(RawData[0]);
+}
+
 void FKzParamDefCustomization::OnNameChanged()
 {
 	if (StructHandle.IsValid())
 	{
 		StructHandle->NotifyPostChange(EPropertyChangeType::ValueSet);
 	}
+}
+
+void FKzParamDefCustomization::OnTypeChanged(EPropertyBagPropertyType NewType, const UObject* NewTypeObject, EPropertyBagContainerType NewContainerType)
+{
+	if (!StructHandle.IsValid()) { return; }
+
+	FScopedTransaction Transaction(LOCTEXT("ChangeParamDefType", "Change Type"));
+	StructHandle->NotifyPreChange();
+
+	TArray<void*> RawData;
+	StructHandle->AccessRawData(RawData);
+	for (void* Ptr : RawData)
+	{
+		if (!Ptr) { continue; }
+		FKzParamDef* PD = static_cast<FKzParamDef*>(Ptr);
+		PD->Type = FKzTypeDef(NewContainerType, NewType, NewTypeObject);
+	}
+
+	StructHandle->NotifyPostChange(EPropertyChangeType::ValueSet);
+	StructHandle->NotifyFinishedChangingProperties();
 }
 
 #undef LOCTEXT_NAMESPACE
