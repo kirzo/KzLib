@@ -44,7 +44,11 @@ class TKzObjectTextFactory : public FCustomizableTextObjectFactory
 public:
 	TKzObjectTextFactory() : FCustomizableTextObjectFactory(GWarn) {}
 
+	/** Last object processed (kept for single-object call sites). */
 	T* CreatedObject = nullptr;
+
+	/** Every top-level object processed, in the order they appeared in the buffer. */
+	TArray<T*> CreatedObjects;
 
 	virtual bool CanCreateClass(UClass* ObjectClass, bool& bOmitSubObjs) const override
 	{
@@ -53,7 +57,11 @@ public:
 
 	virtual void ProcessConstructedObject(UObject* InCreatedObject) override
 	{
-		CreatedObject = Cast<T>(InCreatedObject);
+		if (T* Cast = ::Cast<T>(InCreatedObject))
+		{
+			CreatedObject = Cast;
+			CreatedObjects.Add(Cast);
+		}
 	}
 };
 
@@ -92,21 +100,33 @@ struct FKzClipboardUtils
 	static void CopyObjectToClipboard(UObject* ObjectToCopy)
 	{
 		if (!ObjectToCopy) return;
+		CopyObjectsToClipboard(MakeArrayView(&ObjectToCopy, 1));
+	}
+
+	/** Exports several objects into a single T3D blob and writes it to the clipboard. */
+	static void CopyObjectsToClipboard(TArrayView<UObject* const> ObjectsToCopy)
+	{
+		if (ObjectsToCopy.IsEmpty()) return;
 
 		FStringOutputDevice Archive;
 		const FExportObjectInnerContext Context;
 
-		UExporter::ExportToOutputDevice(
-			&Context,
-			ObjectToCopy,
-			nullptr,
-			Archive,
-			TEXT("copy"),
-			0,
-			PPF_ExportsNotFullyQualified | PPF_Copy | PPF_Delimited,
-			false,
-			ObjectToCopy->GetOuter()
-		);
+		for (UObject* Obj : ObjectsToCopy)
+		{
+			if (!Obj) continue;
+
+			UExporter::ExportToOutputDevice(
+				&Context,
+				Obj,
+				nullptr,
+				Archive,
+				TEXT("copy"),
+				0,
+				PPF_ExportsNotFullyQualified | PPF_Copy | PPF_Delimited,
+				false,
+				Obj->GetOuter()
+			);
+		}
 
 		FPlatformApplicationMisc::ClipboardCopy(*Archive);
 	}
@@ -114,19 +134,32 @@ struct FKzClipboardUtils
 	template<typename TItemClass = UObject>
 	static TItemClass* PasteObjectFromClipboard(UObject* Outer)
 	{
+		TArray<TItemClass*> All = PasteObjectsFromClipboard<TItemClass>(Outer);
+		return All.IsEmpty() ? nullptr : All[0];
+	}
+
+	/**
+	 * Imports every top-level object stored in the clipboard whose class derives from TItemClass.
+	 * Returned objects keep the order in which they were exported.
+	 */
+	template<typename TItemClass = UObject>
+	static TArray<TItemClass*> PasteObjectsFromClipboard(UObject* Outer)
+	{
+		TArray<TItemClass*> Result;
+
 		FString TextToImport;
 		FPlatformApplicationMisc::ClipboardPaste(TextToImport);
 
-		if (TextToImport.IsEmpty() || !Outer) return nullptr;
+		if (TextToImport.IsEmpty() || !Outer) return Result;
 
 		TKzObjectTextFactory<TItemClass> Factory;
 		if (Factory.CanCreateObjectsFromText(TextToImport))
 		{
 			Factory.ProcessBuffer(Outer, RF_Transactional, TextToImport);
-			return Factory.CreatedObject;
+			Result = MoveTemp(Factory.CreatedObjects);
 		}
 
-		return nullptr;
+		return Result;
 	}
 };
 
