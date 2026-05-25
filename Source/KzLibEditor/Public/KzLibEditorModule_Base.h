@@ -25,6 +25,7 @@ private:
 	TArray<FName> RegisteredPropertyLayouts;
 	TArray<FName> RegisteredComponentVisualizers;
 	TArray<TSharedPtr<FGraphPanelPinFactory>> RegisteredPinFactories;
+	TArray<TSharedPtr<FGraphPanelNodeFactory>> RegisteredNodeFactories;
 
 public:
 	/** IModuleInterface implementation */
@@ -49,6 +50,9 @@ public:
 	template<typename TPinFactory>
 	void RegisterPinFactory();
 
+	template<typename TNodeFactory>
+	void RegisterNodeFactory();
+
 protected:
 	virtual void OnStartupModule() {}
 	virtual void OnShutdownModule() {}
@@ -57,6 +61,7 @@ private:
 	void UnregisterAssetTools();
 	void UnregisterLayouts();
 	void UnregisterPinFactories();
+	void UnregisterNodeFactories();
 };
 
 template<typename T>
@@ -128,4 +133,12 @@ void FKzLibEditorModule_Base::RegisterPinFactory()
 	TSharedPtr<FGraphPanelPinFactory> Factory = MakeShared<TPinFactory>();
 	FEdGraphUtilities::RegisterVisualPinFactory(Factory);
 	RegisteredPinFactories.Add(Factory);
+}
+
+template<typename TNodeFactory>
+void FKzLibEditorModule_Base::RegisterNodeFactory()
+{
+	TSharedPtr<FGraphPanelNodeFactory> Factory = MakeShared<TNodeFactory>();
+	FEdGraphUtilities::RegisterVisualNodeFactory(Factory);
+	RegisteredNodeFactories.Add(Factory);
 }
