@@ -194,36 +194,31 @@ TSharedRef<ITableRow> SKzValidationPanel::OnGenerateRow(FIssuePtr Item, const TS
 	}
 
 	return SNew(STableRow<FIssuePtr>, Owner)
-		.Padding(FMargin(0, 1))
+		.Padding(FMargin(8.f, 4.f))
 		[
-			SNew(SBorder)
-				.BorderImage(FAppStyle::Get().GetBrush("Brushes.Header"))
-				.Padding(FMargin(8.f, 4.f))
+			SNew(SHorizontalBox)
+
+				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0, 0, 8, 0)
 				[
-					SNew(SHorizontalBox)
-
-						+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0, 0, 8, 0)
+					SNew(SBox).WidthOverride(16.f).HeightOverride(16.f)
 						[
-							SNew(SBox).WidthOverride(16.f).HeightOverride(16.f)
-								[
-									SNew(SImage)
-										.Image(GetSeverityBrush(Item->Severity))
-										.ColorAndOpacity(GetSeverityColor(Item->Severity))
-								]
+							SNew(SImage)
+								.Image(GetSeverityBrush(Item->Severity))
+								.ColorAndOpacity(GetSeverityColor(Item->Severity))
 						]
+				]
 
-					+ SHorizontalBox::Slot().FillWidth(1.f).VAlign(VAlign_Center)
-						[
-							SNew(STextBlock).Text(Item->Message).AutoWrapText(true)
-						]
+				+ SHorizontalBox::Slot().FillWidth(1.f).VAlign(VAlign_Center)
+				[
+					SNew(STextBlock).Text(Item->Message).AutoWrapText(true)
+				]
 
-						+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(8, 0, 0, 0)
-						[
-							SNew(STextBlock)
-								.Text(FText::FromName(Item->ValidatorId))
-								.ColorAndOpacity(FSlateColor::UseSubduedForeground())
-								.Font(FAppStyle::GetFontStyle("PropertyWindow.ItalicFont"))
-						]
+				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(8, 0, 0, 0)
+				[
+					SNew(STextBlock)
+						.Text(FText::FromName(Item->ValidatorId))
+						.ColorAndOpacity(FSlateColor::UseSubduedForeground())
+						.Font(FAppStyle::GetFontStyle("PropertyWindow.ItalicFont"))
 				]
 		];
 }
