@@ -45,8 +45,12 @@ private:
 	TSharedRef<ITableRow> OnGenerateRow(FIssuePtr Item, const TSharedRef<STableViewBase>& Owner);
 	void OnRowClicked(FIssuePtr Item);
 	TSharedRef<SWidget> BuildSeverityFilterMenu();
+	TSharedRef<SWidget> BuildValidatorFilterMenu();
 	void RebuildVisibleIssues();
 	int32 CountActiveFilters() const;
+
+	/** Sorted unique ValidatorIds across AllIssues. Cached when SetIssues runs so menus and tooltips reuse it. */
+	TArray<FName> CollectValidatorIds() const;
 
 	const FSlateBrush* GetSeverityBrush(EKzValidationSeverity Severity) const;
 	FSlateColor        GetSeverityColor(EKzValidationSeverity Severity) const;
@@ -60,6 +64,10 @@ private:
 
 	TSet<EKzValidationSeverity> EnabledSeverities;
 
+	/** Validator IDs the user has explicitly hidden. Default-empty means "show all", including any newly-seen validator. */
+	TSet<FName> DisabledValidatorIds;
+
 	TSharedPtr<SListView<FIssuePtr>> ListView;
 	TSharedPtr<SComboButton>		 FilterButton;
+	TSharedPtr<SComboButton>		 ValidatorFilterButton;
 };

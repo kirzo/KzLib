@@ -61,7 +61,7 @@ void SKzValidationPanel::Construct(const FArguments& InArgs)
 										]
 								]
 
-							+ SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 8, 0).VAlign(VAlign_Center)
+							+ SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 4, 0).VAlign(VAlign_Center)
 								[
 									SAssignNew(FilterButton, SComboButton)
 										.ComboButtonStyle(&FAppStyle::Get().GetWidgetStyle<FComboButtonStyle>("SimpleComboButton"))
@@ -84,6 +84,36 @@ void SKzValidationPanel::Construct(const FArguments& InArgs)
 														.ColorAndOpacity_Lambda([this]()
 															{
 																return CountActiveFilters() < 3
+																	? FSlateColor(FLinearColor(0.20f, 0.55f, 1.00f))
+																	: FSlateColor::UseForeground();
+															})
+												]
+										]
+								]
+
+							+ SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 8, 0).VAlign(VAlign_Center)
+								[
+									SAssignNew(ValidatorFilterButton, SComboButton)
+										.ComboButtonStyle(&FAppStyle::Get().GetWidgetStyle<FComboButtonStyle>("SimpleComboButton"))
+										.HasDownArrow(false)
+										.ContentPadding(FMargin(2.f))
+										.OnGetMenuContent(this, &SKzValidationPanel::BuildValidatorFilterMenu)
+										.ToolTipText_Lambda([this]()
+											{
+												const int32 Disabled = DisabledValidatorIds.Num();
+												return Disabled > 0
+													? FText::Format(LOCTEXT("ValidatorFilterTipActive", "Validator filter ({0} hidden)"), FText::AsNumber(Disabled))
+													: LOCTEXT("ValidatorFilterTipAll", "Validator filter (all enabled)");
+											})
+										.ButtonContent()
+										[
+											SNew(SBox).WidthOverride(16.f).HeightOverride(16.f)
+												[
+													SNew(SImage)
+														.Image(FAppStyle::Get().GetBrush("Icons.Visible"))
+														.ColorAndOpacity_Lambda([this]()
+															{
+																return DisabledValidatorIds.Num() > 0
 																	? FSlateColor(FLinearColor(0.20f, 0.55f, 1.00f))
 																	: FSlateColor::UseForeground();
 															})
@@ -144,12 +174,24 @@ void SKzValidationPanel::RebuildVisibleIssues()
 	VisibleIssues.Reserve(AllIssues.Num());
 	for (const FIssuePtr& Issue : AllIssues)
 	{
-		if (Issue.IsValid() && EnabledSeverities.Contains(Issue->Severity))
-		{
-			VisibleIssues.Add(Issue);
-		}
+		if (!Issue.IsValid()) continue;
+		if (!EnabledSeverities.Contains(Issue->Severity)) continue;
+		if (DisabledValidatorIds.Contains(Issue->ValidatorId)) continue;
+		VisibleIssues.Add(Issue);
 	}
 	if (ListView.IsValid()) { ListView->RequestListRefresh(); }
+}
+
+TArray<FName> SKzValidationPanel::CollectValidatorIds() const
+{
+	TSet<FName> Unique;
+	for (const FIssuePtr& Issue : AllIssues)
+	{
+		if (Issue.IsValid()) Unique.Add(Issue->ValidatorId);
+	}
+	TArray<FName> Sorted = Unique.Array();
+	Sorted.Sort([](const FName& A, const FName& B) { return A.LexicalLess(B); });
+	return Sorted;
 }
 
 int32 SKzValidationPanel::CountActiveFilters() const
@@ -178,6 +220,50 @@ TSharedRef<SWidget> SKzValidationPanel::BuildSeverityFilterMenu()
 					}),
 				FCanExecuteAction(),
 				FIsActionChecked::CreateLambda([this, Level]() { return EnabledSeverities.Contains(Level); })),
+			NAME_None,
+			EUserInterfaceActionType::ToggleButton);
+	}
+	MenuBuilder.EndSection();
+
+	return MenuBuilder.MakeWidget();
+}
+
+TSharedRef<SWidget> SKzValidationPanel::BuildValidatorFilterMenu()
+{
+	FMenuBuilder MenuBuilder(/*bShouldCloseAfter=*/false, nullptr);
+
+	const TArray<FName> Ids = CollectValidatorIds();
+
+	if (Ids.IsEmpty())
+	{
+		MenuBuilder.AddWidget(
+			SNew(SBox)
+				.Padding(FMargin(12.f, 4.f))
+				[
+					SNew(STextBlock)
+						.Text(LOCTEXT("NoValidators", "No validators in current results."))
+						.ColorAndOpacity(FSlateColor::UseSubduedForeground())
+				],
+			FText::GetEmpty());
+		return MenuBuilder.MakeWidget();
+	}
+
+	MenuBuilder.BeginSection("Validators", LOCTEXT("ValidatorsSection", "Validators"));
+	for (const FName& Id : Ids)
+	{
+		MenuBuilder.AddMenuEntry(
+			FText::FromName(Id),
+			FText::GetEmpty(),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateLambda([this, Id]()
+					{
+						if (DisabledValidatorIds.Contains(Id)) { DisabledValidatorIds.Remove(Id); }
+						else { DisabledValidatorIds.Add(Id); }
+						RebuildVisibleIssues();
+					}),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateLambda([this, Id]() { return !DisabledValidatorIds.Contains(Id); })),
 			NAME_None,
 			EUserInterfaceActionType::ToggleButton);
 	}
