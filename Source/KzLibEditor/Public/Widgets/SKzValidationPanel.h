@@ -39,6 +39,9 @@ public:
 	/** Replace the issue list directly without invoking OnRunValidation. */
 	void SetIssues(const TArray<FKzValidationIssue>& InIssues);
 
+	/** Unfiltered total. Consumers (e.g. tab labels) can use this for a badge regardless of severity/validator filters. */
+	int32 GetTotalIssueCount() const { return AllIssues.Num(); }
+
 private:
 	using FIssuePtr = TSharedPtr<FKzValidationIssue>;
 
