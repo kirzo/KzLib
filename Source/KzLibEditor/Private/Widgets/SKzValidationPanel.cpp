@@ -279,6 +279,8 @@ TSharedRef<ITableRow> SKzValidationPanel::OnGenerateRow(FIssuePtr Item, const TS
 		return SNew(STableRow<FIssuePtr>, Owner);
 	}
 
+	const bool bHasQuickFix = static_cast<bool>(Item->QuickFix);
+
 	return SNew(STableRow<FIssuePtr>, Owner)
 		.Padding(FMargin(8.f, 4.f))
 		[
@@ -297,6 +299,27 @@ TSharedRef<ITableRow> SKzValidationPanel::OnGenerateRow(FIssuePtr Item, const TS
 				+ SHorizontalBox::Slot().FillWidth(1.f).VAlign(VAlign_Center)
 				[
 					SNew(STextBlock).Text(Item->Message).AutoWrapText(true)
+				]
+
+				/** Quick-fix: small button when the producing validator attached a repair action. Click invokes it, then re-runs validation so the row vanishes if the issue is gone. */
+				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(8, 0, 0, 0)
+				[
+					SNew(SButton)
+						.Visibility(bHasQuickFix ? EVisibility::Visible : EVisibility::Collapsed)
+						.ButtonStyle(FAppStyle::Get(), "FlatButton.Default")
+						.ContentPadding(FMargin(6.f, 1.f))
+						.ToolTipText(Item->QuickFixLabel)
+						.OnClicked_Lambda([this, Item]()
+							{
+								if (Item.IsValid() && Item->QuickFix) Item->QuickFix();
+								RefreshIssues();
+								return FReply::Handled();
+							})
+						[
+							SNew(STextBlock)
+								.Text(Item->QuickFixLabel)
+								.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
+						]
 				]
 
 				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(8, 0, 0, 0)

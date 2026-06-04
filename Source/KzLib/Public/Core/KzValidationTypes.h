@@ -50,6 +50,14 @@ struct FKzValidationIssue
 	UPROPERTY(BlueprintReadOnly, Category = "Validation")
 	FName ValidatorId;
 
+	/**
+	 * Optional inline-repair pair. When QuickFix is bound, the panel shows a small button labelled
+	 * with QuickFixLabel; clicking it invokes QuickFix and triggers a panel refresh. Not reflected
+	 * and not serialized — purely runtime editor data set by the producing validator.
+	 */
+	FText QuickFixLabel;
+	TFunction<void()> QuickFix;
+
 	FKzValidationIssue() = default;
 
 	FKzValidationIssue(EKzValidationSeverity InSeverity, const FText& InMessage, FName InValidatorId)
