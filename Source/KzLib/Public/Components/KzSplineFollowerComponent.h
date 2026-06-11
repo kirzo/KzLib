@@ -60,6 +60,10 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "SplineFollower")
 	FKzSimpleEventSignature OnSplineLoopCompleted;
 
+	/** Fired when the follower is reset back to its starting position (Reset, or a subclass reset), with the reset already applied. */
+	UPROPERTY(BlueprintAssignable, Category = "SplineFollower")
+	FKzSimpleEventSignature OnReset;
+
 protected:
 
 	UPROPERTY(Transient)

@@ -73,6 +73,8 @@ void UKzSplineFollowerComponent::Reset()
 
 	InitializeReferences();
 	Speed = FMath::Abs(Speed); // Ensure forward movement on reset
+
+	OnReset.Broadcast();
 }
 
 void UKzSplineFollowerComponent::SetDistance(float NewDistance)
