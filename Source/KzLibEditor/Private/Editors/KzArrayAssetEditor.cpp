@@ -21,6 +21,7 @@
 #include "IStructureDetailsView.h"
 #include "IStructureDataProvider.h"
 #include "Widgets/Layout/SBox.h"
+#include "Widgets/Text/STextBlock.h"
 #include "UObject/StructOnScope.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 
@@ -571,6 +572,22 @@ void FKzArrayAssetEditor::OnElementsSelected(const TArray<TSharedPtr<IPropertyHa
 
 		if (StructDataArray.Num() == 0) { return; }
 
+		// Name the wrapper row with the owning tab's friendly element name ("Line", "Alias",
+		// "Item", ...). Falls back to the struct's display name when no tab matches.
+		FText HeaderLabel = FirstStruct->GetDisplayNameText();
+		{
+			const TSharedPtr<IPropertyHandle> ParentHandle = First->GetParentHandle();
+			const FProperty* ParentProp = ParentHandle.IsValid() ? ParentHandle->GetProperty() : nullptr;
+			for (const FTabRuntime& Runtime : TabRuntimes)
+			{
+				if (Runtime.ArrayPropertyHandle.IsValid() && Runtime.ArrayPropertyHandle->GetProperty() == ParentProp && !Runtime.ItemName.IsEmpty())
+				{
+					HeaderLabel = Runtime.ItemName;
+					break;
+				}
+			}
+		}
+
 		// Drop the previous customization (if any) so layouts don't stack across selections.
 		ElementDetailsView->UnregisterInstancedCustomPropertyLayout(UKzExternalStructHost::StaticClass());
 
@@ -579,15 +596,17 @@ void FKzArrayAssetEditor::OnElementsSelected(const TArray<TSharedPtr<IPropertyHa
 		// IPropertyTypeCustomization to children, including externals.
 		ElementDetailsView->RegisterInstancedCustomPropertyLayout(
 			UKzExternalStructHost::StaticClass(),
-			FOnGetDetailCustomizationInstance::CreateLambda([StructDataArray]()
+			FOnGetDetailCustomizationInstance::CreateLambda([StructDataArray, HeaderLabel]()
 				{
 					class FKzExternalStructProxy : public IDetailCustomization
 					{
 					public:
 						TArray<TSharedPtr<FStructOnScope>> InnerStructs;
+						FText HeaderLabel;
 
-						explicit FKzExternalStructProxy(const TArray<TSharedPtr<FStructOnScope>>& InData)
-							: InnerStructs(InData) {
+						FKzExternalStructProxy(const TArray<TSharedPtr<FStructOnScope>>& InData, const FText& InHeaderLabel)
+							: InnerStructs(InData)
+							, HeaderLabel(InHeaderLabel) {
 						}
 
 						virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override
@@ -602,46 +621,37 @@ void FKzArrayAssetEditor::OnElementsSelected(const TArray<TSharedPtr<IPropertyHa
 							Category.InitiallyCollapsed(false);
 							Category.RestoreExpansionState(false);
 
-							const UStruct* StructType = InnerStructs[0]->GetStruct();
-
-							// Check if the struct has a global IPropertyTypeCustomization registered.
-							FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
-							const bool bHasCustomization = PropertyModule.IsCustomizedStruct(StructType, FCustomPropertyTypeLayoutMap());
-
-							if (InnerStructs.Num() == 1 && bHasCustomization)
+							if (InnerStructs.Num() == 1)
 							{
-								// Customization path: AddExternalStructure applies the customization but wraps
-								// it in a "Element 0" header row. We override the wrapper row's
-								// NameContent with an empty widget while keeping the auto-generated value
-								// widget, so the header collapses visually but the children stay expanded.
+								// Single selection: one wrapper row named with the element's list label.
+								// Going through the row (instead of inlining children) applies the struct's
+								// type customization when there is one, and backs the element with a real
+								// property row, so right-click copy/paste of the whole struct works.
 								IDetailPropertyRow* Row = Category.AddExternalStructure(InnerStructs[0]);
 								if (Row)
 								{
 									Row->ShouldAutoExpand(true);
 
-									TSharedPtr<SWidget> OutNameWidget, OutValueWidget;
-									Row->GetDefaultWidgets(OutNameWidget, OutValueWidget);
-
 									Row->CustomWidget(/*bShowChildren=*/true)
 										.NameContent()
 										[
-											OutValueWidget.ToSharedRef()
-										]
-										.ValueContent()
-										[
-											SNullWidget::NullWidget
+											SNew(STextBlock)
+												.Font(IDetailLayoutBuilder::GetDetailFontBold())
+												.Text(HeaderLabel)
 										];
 								}
 								return;
 							}
 
-							// No customization (or multi-edit): inline children with no wrapper row.
+							// Multi-edit: inline merged children ("Multiple Values") with no wrapper row.
+							// Type customizations are deliberately bypassed here; they rarely support
+							// multi-value editing.
 							TSharedRef<IStructureDataProvider> Provider = MakeShared<FKzStructOnScopeProvider>(InnerStructs);
 							Category.AddAllExternalStructureProperties(Provider);
 						}
 					};
 
-					return MakeShared<FKzExternalStructProxy>(StructDataArray);
+					return MakeShared<FKzExternalStructProxy>(StructDataArray, HeaderLabel);
 				}));
 
 		// Unbind any previous change subscription before adding a fresh one for the new selection.
