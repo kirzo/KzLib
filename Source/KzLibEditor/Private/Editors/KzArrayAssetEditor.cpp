@@ -632,6 +632,14 @@ void FKzArrayAssetEditor::OnElementsSelected(const TArray<TSharedPtr<IPropertyHa
 								{
 									Row->ShouldAutoExpand(true);
 
+									// GetDefaultWidgets is what invokes the type customization's
+									// CustomizeHeader (see FDetailPropertyRow::GetDefaultWidgets).
+									// Customizations commonly initialize state there that their
+									// CustomizeChildren depends on, so it must run even though the
+									// widgets themselves are discarded.
+									TSharedPtr<SWidget> UnusedNameWidget, UnusedValueWidget;
+									Row->GetDefaultWidgets(UnusedNameWidget, UnusedValueWidget);
+
 									Row->CustomWidget(/*bShowChildren=*/true)
 										.NameContent()
 										[
