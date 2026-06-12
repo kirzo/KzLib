@@ -267,7 +267,12 @@ void FKzArrayAssetEditor::InitArrayAssetEditor(
 			{ return FKzArrayAssetDetailCustomization::MakeInstance(this); }));
 	AssetDetailsView->SetObject(AssetToEdit);
 
-	ElementDetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
+	// The element view needs the notify hook: struct entries are edited as external
+	// structures, which the property editor cannot transact through any UObject by itself
+	// (NotifyPreChange snapshots the asset; see header). Object entries transact natively.
+	FDetailsViewArgs ElementDetailsViewArgs = DetailsViewArgs;
+	ElementDetailsViewArgs.NotifyHook = this;
+	ElementDetailsView = PropertyEditorModule.CreateDetailView(ElementDetailsViewArgs);
 
 	// Build layout: each array stack on the left in its own tab, shared element/details
 	// + validation on the right.
@@ -449,6 +454,19 @@ FName FKzArrayAssetEditor::GetToolkitFName() const { return FName("KzArrayAssetE
 FText FKzArrayAssetEditor::GetBaseToolkitName() const { return NSLOCTEXT("KzArrayEditor", "AppLabel", "Array Asset Editor"); }
 FString FKzArrayAssetEditor::GetWorldCentricTabPrefix() const { return TEXT("ArrayAssetEditor"); }
 FLinearColor FKzArrayAssetEditor::GetWorldCentricTabColorScale() const { return FLinearColor::White; }
+
+void FKzArrayAssetEditor::NotifyPreChange(FProperty* /*PropertyAboutToChange*/)
+{
+	// Fired by the Element Details view before a value is written. Struct elements live in
+	// raw array memory: the property editor's own transaction only snapshots the UObjects in
+	// the view, and external structures have none. Snapshot the owning asset here so the
+	// in-flight transaction captures its pre-change state and Ctrl+Z restores it.
+	// Redundant but harmless for UObject element edits.
+	if (AssetToEdit)
+	{
+		AssetToEdit->Modify();
+	}
+}
 
 void FKzArrayAssetEditor::OnClose()
 {

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Misc/NotifyHook.h"
 #include "Toolkits/AssetEditorToolkit.h"
 #include "Editors/KzArrayEditorTabConfig.h"
 #include "Editors/KzExternalStructHost.h"
@@ -18,8 +19,12 @@ class SBox;
  *
  * Tabs are configured via FKzArrayEditorTabConfig. Customizers per tab decide how
  * each row is rendered (display text, icons, action buttons).
+ *
+ * FNotifyHook: struct elements live in raw array memory, so the Element Details view
+ * cannot transact them through any UObject on its own; NotifyPreChange snapshots the
+ * edited asset before each value write so undo works for struct entries.
  */
-class KZLIBEDITOR_API FKzArrayAssetEditor : public FAssetEditorToolkit
+class KZLIBEDITOR_API FKzArrayAssetEditor : public FAssetEditorToolkit, public FNotifyHook
 {
 	friend class FKzArrayAssetDetailCustomization;
 
@@ -44,6 +49,9 @@ public:
 	virtual FLinearColor GetWorldCentricTabColorScale() const override;
 
 	virtual void OnClose() override;
+
+	//~ FNotifyHook
+	virtual void NotifyPreChange(FProperty* PropertyAboutToChange) override;
 
 	/** Accessor for customizers that need to inspect the asset (e.g. to look up
 	 *  cross-tab data like resolving an alias's lines). */
