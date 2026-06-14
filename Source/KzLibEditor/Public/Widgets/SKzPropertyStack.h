@@ -104,12 +104,21 @@ private:
 	TArray<TSharedPtr<IPropertyHandle>> AllHandles;
 	TArray<TSharedPtr<IPropertyHandle>> FilteredHandles;
 
+	/** Array indices of the last user-driven selection, used to restore it across undo/redo. */
+	TArray<int32> SelectedIndices;
+
+	/** True while RestoreSelectionByIndices drives the list, so OnListSelectionChanged ignores its own churn. */
+	bool bRestoringSelection = false;
+
 	TSharedPtr<FTextFilterExpressionEvaluator> TextFilter;
 	TSharedPtr<SSearchBox> SearchBox;
 	TSharedPtr<SBox> AddWidgetContainer;
 
 	void RefreshStack();
 	void GenerateFilteredList();
+
+	/** Re-selects the rows at the given array indices (skipping any now out of range). */
+	void RestoreSelectionByIndices(const TArray<int32>& Indices);
 	void OnSearchBoxTextChanged(const FText& InSearchText);
 	FText GetSearchText() const;
 

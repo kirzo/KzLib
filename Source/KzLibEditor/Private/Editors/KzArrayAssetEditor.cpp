@@ -685,6 +685,10 @@ void FKzArrayAssetEditor::OnElementsSelected(const TArray<TSharedPtr<IPropertyHa
 
 		ElementDetailsView->SetObject(ExternalStructHost.Get());
 		ElementDetailsContainer->SetContent(ElementDetailsView.ToSharedRef());
+
+		// The host object is unchanged across reselects, so SetObject alone won't regenerate
+		// the rows. Force it, otherwise an undo leaves the panel showing pre-undo values.
+		ElementDetailsView->ForceRefresh();
 		return;
 	}
 

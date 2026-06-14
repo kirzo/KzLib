@@ -133,14 +133,53 @@ SKzPropertyStack::~SKzPropertyStack()
 
 void SKzPropertyStack::PostUndo(bool /*bSuccess*/)
 {
+	// Every stack (one per tab) receives this and shares the editor's selection delegate.
+	// Only restore from a stack that actually had a selection, so an empty one doesn't fire
+	// the delegate and wipe the panel the active stack just repopulated.
+	const TArray<int32> Indices = SelectedIndices;
 	RefreshStack();
-	OnSelectionChangedDelegate.ExecuteIfBound({});
+	if (Indices.Num() > 0)
+	{
+		RestoreSelectionByIndices(Indices);
+	}
 }
 
 void SKzPropertyStack::PostRedo(bool /*bSuccess*/)
 {
+	const TArray<int32> Indices = SelectedIndices;
 	RefreshStack();
-	OnSelectionChangedDelegate.ExecuteIfBound({});
+	if (Indices.Num() > 0)
+	{
+		RestoreSelectionByIndices(Indices);
+	}
+}
+
+void SKzPropertyStack::RestoreSelectionByIndices(const TArray<int32>& Indices)
+{
+	if (!ListViewWidget.IsValid()) { return; }
+
+	// ClearSelection / SetItemSelection each fire OnListSelectionChanged; guard so it doesn't
+	// clobber the cache or notify mid-restore. We notify once at the end instead.
+	TGuardValue<bool> Guard(bRestoringSelection, true);
+
+	ListViewWidget->ClearSelection();
+
+	TArray<TSharedPtr<IPropertyHandle>> Restored;
+	for (int32 Index : Indices)
+	{
+		if (AllHandles.IsValidIndex(Index))
+		{
+			ListViewWidget->SetItemSelection(AllHandles[Index], true, ESelectInfo::Direct);
+			Restored.Add(AllHandles[Index]);
+		}
+	}
+
+	if (Restored.Num() > 0)
+	{
+		ListViewWidget->RequestScrollIntoView(Restored.Last());
+	}
+
+	OnSelectionChangedDelegate.ExecuteIfBound(Restored);
 }
 
 // =======================================================================================
@@ -416,9 +455,28 @@ bool SKzPropertyStack::SelectByContextId(const FGuid& ContextId)
 	return true;
 }
 
-void SKzPropertyStack::OnListSelectionChanged(TSharedPtr<IPropertyHandle> /*SelectedItem*/, ESelectInfo::Type /*SelectInfo*/)
+void SKzPropertyStack::OnListSelectionChanged(TSharedPtr<IPropertyHandle> /*SelectedItem*/, ESelectInfo::Type SelectInfo)
 {
-	OnSelectionChangedDelegate.ExecuteIfBound(GetSelectedHandles());
+	if (bRestoringSelection) { return; }
+
+	const TArray<TSharedPtr<IPropertyHandle>> Selected = GetSelectedHandles();
+
+	// Only cache user-driven changes. Direct notifications (list refreshes) can carry a
+	// transient empty selection that would otherwise wipe what we need to restore.
+	if (SelectInfo != ESelectInfo::Direct)
+	{
+		SelectedIndices.Reset();
+		for (const TSharedPtr<IPropertyHandle>& Handle : Selected)
+		{
+			if (Handle.IsValid())
+			{
+				const int32 Index = Handle->GetIndexInArray();
+				if (Index != INDEX_NONE) { SelectedIndices.Add(Index); }
+			}
+		}
+	}
+
+	OnSelectionChangedDelegate.ExecuteIfBound(Selected);
 }
 
 // =======================================================================================
