@@ -6,6 +6,7 @@
 #include "GameFramework/Actor.h"
 #include "KzSplineActor.generated.h"
 
+class UBillboardComponent;
 class USplineComponent;
 
 /**
@@ -24,6 +25,12 @@ public:
 	/** The main spline component used for path definition. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Spline")
 	TObjectPtr<USplineComponent> SplineComponent;
+
+#if WITH_EDITORONLY_DATA
+	/** Editor-only billboard at the spline origin, so the actor is easy to spot and pick in the viewport. */
+	UPROPERTY()
+	TObjectPtr<UBillboardComponent> SpriteComponent = nullptr;
+#endif
 
 	/** Projects all spline points downwards and snaps them to the nearest static geometry. */
 	UFUNCTION(BlueprintCallable, CallInEditor, Category = "Spline|Utilities")
