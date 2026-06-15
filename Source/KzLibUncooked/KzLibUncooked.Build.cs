@@ -19,7 +19,8 @@ public class KzLibUncooked : ModuleRules
 				"CoreUObject",
 				"Engine",
 				"UnrealEd",
-				"BlueprintGraph"
+				"BlueprintGraph",
+				"SlateCore"
 			});
 	}
 }
