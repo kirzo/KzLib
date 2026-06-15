@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Engine/TimerHandle.h"
 #include "Kismet/BlueprintAsyncActionBase.h"
 #include "KzDelay.generated.h"
 
