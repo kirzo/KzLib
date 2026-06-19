@@ -58,6 +58,13 @@ struct FKzValidationIssue
 	FText QuickFixLabel;
 	TFunction<void()> QuickFix;
 
+	/**
+	 * Optional secondary navigation, invoked when the issue is activated after the editor has jumped
+	 * to ContextId/ContextIndex. Lets a producer select a sub-element (e.g. a specific notify inside
+	 * the line's timeline). Not reflected and not serialized -- runtime editor data.
+	 */
+	TFunction<void()> OnActivate;
+
 	FKzValidationIssue() = default;
 
 	FKzValidationIssue(EKzValidationSeverity InSeverity, const FText& InMessage, FName InValidatorId)
