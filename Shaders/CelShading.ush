@@ -99,23 +99,25 @@ float4 LaplacianFilter(FMaterialPixelParameters Parameters, float KernelSize, fl
  * to blend toward the quantized value, and the band scale applied to metals. RimAngles is the
  * grazing window in fractions of a right angle. OutlineKernel packs size, rotation and squash;
  * OutlineDeadzone the depth and normal thresholds; OutlineClamp the stops a line may darken and
- * brighten.
+ * brighten. AlbedoFloor is the least a channel is divided by, as a fraction of the brightest one.
  */
 float3 CelShade(FMaterialPixelParameters Parameters, float3 SceneColor, float AlbedoFloor, float2 HueQuantize, float4 LightnessQuantize, float2 RimAngles, float RimIntensity, float3 OutlineKernel, float2 OutlineDeadzone, float2 OutlineClamp)
 {
     float2 UV = GetViewportUV(Parameters);
     float3 BaseColor = SceneTextureLookup(ClampSceneTextureUV(ViewportUVToSceneTextureUV(UV, 5), 5), 5, false).rgb;
+    float Brightest = max(BaseColor.r, max(BaseColor.g, BaseColor.b));
 
     // Nothing wrote an albedo here, so there is no lighting to recover and no shape to ink.
-    if (max(BaseColor.r, max(BaseColor.g, BaseColor.b)) <= 1e-4)
+    if (Brightest <= 1e-4)
     {
         return SceneColor;
     }
 
     // Dividing out the albedo leaves the lighting alone, which is the only term worth posterizing:
-    // banding the lit colour bands the textures with it. The floor stops a near-black albedo from
-    // turning a stray specular into an enormous ratio.
-    float3 LCh = KzRGBToOkLCh(SceneColor / max(BaseColor, AlbedoFloor));
+    // banding the lit colour bands the textures with it. A channel the albedo barely reflects holds
+    // little but specular, which divided by that albedo alone would swing the hue of the others
+    // with the view, so the floor follows the brightest channel.
+    float3 LCh = KzRGBToOkLCh(SceneColor / max(BaseColor, AlbedoFloor * Brightest));
 
     // Chroma relative to lightness, the way HSV saturation was. Kept absolute, an inked pixel holds
     // a chroma its new lightness cannot represent and the hue visibly swings along every edge.
