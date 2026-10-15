@@ -93,7 +93,7 @@ void SKzPropertyStack::Construct(const FArguments& InArgs, TSharedPtr<IPropertyH
 								[
 									SNew(SButton)
 										.ButtonStyle(FAppStyle::Get(), "SimpleButton")
-										.ToolTipText(NSLOCTEXT("KzPropertyStack", "ClearAllTip", "Remove all elements"))
+										.ToolTipText(this, &SKzPropertyStack::GetClearAllToolTip)
 										.IsEnabled(this, &SKzPropertyStack::CanClearAll)
 										.OnClicked(this, &SKzPropertyStack::OnClearAllClicked)
 										.ContentPadding(FMargin(4.0f, 2.0f))
@@ -360,7 +360,43 @@ bool SKzPropertyStack::CanClearAll() const
 	if (!ArrayHandle.IsValid()) { return false; }
 	uint32 NumElements = 0;
 	ArrayHandle->GetNumElements(NumElements);
-	return NumElements > 0;
+	return NumElements > 0 && CanRemoveRows(GetAllHandles());
+}
+
+FText SKzPropertyStack::GetClearAllToolTip() const
+{
+	FText Reason;
+	return CanRemoveRows(GetAllHandles(), &Reason) ? NSLOCTEXT("KzPropertyStack", "ClearAllTip", "Remove all elements") : Reason;
+}
+
+TArray<TSharedPtr<IPropertyHandle>> SKzPropertyStack::GetAllHandles() const
+{
+	TArray<TSharedPtr<IPropertyHandle>> Handles;
+	uint32 NumElements = 0;
+	if (ArrayHandle.IsValid() && ArrayHandle->GetNumElements(NumElements) == FPropertyAccess::Success)
+	{
+		for (uint32 Index = 0; Index < NumElements; ++Index)
+		{
+			Handles.Add(ArrayHandle->GetElement(Index));
+		}
+	}
+	return Handles;
+}
+
+bool SKzPropertyStack::CanRemoveRows(const TArray<TSharedPtr<IPropertyHandle>>& Handles, FText* OutReason) const
+{
+	FText Reason;
+	const bool bCanRemove = !RowCustomizer.IsValid() || RowCustomizer->CanRemoveRows(Handles, Reason);
+	if (OutReason) { *OutReason = Reason; }
+	return bCanRemove;
+}
+
+void SKzPropertyStack::NotifyRemovalRefused(const FText& Reason) const
+{
+	FNotificationInfo Info(Reason);
+	Info.ExpireDuration = 4.0f;
+	Info.Image = FAppStyle::GetBrush("Icons.Warning");
+	FSlateNotificationManager::Get().AddNotification(Info);
 }
 
 FReply SKzPropertyStack::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
@@ -649,7 +685,12 @@ TSharedRef<ITableRow> SKzPropertyStack::OnGenerateRow(TSharedPtr<FKzStackRow> It
 			SNew(SButton)
 				.ContentPadding(FMargin(0, 2))
 				.Visibility(bEditable ? EVisibility::Visible : EVisibility::Collapsed)
-				.ToolTipText(FText::Format(INVTEXT("Delete this {0}."), ItemName))
+				.IsEnabled_Lambda([this, Handle, bEditable]() { return bEditable && CanRemoveRows({ Handle }); })
+				.ToolTipText_Lambda([this, Handle, bEditable]()
+					{
+						FText Reason;
+						return !bEditable || CanRemoveRows({ Handle }, &Reason) ? FText::Format(INVTEXT("Delete this {0}."), ItemName) : Reason;
+					})
 				.OnClicked(this, &SKzPropertyStack::OnDeleteElementClicked, Item)
 				[
 					SNew(SImage)
@@ -842,7 +883,7 @@ void SKzPropertyStack::OnAddObjectClassSelected(UClass* ObjectClass)
 
 FReply SKzPropertyStack::OnDeleteElementClicked(TSharedPtr<FKzStackRow> ItemToDelete)
 {
-	if (ArrayHandle.IsValid() && ItemToDelete.IsValid() && ItemToDelete->IsEditable())
+	if (ArrayHandle.IsValid() && ItemToDelete.IsValid() && ItemToDelete->IsEditable() && CanRemoveRows({ ItemToDelete->Handle }))
 	{
 		const FScopedTransaction Transaction(FText::Format(INVTEXT("Delete {0}"), ItemName));
 		ArrayHandle->DeleteItem(ItemToDelete->Handle->GetIndexInArray());
@@ -1205,6 +1246,14 @@ void SKzPropertyStack::PasteElement()
 
 void SKzPropertyStack::CutSelectedElements()
 {
+	// Refused before copying, so a cut that cannot remove leaves the clipboard as it was.
+	FText Reason;
+	if (!CanRemoveRows(GetSelectedHandles(), &Reason))
+	{
+		NotifyRemovalRefused(Reason);
+		return;
+	}
+
 	const FScopedTransaction Transaction(FText::Format(INVTEXT("Cut {0}"), ItemName));
 	CopySelectedElements();
 	DeleteSelectedElements();
@@ -1215,6 +1264,14 @@ void SKzPropertyStack::DeleteSelectedElements()
 	if (!ArrayHandle.IsValid()) { return; }
 	const TArray<TSharedPtr<IPropertyHandle>> Selected = GetSelectedHandles();
 	if (Selected.Num() == 0) { return; }
+
+	// The command stays available so the key press is answered with why it did nothing.
+	FText Reason;
+	if (!CanRemoveRows(Selected, &Reason))
+	{
+		NotifyRemovalRefused(Reason);
+		return;
+	}
 
 	// Collect indices and delete from highest to lowest so earlier deletions don't
 	// invalidate later ones.

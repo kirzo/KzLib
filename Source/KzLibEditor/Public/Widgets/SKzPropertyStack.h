@@ -181,6 +181,16 @@ private:
 
 	FReply OnClearAllClicked();
 	bool CanClearAll() const;
+	FText GetClearAllToolTip() const;
+
+	/** Every editable element of the array, for removal checks that span it. */
+	TArray<TSharedPtr<IPropertyHandle>> GetAllHandles() const;
+
+	/** Asks the row customizer whether the rows can be removed together; OutReason, when given, says why not. */
+	bool CanRemoveRows(const TArray<TSharedPtr<IPropertyHandle>>& Handles, FText* OutReason = nullptr) const;
+
+	/** Shows why the user's removal was refused. */
+	void NotifyRemovalRefused(const FText& Reason) const;
 
 	FString GetRowDisplayName(TSharedPtr<FKzStackRow> Row) const;
 	FString GetHandleDisplayName(TSharedPtr<IPropertyHandle> Handle) const;

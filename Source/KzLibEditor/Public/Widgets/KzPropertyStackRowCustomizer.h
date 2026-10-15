@@ -112,6 +112,16 @@ public:
 	 */
 	virtual void OnRowDoubleClicked(TSharedPtr<IPropertyHandle> Handle) {}
 
+	/**
+	 * Whether these rows can be removed together, whether deleted, cut or cleared with the rest.
+	 * Return false with OutReason to keep them: the stack disables the row's delete button with the reason as its
+	 * tooltip, and shows it as a notification when the user tries anyway. Default: always.
+	 */
+	virtual bool CanRemoveRows(const TArray<TSharedPtr<IPropertyHandle>>& Handles, FText& OutReason) const
+	{
+		return true;
+	}
+
 	// ---------------------------------------------------------------------------
 	// Context resolution (used by validation jump-to and other navigation features)
 	// ---------------------------------------------------------------------------
