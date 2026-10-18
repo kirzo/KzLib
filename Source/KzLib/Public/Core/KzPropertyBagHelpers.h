@@ -20,6 +20,16 @@ namespace KzPropertyBag
 		/** Helper to extract inner type from TArray */
 		template <typename T> struct TUnwrapArray { using Type = T; static constexpr bool IsArray = false; };
 		template <typename T> struct TUnwrapArray<TArray<T>> { using Type = T; static constexpr bool IsArray = true; };
+
+		/** Adds the property unless the bag already holds it with this exact type: every AddProperty rebuilds the bag struct. */
+		inline void EnsureProperty(FInstancedPropertyBag& Bag, const FName& Name, const EPropertyBagPropertyType Type, const UObject* ObjectType)
+		{
+			const FPropertyBagPropertyDesc* Desc = Bag.FindPropertyDescByName(Name);
+			if (!Desc || Desc->ValueType != Type || Desc->ValueTypeObject != ObjectType || !Desc->ContainerTypes.IsEmpty())
+			{
+				Bag.AddProperty(Name, Type, ObjectType);
+			}
+		}
 	}
 
 	/**
@@ -43,7 +53,7 @@ namespace KzPropertyBag
 
 		static void SetValue(FInstancedPropertyBag& Bag, const FName& Name, bool bValue)
 		{
-			Bag.AddProperty(Name, Type, GetObjectType());
+			Private::EnsureProperty(Bag, Name, Type, GetObjectType());
 			Bag.SetValueBool(Name, bValue);
 		}
 	};
@@ -62,7 +72,7 @@ namespace KzPropertyBag
 
 		static void SetValue(FInstancedPropertyBag& Bag, const FName& Name, int32 Value)
 		{
-			Bag.AddProperty(Name, Type, GetObjectType());
+			Private::EnsureProperty(Bag, Name, Type, GetObjectType());
 			Bag.SetValueInt32(Name, Value);
 		}
 	};
@@ -81,7 +91,7 @@ namespace KzPropertyBag
 
 		static void SetValue(FInstancedPropertyBag& Bag, const FName& Name, int64 Value)
 		{
-			Bag.AddProperty(Name, Type, GetObjectType());
+			Private::EnsureProperty(Bag, Name, Type, GetObjectType());
 			Bag.SetValueInt64(Name, Value);
 		}
 	};
@@ -100,7 +110,7 @@ namespace KzPropertyBag
 
 		static void SetValue(FInstancedPropertyBag& Bag, const FName& Name, uint8 Value)
 		{
-			Bag.AddProperty(Name, Type, GetObjectType());
+			Private::EnsureProperty(Bag, Name, Type, GetObjectType());
 			Bag.SetValueByte(Name, Value);
 		}
 	};
@@ -119,7 +129,7 @@ namespace KzPropertyBag
 
 		static void SetValue(FInstancedPropertyBag& Bag, const FName& Name, float Value)
 		{
-			Bag.AddProperty(Name, Type, GetObjectType());
+			Private::EnsureProperty(Bag, Name, Type, GetObjectType());
 			Bag.SetValueFloat(Name, Value);
 		}
 	};
@@ -138,7 +148,7 @@ namespace KzPropertyBag
 
 		static void SetValue(FInstancedPropertyBag& Bag, const FName& Name, double Value)
 		{
-			Bag.AddProperty(Name, Type, GetObjectType());
+			Private::EnsureProperty(Bag, Name, Type, GetObjectType());
 			Bag.SetValueDouble(Name, Value);
 		}
 	};
@@ -157,7 +167,7 @@ namespace KzPropertyBag
 
 		static void SetValue(FInstancedPropertyBag& Bag, const FName& Name, const FName& Value)
 		{
-			Bag.AddProperty(Name, Type, GetObjectType());
+			Private::EnsureProperty(Bag, Name, Type, GetObjectType());
 			Bag.SetValueName(Name, Value);
 		}
 	};
@@ -176,7 +186,7 @@ namespace KzPropertyBag
 
 		static void SetValue(FInstancedPropertyBag& Bag, const FName& Name, const FString& Value)
 		{
-			Bag.AddProperty(Name, Type, GetObjectType());
+			Private::EnsureProperty(Bag, Name, Type, GetObjectType());
 			Bag.SetValueString(Name, Value);
 		}
 	};
@@ -195,7 +205,7 @@ namespace KzPropertyBag
 
 		static void SetValue(FInstancedPropertyBag& Bag, const FName& Name, const FText& Value)
 		{
-			Bag.AddProperty(Name, Type, GetObjectType());
+			Private::EnsureProperty(Bag, Name, Type, GetObjectType());
 			Bag.SetValueText(Name, Value);
 		}
 	};
@@ -214,7 +224,7 @@ namespace KzPropertyBag
 
 		static void SetValue(FInstancedPropertyBag& Bag, const FName& Name, const TPropertyType& Value)
 		{
-			Bag.AddProperty(Name, Type, GetObjectType());
+			Private::EnsureProperty(Bag, Name, Type, GetObjectType());
 			Bag.SetValueEnum(Name, Value);
 		}
 	};
@@ -242,7 +252,7 @@ namespace KzPropertyBag
 
 		static void SetValue(FInstancedPropertyBag& Bag, const FName& Name, const TPropertyType& Value)
 		{
-			Bag.AddProperty(Name, Type, GetObjectType());
+			Private::EnsureProperty(Bag, Name, Type, GetObjectType());
 			Bag.SetValueStruct(Name, Value);
 		}
 	};
@@ -261,7 +271,7 @@ namespace KzPropertyBag
 
 		static void SetValue(FInstancedPropertyBag& Bag, const FName& Name, TPropertyType* Value)
 		{
-			Bag.AddProperty(Name, Type, GetObjectType());
+			Private::EnsureProperty(Bag, Name, Type, GetObjectType());
 			Bag.SetValueObject(Name, Value);
 		}
 	};
@@ -285,7 +295,7 @@ namespace KzPropertyBag
 
 		static void SetValue(FInstancedPropertyBag& Bag, const FName& Name, const TObjectPtr<TPropertyType>& Value)
 		{
-			Bag.AddProperty(Name, Type, GetObjectType());
+			Private::EnsureProperty(Bag, Name, Type, GetObjectType());
 			Bag.SetValueObject(Name, Value.Get());
 		}
 	};
@@ -309,7 +319,7 @@ namespace KzPropertyBag
 
 		static void SetValue(FInstancedPropertyBag& Bag, const FName& Name, const TSoftObjectPtr<T>& Value)
 		{
-			Bag.AddProperty(Name, Type, GetObjectType());
+			Private::EnsureProperty(Bag, Name, Type, GetObjectType());
 			Bag.SetValueSoftPath(Name, Value.ToSoftObjectPath());
 		}
 	};
@@ -333,7 +343,7 @@ namespace KzPropertyBag
 
 		static void SetValue(FInstancedPropertyBag& Bag, const FName& Name, const TSoftClassPtr<T>& Value)
 		{
-			Bag.AddProperty(Name, Type, GetObjectType());
+			Private::EnsureProperty(Bag, Name, Type, GetObjectType());
 			Bag.SetValueSoftPath(Name, Value.ToSoftObjectPath());
 		}
 	};
