@@ -99,6 +99,17 @@ public:
 	static USceneComponent* ResolveComponentByClass(const FKzComponentSocketReference& Reference, UObject* Context, TSubclassOf<USceneComponent> ComponentClass);
 
 	/**
+	 * Resolves the reference to its Scene Component, along with the socket and offset it names, to hand on to whatever follows a socket.
+	 * @param Reference The socket reference struct.
+	 * @param Context The object initiating the query.
+	 * @param Socket The socket on the component; None for the component itself.
+	 * @param Offset The local offset, from RelativeLocation and RelativeRotation.
+	 * @return The resolved component, or nullptr if not found.
+	 */
+	UFUNCTION(BlueprintPure, Category = "KzLib|SocketReference", meta = (DefaultToSelf = "Context"))
+	static USceneComponent* ResolveComponentSocket(const FKzComponentSocketReference& Reference, UObject* Context, FName& Socket, FTransform& Offset);
+
+	/**
 	 * Calculates the World Transform of the referenced socket.
 	 * @param Reference The socket reference struct.
 	 * @param Context The object initiating the query.

@@ -33,6 +33,13 @@ KZ_SYSTEM_FORCEINLINE USceneComponent* UKzSystemLibrary::ResolveComponent(const 
 	return Reference.GetComponent(Context);
 }
 
+KZ_SYSTEM_FORCEINLINE USceneComponent* UKzSystemLibrary::ResolveComponentSocket(const FKzComponentSocketReference& Reference, UObject* Context, FName& Socket, FTransform& Offset)
+{
+	Socket = Reference.SocketName;
+	Offset = Reference.GetRelativeTransform();
+	return Reference.GetComponent(Context);
+}
+
 KZ_SYSTEM_FORCEINLINE FTransform UKzSystemLibrary::GetSocketTransform(const FKzComponentSocketReference& Reference, UObject* Context)
 {
 	FTransform OutTransform;
