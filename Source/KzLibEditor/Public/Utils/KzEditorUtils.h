@@ -158,7 +158,8 @@ struct FKzClipboardUtils
 		TKzObjectTextFactory<TItemClass> Factory;
 		if (Factory.CanCreateObjectsFromText(TextToImport))
 		{
-			Factory.ProcessBuffer(Outer, RF_Transactional, TextToImport);
+			// As the engine's edit-inline creation: a template subobject must be Public to be the archetype of instances in other packages.
+			Factory.ProcessBuffer(Outer, RF_Transactional | Outer->GetMaskedFlags(RF_PropagateToSubObjects), TextToImport);
 			Result = MoveTemp(Factory.CreatedObjects);
 		}
 
