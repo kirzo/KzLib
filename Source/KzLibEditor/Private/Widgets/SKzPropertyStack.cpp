@@ -1125,16 +1125,32 @@ void SKzPropertyStack::PasteElement()
 	{
 		TArray<UObject*> OuterObjects;
 		RootHandle->GetOuterObjects(OuterObjects);
-		UObject* OuterAsset = OuterObjects.Num() > 0 ? OuterObjects[0] : GetTransientPackage();
-		if (OuterAsset) { OuterAsset->Modify(); }
+		if (OuterObjects.IsEmpty()) { OuterObjects.Add(GetTransientPackage()); }
 
-		UObject* PastedObject = FKzClipboardUtils::PasteObjectFromClipboard(OuterAsset);
-		if (!PastedObject) { return; }
-
-		if (!PastedObject->IsA(BaseObjectClass))
+		// One copy per edited object, owned by it: a single shared instance would belong to the first object only.
+		TArray<UObject*> PastedObjects;
+		for (UObject* Outer : OuterObjects)
 		{
-			PastedObject->ClearFlags(RF_Transactional);
-			PastedObject->MarkAsGarbage();
+			if (Outer) { Outer->Modify(); }
+			PastedObjects.Add(Outer ? FKzClipboardUtils::PasteObjectFromClipboard(Outer) : nullptr);
+		}
+
+		auto DiscardPasted = [&PastedObjects]()
+		{
+			for (UObject* Pasted : PastedObjects)
+			{
+				if (Pasted)
+				{
+					Pasted->ClearFlags(RF_Transactional);
+					Pasted->MarkAsGarbage();
+				}
+			}
+		};
+
+		UObject* PastedObject = PastedObjects[0];
+		if (!PastedObject || PastedObjects.Contains(nullptr) || !PastedObject->IsA(BaseObjectClass))
+		{
+			DiscardPasted();
 			return;
 		}
 
@@ -1160,8 +1176,7 @@ void SKzPropertyStack::PasteElement()
 							Info.Image = FAppStyle::GetBrush("Icons.Warning");
 							FSlateNotificationManager::Get().AddNotification(Info);
 
-							PastedObject->ClearFlags(RF_Transactional);
-							PastedObject->MarkAsGarbage();
+							DiscardPasted();
 							return;
 						}
 					}
@@ -1175,19 +1190,26 @@ void SKzPropertyStack::PasteElement()
 		TSharedPtr<IPropertyHandle> NewElementHandle = ArrayHandle->GetElement(NumElements - 1);
 		if (NewElementHandle.IsValid())
 		{
-			NewElementHandle->SetValue(PastedObject);
+			// SetValue can only write one value to every edited object, so several copies are written per object.
+			bool bAssigned = false;
+			if (PastedObjects.Num() == 1)
+			{
+				NewElementHandle->SetValue(PastedObject);
 
-			UObject* CheckObj = nullptr;
-			NewElementHandle->GetValue(CheckObj);
-			if (CheckObj != PastedObject)
+				UObject* CheckObj = nullptr;
+				NewElementHandle->GetValue(CheckObj);
+				bAssigned = CheckObj == PastedObject;
+			}
+
+			if (!bAssigned)
 			{
 				if (FObjectPropertyBase* ObjProp = CastField<FObjectPropertyBase>(NewElementHandle->GetProperty()))
 				{
 					TArray<void*> RawData;
 					NewElementHandle->AccessRawData(RawData);
-					for (void* DataPtr : RawData)
+					for (int32 Index = 0; Index < RawData.Num(); ++Index)
 					{
-						ObjProp->SetObjectPropertyValue(DataPtr, PastedObject);
+						ObjProp->SetObjectPropertyValue(RawData[Index], PastedObjects[FMath::Min(Index, PastedObjects.Num() - 1)]);
 					}
 				}
 			}
