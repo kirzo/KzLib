@@ -9,6 +9,7 @@
 #include "BlueprintNodeSpawner.h"
 #include "BlueprintActionDatabaseRegistrar.h"
 #include "EditorCategoryUtils.h"
+#include "Textures/SlateIcon.h"
 
 #define LOCTEXT_NAMESPACE "K2Node_EvaluateDatabaseAsset"
 
@@ -176,6 +177,13 @@ void UK2Node_EvaluateDatabaseAsset::GetMenuActions(FBlueprintActionDatabaseRegis
 FText UK2Node_EvaluateDatabaseAsset::GetMenuCategory() const
 {
 	return FEditorCategoryUtils::GetCommonCategory(FCommonEditorCategory::Utilities);
+}
+
+FSlateIcon UK2Node_EvaluateDatabaseAsset::GetIconAndTint(FLinearColor& OutColor) const
+{
+	// The Database asset's own icon and colour, named rather than linked: the style lives in KzLibEditor
+	OutColor = FColor::FromHex(TEXT("#3FF1B5"));
+	return FSlateIcon(TEXT("KzLibEditorStyle"), TEXT("ClassIcon.KzDatabaseAsset"));
 }
 
 #undef LOCTEXT_NAMESPACE

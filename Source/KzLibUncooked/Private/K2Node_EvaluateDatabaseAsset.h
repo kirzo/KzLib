@@ -42,5 +42,6 @@ public:
 	virtual void ExpandNode(class FKismetCompilerContext& CompilerContext, UEdGraph* SourceGraph) override;
 	virtual void GetMenuActions(FBlueprintActionDatabaseRegistrar& ActionRegistrar) const override;
 	virtual FText GetMenuCategory() const override;
+	virtual FSlateIcon GetIconAndTint(FLinearColor& OutColor) const override;
 	//~ End UK2Node Interface.
 };

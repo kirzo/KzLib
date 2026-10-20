@@ -8,6 +8,7 @@
 #include "KismetCompiler.h"
 #include "BlueprintNodeSpawner.h"
 #include "BlueprintActionDatabaseRegistrar.h"
+#include "Textures/SlateIcon.h"
 #include "EditorCategoryUtils.h"
 
 #define LOCTEXT_NAMESPACE "K2Node_ResolveDatabaseQuery"
@@ -128,6 +129,13 @@ void UK2Node_ResolveDatabaseQuery::GetMenuActions(FBlueprintActionDatabaseRegist
 FText UK2Node_ResolveDatabaseQuery::GetMenuCategory() const
 {
 	return FEditorCategoryUtils::GetCommonCategory(FCommonEditorCategory::Utilities);
+}
+
+FSlateIcon UK2Node_ResolveDatabaseQuery::GetIconAndTint(FLinearColor& OutColor) const
+{
+	// The Database asset's own icon and colour, named rather than linked: the style lives in KzLibEditor
+	OutColor = FColor::FromHex(TEXT("#3FF1B5"));
+	return FSlateIcon(TEXT("KzLibEditorStyle"), TEXT("ClassIcon.KzDatabaseAsset"));
 }
 
 #undef LOCTEXT_NAMESPACE
