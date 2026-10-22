@@ -10,41 +10,42 @@
 #include "KzDatabase.generated.h"
 
 /**
- * Defines criteria to search and filter database items.
- * Includes support for hard requirements, exclusions, and heuristic sorting (scoring).
+ * What the asker wants and what is true about it. An item is a candidate when it passes RequireTags, IgnoreTags and TagQuery, and each of its own
+ * tags is asked for or true of the asker, so variants for other states never apply. The candidate with the most tags wins; on a tie, the first.
  */
 USTRUCT(BlueprintType)
 struct KZLIB_API FKzDatabaseQuery
 {
 	GENERATED_BODY()
 
-	/** The item MUST have all these tags. */
+	/** The item must have all of these, or more specific ones. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Query")
 	FGameplayTagContainer RequireTags;
 
-	/** The item MUST NOT have any of these tags. */
+	/** The item must have none of these, nor more specific ones. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Query")
 	FGameplayTagContainer IgnoreTags;
 
-	/*
-	 * Heuristic Scoring: Items are sorted by how many of these tags they possess.
-	 * Useful for finding the "Best Match".
-	 */
+	/** What is true about the asker: its state, what it holds. A more specific tag covers an item's tag: State.Injured.Leg covers State.Injured. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Query")
-	FGameplayTagContainer OptionalTags;
+	FGameplayTagContainer ContextTags;
 
-	/** Advanced logic (A OR B AND C). Checked after Require/Ignore tags. */
+	/** Advanced logic (A OR B AND C), checked after RequireTags and IgnoreTags. Its tags count as asked for. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Query")
 	FGameplayTagQuery TagQuery;
 
-	/** Checks if a container satisfies the hard requirements (Require, Ignore, TagQuery) */
+	/** Whether an item with these tags is a candidate. */
 	bool Matches(const FGameplayTagContainer& Tags) const;
 
-	/** Returns a score based on the number of matching OptionalTags */
+	/** How specific a candidate is: its tag count, all of them covered. */
 	int32 CalculateScore(const FGameplayTagContainer& Tags) const;
 
 	/** Returns true if the query has no constraints */
 	bool IsEmpty() const;
+
+private:
+	/** Whether the item's tag is asked for (under RequireTags or TagQuery) or true of the asker (ContextTags). */
+	bool Covers(const FGameplayTag& Tag) const;
 };
 
 /** A single entry in the database. */
@@ -206,7 +207,7 @@ struct KZLIB_API FKzDatabase
 
 	/**
 	 * Finds all items matching the query.
-	 * Results are sorted by Score (OptionalTags match count) descending.
+	 * Results are sorted by score descending, ties in list order.
 	 * @return Number of items found.
 	 */
 	int32 QueryItems(const FKzDatabaseQuery& Query, TArray<const FKzDatabaseItem*>& OutItems) const;

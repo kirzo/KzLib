@@ -1,44 +1,42 @@
 // Copyright 2026 kirzo
 
 #include "Core/KzDatabase.h"
-#include "Algo/Count.h"
+#include "Algo/AllOf.h"
+#include "Algo/AnyOf.h"
 
 bool FKzDatabaseQuery::Matches(const FGameplayTagContainer& Tags) const
 {
-	// Hard Requirements (ALL)
 	if (!RequireTags.IsEmpty() && !Tags.HasAll(RequireTags))
 	{
 		return false;
 	}
 
-	// Exclusions (ANY)
 	if (!IgnoreTags.IsEmpty() && Tags.HasAny(IgnoreTags))
 	{
 		return false;
 	}
 
-	// Complex Query
 	if (!TagQuery.IsEmpty() && !TagQuery.Matches(Tags))
 	{
 		return false;
 	}
 
-	return true;
+	return Algo::AllOf(Tags, [this](const FGameplayTag& Tag) { return Covers(Tag); });
 }
 
 int32 FKzDatabaseQuery::CalculateScore(const FGameplayTagContainer& Tags) const
 {
-	if (OptionalTags.IsEmpty())
-	{
-		return 0;
-	}
-	// Count how many optional tags are present in the item
-  return Algo::CountIf(OptionalTags, [Tags](const FGameplayTag& OptionalTag) { return OptionalTag.MatchesAnyExact(Tags); });
+	return Tags.Num();
 }
 
 bool FKzDatabaseQuery::IsEmpty() const
 {
-	return RequireTags.IsEmpty() && IgnoreTags.IsEmpty() && OptionalTags.IsEmpty() && TagQuery.IsEmpty();
+	return RequireTags.IsEmpty() && IgnoreTags.IsEmpty() && ContextTags.IsEmpty() && TagQuery.IsEmpty();
+}
+
+bool FKzDatabaseQuery::Covers(const FGameplayTag& Tag) const
+{
+	return Tag.MatchesAny(RequireTags) || ContextTags.HasTag(Tag) || Algo::AnyOf(TagQuery.GetGameplayTagArray(), [&Tag](const FGameplayTag& QueryTag) { return Tag.MatchesTag(QueryTag); });
 }
 
 void FKzDatabaseItem::SyncType(const FKzTypeDef& TypeDef)
@@ -75,15 +73,11 @@ int32 FKzDatabase::QueryItems(const FKzDatabaseQuery& Query, TArray<const FKzDat
 	{
 		if (Query.Matches(Item.Tags))
 		{
-			int32 Score = Query.CalculateScore(Item.Tags);
-			ScoredResults.Add({ &Item, Score });
+			ScoredResults.Add({ &Item, Query.CalculateScore(Item.Tags) });
 		}
 	}
 
-	if (!Query.OptionalTags.IsEmpty())
-	{
-		ScoredResults.StableSort();
-	}
+	ScoredResults.StableSort();
 
 	OutItems.Reserve(ScoredResults.Num());
 	for (const FScoredItem& Entry : ScoredResults)

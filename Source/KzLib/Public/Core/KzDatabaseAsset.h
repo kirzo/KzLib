@@ -8,7 +8,7 @@
 #include "KzDatabaseAsset.generated.h"
 
 /**
- * A Data Asset that wraps an FKzDatabase, providing heuristic scoring and hierarchical inheritance.
+ * A Data Asset that wraps an FKzDatabase, adding inheritance from a parent table.
  * Only contains items of a single specific type defined by the internal Database schema.
  */
 UCLASS(BlueprintType, Const)
@@ -19,7 +19,7 @@ class KZLIB_API UKzDatabaseAsset : public UPrimaryDataAsset
 public:
 	/**
 	 * Optional parent database to inherit items from.
-	 * If a query yields a better score in the parent, the parent's item will be returned.
+	 * The parent's item wins only with a better score; on a tie, this table's.
 	 * Useful for creating base assets (e.g., Human Animations) and extending them (e.g., Knight Animations).
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Database")
@@ -39,8 +39,8 @@ public:
 	}
 
 	/**
-	 * Finds the best matching item for the given query, considering heuristic scoring and the parent hierarchy.
-	 * @param Query The query containing required, ignored, and optional tags.
+	 * Finds the best matching item for the given query, across the parent hierarchy.
+	 * @param Query What is asked for and what is true about the asker.
 	 * @return A pointer to the best matching item, or nullptr if no match was found.
 	 */
 	const FKzDatabaseItem* ResolveMatch(const FKzDatabaseQuery& Query) const;
