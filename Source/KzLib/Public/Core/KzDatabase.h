@@ -142,52 +142,19 @@ struct KZLIB_API FKzDatabase
 
 	/**
 	 * Adds or Updates an item with type safety checks.
-	 * Returns nullptr if the provided type T does not match the Database Definition.
+	 * Returns nullptr if the provided type T does not fit the Database Definition.
 	 */
 	template <typename T>
 	FKzDatabaseItem* AddOrUpdateItem(FName ID, const FGameplayTagContainer& Tags, const T& Value)
 	{
-		// Get Compile-Time Type Info from T
-		using Traits = KzPropertyBag::TPropertyBagType<T>;
-		const EPropertyBagPropertyType InputType = Traits::Type;
-		const UObject* InputObj = Traits::GetObjectType();
-
-		// Validate against Runtime Schema (this->Type)
-		bool bCompatible = (Type.ValueType == InputType);
-
-		if (bCompatible && (InputType == EPropertyBagPropertyType::Object ||
-			InputType == EPropertyBagPropertyType::SoftObject ||
-			InputType == EPropertyBagPropertyType::Class ||
-			InputType == EPropertyBagPropertyType::SoftClass))
-		{
-			// For objects, allow Child -> Parent assignment
-			const UClass* SchemaClass = Cast<UClass>(Type.ValueTypeObject);
-			const UClass* InputClass = Cast<UClass>(InputObj);
-			if (SchemaClass && InputClass)
-			{
-				bCompatible = InputClass->IsChildOf(SchemaClass);
-			}
-			else
-			{
-				bCompatible = (Type.ValueTypeObject == InputObj);
-			}
-		}
-		else if (bCompatible && (InputType == EPropertyBagPropertyType::Struct || InputType == EPropertyBagPropertyType::Enum))
-		{
-			// Structs and Enums must match exactly
-			bCompatible = (Type.ValueTypeObject == InputObj);
-		}
-
-		if (!ensureMsgf(bCompatible, TEXT("FKzDatabase Type Mismatch: Trying to add type '%d' object '%s' to DB expecting '%d' object '%s'"),
-			(int32)InputType, InputObj ? *InputObj->GetName() : TEXT("Null"),
-			(int32)Type.ValueType, Type.ValueTypeObject ? *Type.ValueTypeObject->GetName() : TEXT("Null")))
+		// The variant's own rule, the one reads go through: classes by inheritance, everything else exactly.
+		FKzVariant NewValue = FKzVariant::Make<T>(Value);
+		if (!ensureMsgf(NewValue.MatchesType(Type), TEXT("FKzDatabase::AddOrUpdateItem: the value's type doesn't fit the database's for '%s'."), *ID.ToString()))
 		{
 			return nullptr;
 		}
 
-		// Perform Operation
 		FKzDatabaseItem* Item = FindItem(ID);
-
 		if (!Item)
 		{
 			Item = &Items.AddDefaulted_GetRef();
@@ -195,9 +162,7 @@ struct KZLIB_API FKzDatabase
 		}
 
 		Item->Tags = Tags;
-		Item->SyncType(Type);
-		Item->SetValue<T>(Value);
-
+		Item->Value = MoveTemp(NewValue);
 		return Item;
 	}
 
@@ -225,7 +190,8 @@ struct KZLIB_API FKzDatabase
 	template <typename T>
 	bool FindBestMatch(const FKzDatabaseQuery& Query, FName& OutID, T& OutValue) const
 	{
-		if (const FKzDatabaseItem* BestItem = FindBestMatch(Query))
+		const FKzDatabaseItem* BestItem = FindBestMatch(Query);
+		if (BestItem && BestItem->Value.Is<T>())
 		{
 			OutID = BestItem->ID;
 			OutValue = BestItem->GetValue<T>();

@@ -49,7 +49,8 @@ public:
 	template <typename T>
 	bool ResolveMatch(const FKzDatabaseQuery& Query, T& OutValue) const
 	{
-		if (const FKzDatabaseItem* BestItem = ResolveMatch(Query))
+		const FKzDatabaseItem* BestItem = ResolveMatch(Query);
+		if (BestItem && BestItem->Value.Is<T>())
 		{
 			OutValue = BestItem->GetValue<T>();
 			return true;

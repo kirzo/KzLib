@@ -31,51 +31,6 @@ static void GetWildcardProperty(FFrame& Stack, FProperty*& OutProp, void*& OutPt
 	OutPtr = Stack.MostRecentPropertyAddress;
 }
 
-static bool ArePropertiesCompatible(const FProperty* InputProp, const FProperty* TargetProp)
-{
-	// 1. Basic class check
-	if (InputProp->GetClass() != TargetProp->GetClass())
-	{
-		// Special case: Byte vs Enum
-		if ((InputProp->IsA<FByteProperty>() && TargetProp->IsA<FEnumProperty>()) ||
-			(InputProp->IsA<FEnumProperty>() && TargetProp->IsA<FByteProperty>()))
-		{
-			return true;
-		}
-		return false;
-	}
-
-	// 2. Struct Check
-	if (const FStructProperty* InputStruct = CastField<FStructProperty>(InputProp))
-	{
-		const FStructProperty* TargetStruct = CastField<const FStructProperty>(TargetProp);
-		return InputStruct->Struct == TargetStruct->Struct;
-	}
-
-	// 3. Object Check (Allow Child -> Parent)
-	if (const FObjectPropertyBase* InputObj = CastField<FObjectPropertyBase>(InputProp))
-	{
-		const FObjectPropertyBase* TargetObj = CastField<const FObjectPropertyBase>(TargetProp);
-		return InputObj->PropertyClass->IsChildOf(TargetObj->PropertyClass);
-	}
-
-	// 4. Array Check
-	if (const FArrayProperty* InputArray = CastField<FArrayProperty>(InputProp))
-	{
-		const FArrayProperty* TargetArray = CastField<const FArrayProperty>(TargetProp);
-		return ArePropertiesCompatible(InputArray->Inner, TargetArray->Inner);
-	}
-
-	// 5. Enum Check
-	if (const FEnumProperty* InputEnum = CastField<FEnumProperty>(InputProp))
-	{
-		const FEnumProperty* TargetEnum = CastField<const FEnumProperty>(TargetProp);
-		return InputEnum->GetEnum() == TargetEnum->GetEnum();
-	}
-
-	return true;
-}
-
 // --- Thunk Implementations ---
 
 DEFINE_FUNCTION(UKzDatabaseLibrary::execAddDatabaseItem)
@@ -197,7 +152,7 @@ DEFINE_FUNCTION(UKzDatabaseLibrary::execFindBestMatch)
 		bFound = true;
 
 		// Write the value out if the pin is connected and compatible. A type mismatch doesn't fail the search,
-		// it just leaves the out pin untouched — matching the previous behaviour.
+		// it just leaves the out pin untouched.
 		if (ValueProp && ValuePtr && BestItem->Value.IsValid())
 		{
 			BestItem->Value.ToProperty(ValueProp, ValuePtr);

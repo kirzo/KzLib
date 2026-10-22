@@ -29,7 +29,8 @@ public:
 	template <typename T>
 	bool Resolve(const FKzDatabaseQuery& Query, T& OutValue) const
 	{
-		if (const FKzDatabaseItem* BestItem = ResolveItem(FKzTypeDef::Make<T>(), Query))
+		const FKzDatabaseItem* BestItem = ResolveItem(FKzTypeDef::Make<T>(), Query);
+		if (BestItem && BestItem->Value.Is<T>())
 		{
 			OutValue = BestItem->GetValue<T>();
 			return true;

@@ -39,28 +39,21 @@ void UK2Node_EvaluateDatabaseAsset::EarlyValidation(FCompilerResultsLog& Message
 	}
 
 	const FKzTypeDef& TypeDef = DatabaseAsset->GetDataType();
+	if (!TypeDef.IsValid())
+	{
+		// Without a type the node has no Result pin, and the expanded call would keep a wildcard.
+		MessageLog.Error(*LOCTEXT("AssetWithoutType", "The Database Asset for @@ has no data type. Pick one in the asset, then right-click the node and select 'Refresh Node'.").ToString(), this);
+		return;
+	}
 
 	const UEdGraphPin* ResultPin = FindPin(TEXT("Result"));
-	const bool bAssetHasValidType = TypeDef.IsValid();
-
-	if (ResultPin && bAssetHasValidType)
+	if (!ResultPin)
 	{
-		// 1. We have a pin and the asset has a type. Let's compare them.
-		FEdGraphPinType ExpectedPinType = KzLib::Editor::PinTypeFromBagType(TypeDef.ValueType, TypeDef.ValueTypeObject.Get(), TypeDef.ContainerType);
-		if (ResultPin->PinType != ExpectedPinType)
-		{
-			MessageLog.Error(*LOCTEXT("PinTypeMismatch", "The data type in the Database Asset for @@ has changed. Please right-click the node and select 'Refresh Node'.").ToString(), this);
-		}
-	}
-	else if (!ResultPin && bAssetHasValidType)
-	{
-		// 2. The node has no pin, but the asset got a valid type assigned externally.
 		MessageLog.Error(*LOCTEXT("PinMissing", "The Database Asset for @@ now has a valid type, but the node doesn't reflect it. Please right-click and 'Refresh Node'.").ToString(), this);
 	}
-	else if (ResultPin && !bAssetHasValidType)
+	else if (ResultPin->PinType != KzLib::Editor::PinTypeFromBagType(TypeDef.ValueType, TypeDef.ValueTypeObject.Get(), TypeDef.ContainerType))
 	{
-		// 3. The node has a pin, but the asset's type was removed/invalidated externally.
-		MessageLog.Error(*LOCTEXT("AssetInvalidated", "The Database Asset for @@ is no longer valid. Please right-click and 'Refresh Node'.").ToString(), this);
+		MessageLog.Error(*LOCTEXT("PinTypeMismatch", "The data type in the Database Asset for @@ has changed. Please right-click the node and select 'Refresh Node'.").ToString(), this);
 	}
 }
 
