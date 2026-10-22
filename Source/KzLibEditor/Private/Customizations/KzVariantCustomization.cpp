@@ -6,87 +6,80 @@
 #include "Utils/KzEditorUtils.h"
 
 #include "DetailWidgetRow.h"
-#include "DetailLayoutBuilder.h"
 #include "IDetailChildrenBuilder.h"
+#include "IPropertyUtilities.h"
+#include "IStructureDataProvider.h"
 #include "ScopedTransaction.h"
-
-#include "Widgets/Layout/SBox.h"
-#include "SEnumCombo.h"
-#include "Widgets/Text/STextBlock.h"
-#include "Widgets/SNullWidget.h"
+#include "UObject/StructOnScope.h"
 
 #define LOCTEXT_NAMESPACE "KzVariantCustomization"
 
-namespace
+namespace KzVariantCustomization
 {
-	const FName NAME_BoolValue				= TEXT("BoolValue");
-	const FName NAME_ByteValue				= TEXT("ByteValue");
-	const FName NAME_EnumValue				= TEXT("EnumValue");
-	const FName NAME_Int32Value				= TEXT("Int32Value");
-	const FName NAME_Int64Value				= TEXT("Int64Value");
-	const FName NAME_DoubleValue			= TEXT("DoubleValue");
-	const FName NAME_NameValue				= TEXT("NameValue");
-	const FName NAME_StringValue			= TEXT("StringValue");
-	const FName NAME_TextValue				= TEXT("TextValue");
-	const FName NAME_StructValue			= TEXT("StructValue");
-	const FName NAME_ObjectValue			= TEXT("ObjectValue");
-	const FName NAME_SoftObjectValue	= TEXT("SoftObjectValue");
-	const FName NAME_ClassValue				= TEXT("ClassValue");
-	const FName NAME_SoftClassValue		= TEXT("SoftClassValue");
-}
-
-FName FKzVariantCustomization::GetSlotPropertyName(EPropertyBagPropertyType Type)
-{
-	switch (Type)
+	/** Shows the variants' value through their bag struct, so edits go through the variant's own handle and can be undone. */
+	class FValueProvider : public IStructureDataProvider
 	{
-		case EPropertyBagPropertyType::Bool:				return NAME_BoolValue;
-		case EPropertyBagPropertyType::Byte:				return NAME_ByteValue;
-		case EPropertyBagPropertyType::Enum:				return NAME_EnumValue;
-		case EPropertyBagPropertyType::Int32:				return NAME_Int32Value;
-		case EPropertyBagPropertyType::Int64:				return NAME_Int64Value;
-		case EPropertyBagPropertyType::Float:				return NAME_DoubleValue;
-		case EPropertyBagPropertyType::Double:			return NAME_DoubleValue;
-		case EPropertyBagPropertyType::Name:				return NAME_NameValue;
-		case EPropertyBagPropertyType::String:			return NAME_StringValue;
-		case EPropertyBagPropertyType::Text:				return NAME_TextValue;
-		case EPropertyBagPropertyType::Struct:			return NAME_StructValue;
-		case EPropertyBagPropertyType::Object:			return NAME_ObjectValue;
-		case EPropertyBagPropertyType::SoftObject:	return NAME_SoftObjectValue;
-		case EPropertyBagPropertyType::Class:				return NAME_ClassValue;
-		case EPropertyBagPropertyType::SoftClass:		return NAME_SoftClassValue;
-		default:																		return NAME_None;
-	}
-}
+	public:
+		explicit FValueProvider(const TSharedRef<IPropertyHandle>& InHandle)
+			: Handle(InHandle)
+		{
+		}
 
-void FKzVariantCustomization::RebuildEnumComboBox()
-{
-	if (!EnumComboHolder.IsValid() || !StructHandle.IsValid()) { return; }
+		virtual bool IsValid() const override
+		{
+			return GetBaseStructure() != nullptr;
+		}
 
-	const UEnum* EnumPtr = Cast<UEnum>(GetCurrentTypeObject());
-	TSharedPtr<IPropertyHandle> EnumHandle = StructHandle->GetChildHandle(NAME_EnumValue);
-	if (!EnumPtr || !EnumHandle.IsValid())
-	{
-		EnumComboHolder->SetContent(SNullWidget::NullWidget);
-		return;
-	}
+		/** The bag struct all edited variants share; none while their types differ. */
+		virtual const UStruct* GetBaseStructure() const override
+		{
+			const UStruct* Common = nullptr;
+			bool bFirst = true;
+			Handle->EnumerateConstRawData([&Common, &bFirst](const void* RawData, const int32, const int32)
+			{
+				const UStruct* Struct = RawData ? static_cast<const FKzVariant*>(RawData)->GetBagStruct() : nullptr;
+				Common = bFirst || Common == Struct ? Struct : nullptr;
+				bFirst = false;
+				return Common != nullptr;
+			});
+			return Common;
+		}
 
-	EnumComboHolder->SetContent(
-		SNew(SBox).HeightOverride(20)
-		[
-			SNew(SEnumComboBox, EnumPtr)
-			.CurrentValue_Lambda([EnumHandle]() -> int32
+		virtual void GetInstances(TArray<TSharedPtr<FStructOnScope>>& OutInstances, const UStruct* ExpectedBaseStructure) const override
+		{
+			TArray<UPackage*> Packages;
+			Handle->GetOuterPackages(Packages);
+			Handle->EnumerateRawData([&OutInstances, &Packages, ExpectedBaseStructure](void* RawData, const int32 DataIndex, const int32)
+			{
+				TSharedPtr<FStructOnScope> Instance;
+				const FKzVariant* Variant = static_cast<const FKzVariant*>(RawData);
+				if (Variant && ExpectedBaseStructure && Variant->GetBagStruct() == ExpectedBaseStructure)
 				{
-					int64 V = 0;
-					EnumHandle->GetValue(V);
-					return static_cast<int32>(V);
-				})
-			.OnEnumSelectionChanged_Lambda([EnumHandle](int32 NewValue, ESelectInfo::Type)
-				{
-					EnumHandle->SetValue(static_cast<int64>(NewValue));
-				})
-			.Font(IDetailLayoutBuilder::GetDetailFont())
-		]
-	);
+					Instance = MakeShared<FStructOnScope>(Variant->GetBagStruct(), Variant->GetBagMemory());
+					if (Packages.IsValidIndex(DataIndex))
+					{
+						Instance->SetPackage(Packages[DataIndex]);
+					}
+				}
+				OutInstances.Add(Instance);
+				return true;
+			});
+		}
+
+		virtual bool IsPropertyIndirection() const override
+		{
+			return true;
+		}
+
+		virtual uint8* GetValueBaseAddress(uint8* ParentValueAddress, const UStruct* ExpectedBaseStructure) const override
+		{
+			const FKzVariant* Variant = reinterpret_cast<const FKzVariant*>(ParentValueAddress);
+			return Variant && ExpectedBaseStructure && Variant->GetBagStruct() == ExpectedBaseStructure ? Variant->GetBagMemory() : nullptr;
+		}
+
+	private:
+		TSharedRef<IPropertyHandle> Handle;
+	};
 }
 
 void FKzVariantCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> PropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& CustomizationUtils)
@@ -95,7 +88,6 @@ void FKzVariantCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> Proper
 
 	if (FKzPropertyHandleUtils::HasMetaDataInHierarchy(PropertyHandle, TEXT("ShowOnlyInnerProperties")))
 	{
-		// Return early to prevent the HeaderRow from being generated
 		return;
 	}
 
@@ -109,120 +101,69 @@ void FKzVariantCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> Proper
 			SNew(SKzTypeSelector)
 				.AllowArrays(false)
 				.Visibility_Lambda([this]() { return FKzPropertyHandleUtils::HasMetaDataInHierarchy(StructHandle, TEXT("FixedType")) ? EVisibility::Collapsed : EVisibility::Visible; })
-				.ValueType_Lambda([this]() { return GetCurrentType(); })
-				.ValueTypeObject_Lambda([this]() { return GetCurrentTypeObject(); })
+				.ValueType_Lambda([this]() { const FKzVariant* Variant = GetVariant(); return Variant ? Variant->GetType() : EPropertyBagPropertyType::None; })
+				.ValueTypeObject_Lambda([this]() { const FKzVariant* Variant = GetVariant(); return Variant ? Variant->GetTypeObject() : nullptr; })
 				.OnTypeChanged(this, &FKzVariantCustomization::OnTypeChanged)
 		];
 }
 
 void FKzVariantCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> PropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils)
 {
-	// Add every slot to the layout, but only the one matching the current type is visible.
-	// This way, when the type changes, the new slot is already in the layout — no manual refresh needed.
-	const FName SlotNames[] = {
-		NAME_BoolValue, NAME_ByteValue, NAME_EnumValue, NAME_Int32Value, NAME_Int64Value,
-		NAME_DoubleValue, NAME_NameValue, NAME_StringValue, NAME_TextValue,
-		NAME_StructValue, NAME_ObjectValue, NAME_SoftObjectValue,
-		NAME_ClassValue, NAME_SoftClassValue
-	};
+	StructHandle = PropertyHandle;
+	PropertyUtilities = CustomizationUtils.GetPropertyUtilities();
 
-	for (const FName& SlotName : SlotNames)
+	const TSharedRef<KzVariantCustomization::FValueProvider> Provider = MakeShared<KzVariantCustomization::FValueProvider>(PropertyHandle);
+	if (!Provider->IsValid())
 	{
-		TSharedPtr<IPropertyHandle> SlotHandle = PropertyHandle->GetChildHandle(SlotName);
-		if (!SlotHandle.IsValid()) { continue; }
+		return;
+	}
 
-		TAttribute<EVisibility> SlotVisibility = TAttribute<EVisibility>::CreateLambda([this, SlotName]()
-			{
-				return GetSlotPropertyName(GetCurrentType()) == SlotName ? EVisibility::Visible : EVisibility::Collapsed;
-			});
-
-		if (SlotName == NAME_EnumValue)
-		{
-			ChildBuilder.AddCustomRow(LOCTEXT("EnumValueFilter", "Value"))
-				.Visibility(SlotVisibility)
-				.NameContent()
-				[
-					SNew(STextBlock).Text(LOCTEXT("Value", "Value")).Font(IDetailLayoutBuilder::GetDetailFont())
-				]
-				.ValueContent()
-				[
-					SAssignNew(EnumComboHolder, SBox)
-				];
-
-			RebuildEnumComboBox();
-		}
-		else
-		{
-			IDetailPropertyRow& Row = ChildBuilder.AddProperty(SlotHandle.ToSharedRef());
-			Row.Visibility(SlotVisibility);
-
-			if (SlotName == NAME_StructValue)
-			{
-				// The type is already chosen by our type selector — hide FInstancedStruct's own struct picker.
-				// bShowChildren=true keeps the inner struct properties (e.g. X/Y/Z for Vector) as expandable children.
-				Row.CustomWidget(/*bShowChildren=*/true)
-					.NameContent()
-					[
-						SNew(STextBlock)
-							.Text(LOCTEXT("Value", "Value"))
-							.Font(IDetailLayoutBuilder::GetDetailFont())
-					]
-					.ValueContent()
-					[
-						SNullWidget::NullWidget
-					]
-					.Visibility(SlotVisibility);
-			}
-			else
-			{
-				Row.DisplayName(LOCTEXT("Value", "Value"));
-			}
-		}
+	for (const TSharedPtr<IPropertyHandle>& ChildHandle : PropertyHandle->AddChildStructure(Provider))
+	{
+		ChildBuilder.AddProperty(ChildHandle.ToSharedRef());
 	}
 }
 
 const FKzVariant* FKzVariantCustomization::GetVariant() const
 {
-	if (!StructHandle.IsValid()) { return nullptr; }
+	if (!StructHandle.IsValid())
+	{
+		return nullptr;
+	}
 
 	TArray<void*> RawData;
 	StructHandle->AccessRawData(RawData);
-	if (RawData.Num() != 1 || !RawData[0]) { return nullptr; }
-	return static_cast<const FKzVariant*>(RawData[0]);
+	return RawData.Num() == 1 ? static_cast<const FKzVariant*>(RawData[0]) : nullptr;
 }
 
-EPropertyBagPropertyType FKzVariantCustomization::GetCurrentType() const
+void FKzVariantCustomization::OnTypeChanged(EPropertyBagPropertyType NewType, const UObject* NewTypeObject, EPropertyBagContainerType NewContainerType)
 {
-	const FKzVariant* V = GetVariant();
-	return V ? V->GetType() : EPropertyBagPropertyType::None;
-}
-
-const UObject* FKzVariantCustomization::GetCurrentTypeObject() const
-{
-	const FKzVariant* V = GetVariant();
-	return V ? V->GetTypeObject() : nullptr;
-}
-
-void FKzVariantCustomization::OnTypeChanged(EPropertyBagPropertyType NewType, const UObject* NewTypeObject, EPropertyBagContainerType /*NewContainerType*/)
-{
-	if (!StructHandle.IsValid()) { return; }
+	if (!StructHandle.IsValid())
+	{
+		return;
+	}
 
 	FScopedTransaction Transaction(LOCTEXT("ChangeVariantType", "Change Variant Type"));
 	StructHandle->NotifyPreChange();
 
 	TArray<void*> RawData;
 	StructHandle->AccessRawData(RawData);
-
-	for (void* Ptr : RawData)
+	for (void* Data : RawData)
 	{
-		if (!Ptr) { continue; }
-		FKzVariant* Variant = static_cast<FKzVariant*>(Ptr);
-		Variant->SetType(NewType, NewTypeObject);
+		if (Data)
+		{
+			static_cast<FKzVariant*>(Data)->SetType(NewType, NewTypeObject);
+		}
 	}
 
 	StructHandle->NotifyPostChange(EPropertyChangeType::ValueSet);
 	StructHandle->NotifyFinishedChangingProperties();
-	RebuildEnumComboBox();
+
+	// The value row belongs to the old type's struct.
+	if (PropertyUtilities.IsValid())
+	{
+		PropertyUtilities->RequestForceRefresh();
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

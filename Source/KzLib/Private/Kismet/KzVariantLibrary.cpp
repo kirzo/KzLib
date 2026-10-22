@@ -25,13 +25,8 @@ void UKzVariantLibrary::BreakKzVariant(EKzValidity& ExecResult, const FKzVariant
 	checkNoEntry();
 }
 
-// =====================================================================================
-// Custom thunks
-// =====================================================================================
-
 DEFINE_FUNCTION(UKzVariantLibrary::execMakeKzVariant)
 {
-	// Read the wildcard parameter. Stack.MostRecentProperty/Address are populated by the previous step's evaluation.
 	Stack.StepCompiledIn<FProperty>(nullptr);
 	const FProperty* ValueProperty = Stack.MostRecentProperty;
 	const void* ValuePtr = Stack.MostRecentPropertyAddress;
@@ -45,7 +40,6 @@ DEFINE_FUNCTION(UKzVariantLibrary::execSetKzVariant)
 {
 	P_GET_STRUCT_REF(FKzVariant, Variant);
 
-	// Second param: wildcard in.
 	Stack.StepCompiledIn<FProperty>(nullptr);
 	const FProperty* ValueProperty = Stack.MostRecentProperty;
 	const void* ValuePtr = Stack.MostRecentPropertyAddress;
@@ -84,7 +78,6 @@ DEFINE_FUNCTION(UKzVariantLibrary::execBreakKzVariant)
 	P_GET_ENUM_REF(EKzValidity, ExecResult);
 	P_GET_STRUCT_REF(FKzVariant, Variant);
 
-	// Read wildcard Value input.
 	Stack.MostRecentPropertyAddress = nullptr;
 	Stack.MostRecentPropertyContainer = nullptr;
 	Stack.StepCompiledIn<FProperty>(nullptr);
@@ -93,11 +86,5 @@ DEFINE_FUNCTION(UKzVariantLibrary::execBreakKzVariant)
 
 	P_FINISH;
 
-	ExecResult = EKzValidity::NotValid;
-
-	if (Variant.MatchesProperty(Stack.MostRecentProperty))
-	{
-		Stack.MostRecentProperty->CopyCompleteValue(ValuePtr, Variant.GetData());
-		ExecResult = EKzValidity::Valid;
-	}
+	ExecResult = Variant.ToProperty(Stack.MostRecentProperty, ValuePtr) ? EKzValidity::Valid : EKzValidity::NotValid;
 }

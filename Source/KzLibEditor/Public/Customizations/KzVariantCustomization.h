@@ -6,12 +6,10 @@
 #include "IPropertyTypeCustomization.h"
 #include "StructUtils/PropertyBag.h"
 
+class IPropertyUtilities;
 struct FKzVariant;
 
-/**
- * Customization for FKzVariant.
- * Shows a type selector and only the slot matching the current type.
- */
+/** Customization for FKzVariant: a type selector, and the value edited through the property of its type's bag struct. */
 class FKzVariantCustomization : public IPropertyTypeCustomization
 {
 public:
@@ -24,24 +22,11 @@ public:
 	virtual void CustomizeChildren(TSharedRef<IPropertyHandle> PropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils) override;
 
 private:
-	/** Reads the current variant from the handle. Returns nullptr if multi-edit or invalid. */
+	/** The edited variant, or null on multi-edit. */
 	const FKzVariant* GetVariant() const;
 
-	/** Returns the current variant type, or None on multi-edit/invalid. */
-	EPropertyBagPropertyType GetCurrentType() const;
-
-	/** Returns the current variant type-object (UScriptStruct/UClass/UEnum), or nullptr. */
-	const UObject* GetCurrentTypeObject() const;
-
-	/** Called when the user picks a new type from SKzTypeSelector. */
 	void OnTypeChanged(EPropertyBagPropertyType NewType, const UObject* NewTypeObject, EPropertyBagContainerType NewContainerType);
 
-	/** Maps a property bag type to its slot UPROPERTY name. */
-	static FName GetSlotPropertyName(EPropertyBagPropertyType Type);
-
-	/** Rebuilds the SEnumComboBox content. Needed because SEnumComboBox takes the UEnum* by value, so we recreate it when the variant's UEnum changes. */
-	void RebuildEnumComboBox();
-
 	TSharedPtr<IPropertyHandle> StructHandle;
-	TSharedPtr<class SBox> EnumComboHolder;
+	TSharedPtr<IPropertyUtilities> PropertyUtilities;
 };

@@ -1,105 +1,165 @@
 // Copyright 2026 kirzo
 
 #include "Core/KzVariant.h"
+#include "Misc/PackageName.h"
 #include "UObject/TextProperty.h"
 
 const FKzVariant FKzVariant::Invalid = FKzVariant();
 
+namespace KzVariantPrivate
+{
+	const FName ValueName(TEXT("Value"));
+
+	// A fixed ID makes every variant of a type resolve to the same bag struct.
+	const FGuid ValueID(0x4B7A5661, 0x7269616E, 0x7456616C, 0x75650000);
+
+	bool IsObjectType(EPropertyBagPropertyType Type)
+	{
+		return Type == EPropertyBagPropertyType::Object || Type == EPropertyBagPropertyType::SoftObject || Type == EPropertyBagPropertyType::Class || Type == EPropertyBagPropertyType::SoftClass;
+	}
+
+	bool IsSupported(EPropertyBagPropertyType Type)
+	{
+		switch (Type)
+		{
+			case EPropertyBagPropertyType::Bool:
+			case EPropertyBagPropertyType::Byte:
+			case EPropertyBagPropertyType::Int32:
+			case EPropertyBagPropertyType::Int64:
+			case EPropertyBagPropertyType::Float:
+			case EPropertyBagPropertyType::Double:
+			case EPropertyBagPropertyType::Name:
+			case EPropertyBagPropertyType::String:
+			case EPropertyBagPropertyType::Text:
+			case EPropertyBagPropertyType::Enum:
+			case EPropertyBagPropertyType::Struct:
+				return true;
+			default:
+				return IsObjectType(Type);
+		}
+	}
+
+	/** Object types without a class take any object. */
+	const UObject* ResolveTypeObject(EPropertyBagPropertyType Type, const UObject* TypeObject)
+	{
+		return !TypeObject && IsObjectType(Type) ? UObject::StaticClass() : TypeObject;
+	}
+
+	const UPropertyBag* FindBag(EPropertyBagPropertyType Type, const UObject* TypeObject)
+	{
+		if (!IsSupported(Type) || (!TypeObject && (Type == EPropertyBagPropertyType::Enum || Type == EPropertyBagPropertyType::Struct)))
+		{
+			return nullptr;
+		}
+
+		FPropertyBagPropertyDesc Desc(ValueName, Type, ResolveTypeObject(Type, TypeObject));
+		Desc.ID = ValueID;
+		return UPropertyBag::GetOrCreateFromDescs(MakeArrayView(&Desc, 1));
+	}
+
+	constexpr int32 InlineSize = sizeof(FSoftObjectPtr);
+	constexpr int32 InlineAlignment = alignof(FSoftObjectPtr);
+
+	bool IsInline(const UPropertyBag* Bag)
+	{
+		return Bag->GetStructureSize() <= InlineSize && Bag->GetMinAlignment() <= InlineAlignment;
+	}
+
+	void SkipWhitespace(const TCHAR*& Buffer)
+	{
+		while (FChar::IsWhitespace(*Buffer))
+		{
+			++Buffer;
+		}
+	}
+}
+
+FKzVariant::FKzVariant(const FKzVariant& Other)
+{
+	CopyFrom(Other);
+}
+
+FKzVariant::FKzVariant(FKzVariant&& Other)
+{
+	MoveFrom(Other);
+}
+
+FKzVariant& FKzVariant::operator=(const FKzVariant& Other)
+{
+	if (this != &Other)
+	{
+		if (Bag && Bag == Other.Bag)
+		{
+			Bag->CopyScriptStruct(GetBagMemory(), Other.GetBagMemory());
+		}
+		else
+		{
+			Reset();
+			CopyFrom(Other);
+		}
+	}
+	return *this;
+}
+
+FKzVariant& FKzVariant::operator=(FKzVariant&& Other)
+{
+	if (this != &Other)
+	{
+		Reset();
+		MoveFrom(Other);
+	}
+	return *this;
+}
+
+FKzVariant::~FKzVariant()
+{
+	Reset();
+}
+
 void FKzVariant::Reset()
 {
-	Type = EPropertyBagPropertyType::None;
-	BoolValue = false;
-	ByteValue = 0;
-	EnumType = nullptr;
-	EnumValue = 0;
-	Int32Value = 0;
-	Int64Value = 0;
-	DoubleValue = 0.0;
-	NameValue = NAME_None;
-	StringValue.Reset();
-	TextValue = FText::GetEmpty();
-	StructValue.Reset();
-	ObjectValue = nullptr;
-	SoftObjectValue.Reset();
-	ClassValue = nullptr;
-	SoftClassValue.Reset();
+	if (!Bag)
+	{
+		return;
+	}
+
+	// Through UScriptStruct, where it is public; the bag's override still runs and releases its refcount.
+	uint8* Memory = GetBagMemory();
+	static_cast<const UScriptStruct*>(Bag.Get())->DestroyStruct(Memory);
+	if (!KzVariantPrivate::IsInline(Bag))
+	{
+		FMemory::Free(Memory);
+	}
+	Bag = nullptr;
+}
+
+EPropertyBagPropertyType FKzVariant::GetType() const
+{
+	return Bag ? Bag->GetPropertyDescs()[0].ValueType : EPropertyBagPropertyType::None;
+}
+
+const UObject* FKzVariant::GetTypeObject() const
+{
+	return Bag ? Bag->GetPropertyDescs()[0].ValueTypeObject.Get() : nullptr;
 }
 
 void FKzVariant::SetType(EPropertyBagPropertyType NewType, const UObject* NewTypeObject)
 {
 	Reset();
-	Type = NewType;
+	void* Value = InitializeAs(NewType, NewTypeObject);
 
-	// For Struct, we need to seed the FInstancedStruct with the right UScriptStruct
-	// so that the editor's struct picker doesn't show "None" until the user picks one.
-	if (NewType == EPropertyBagPropertyType::Struct)
+	// Enums start at their first entry rather than at a value they may not have.
+	const UEnum* Enum = Cast<UEnum>(NewTypeObject);
+	if (Value && Enum && NewType == EPropertyBagPropertyType::Enum && Enum->NumEnums() > 1)
 	{
-		if (const UScriptStruct* ScriptStruct = Cast<UScriptStruct>(NewTypeObject))
-		{
-			StructValue.InitializeAs(ScriptStruct);
-		}
-	}
-	// For Class slot, similarly seed the class so the picker reflects the chosen UClass.
-	else if (NewType == EPropertyBagPropertyType::Class || NewType == EPropertyBagPropertyType::SoftClass)
-	{
-		if (const UClass* ChosenClass = Cast<UClass>(NewTypeObject))
-		{
-			ClassValue = const_cast<UClass*>(ChosenClass);
-		}
-	}
-	else if (NewType == EPropertyBagPropertyType::SoftObject)
-	{
-		if (const UClass* ChosenClass = Cast<UClass>(NewTypeObject))
-		{
-			ObjectValue = const_cast<UClass*>(ChosenClass);
-		}
-	}
-	else if (NewType == EPropertyBagPropertyType::Enum)
-	{
-		EnumType = const_cast<UEnum*>(Cast<UEnum>(NewTypeObject));
-		if (EnumType && EnumType->NumEnums() > 1)
-		{
-			// Seed to the first valid entry so the dropdown shows a meaningful value rather than an empty/numeric fallback.
-			EnumValue = EnumType->GetValueByIndex(0);
-		}
-	}
-}
-
-const UObject* FKzVariant::GetTypeObject() const
-{
-	switch (Type)
-	{
-		case EPropertyBagPropertyType::Struct:			return StructValue.GetScriptStruct();
-		case EPropertyBagPropertyType::Object:			return ObjectValue ? ObjectValue->GetClass() : nullptr;
-		case EPropertyBagPropertyType::Class:				return ClassValue;
-		case EPropertyBagPropertyType::SoftObject:	return ObjectValue;
-		case EPropertyBagPropertyType::SoftClass:		return ClassValue;
-		case EPropertyBagPropertyType::Enum:				return EnumType;
-		default:																		return nullptr;
+		*static_cast<uint8*>(Value) = static_cast<uint8>(Enum->GetValueByIndex(0));
 	}
 }
 
 void* FKzVariant::GetData()
 {
-	switch (Type)
-	{
-		case EPropertyBagPropertyType::Bool:				return &BoolValue;
-		case EPropertyBagPropertyType::Byte:				return &ByteValue;
-		case EPropertyBagPropertyType::Enum:				return &EnumValue;
-		case EPropertyBagPropertyType::Int32:				return &Int32Value;
-		case EPropertyBagPropertyType::Int64:				return &Int64Value;
-		case EPropertyBagPropertyType::Float:				return &DoubleValue;
-		case EPropertyBagPropertyType::Double:			return &DoubleValue;
-		case EPropertyBagPropertyType::Name:				return &NameValue;
-		case EPropertyBagPropertyType::String:			return &StringValue;
-		case EPropertyBagPropertyType::Text:				return &TextValue;
-		case EPropertyBagPropertyType::Struct:			return StructValue.GetMutableMemory();
-		case EPropertyBagPropertyType::Object:			return &ObjectValue;
-		case EPropertyBagPropertyType::SoftObject:	return &SoftObjectValue;
-		case EPropertyBagPropertyType::Class:				return &ClassValue;
-		case EPropertyBagPropertyType::SoftClass:		return &SoftClassValue;
-		default:																		return nullptr;
-	}
+	const FProperty* Property = GetValueProperty();
+	return Property ? Property->ContainerPtrToValuePtr<void>(GetBagMemory()) : nullptr;
 }
 
 const void* FKzVariant::GetData() const
@@ -107,288 +167,418 @@ const void* FKzVariant::GetData() const
 	return const_cast<FKzVariant*>(this)->GetData();
 }
 
-FKzVariant FKzVariant::FromProperty(const FProperty* Property, const void* ValuePtr)
+const FProperty* FKzVariant::GetValueProperty() const
 {
-	if (!Property || !ValuePtr) return FKzVariant();
+	return Bag ? Bag->GetPropertyDescs()[0].CachedProperty : nullptr;
+}
 
-	if (const FBoolProperty*		P = CastField<FBoolProperty>(Property))		{ return Make<bool>(P->GetPropertyValue(ValuePtr)); }
-	if (const FByteProperty*		P = CastField<FByteProperty>(Property))		{ return Make<uint8>(P->GetPropertyValue(ValuePtr)); }
-	if (const FIntProperty*			P = CastField<FIntProperty>(Property))		{ return Make<int32>(P->GetPropertyValue(ValuePtr)); }
-	if (const FInt64Property*		P = CastField<FInt64Property>(Property))	{ return Make<int64>(P->GetPropertyValue(ValuePtr)); }
-	if (const FFloatProperty*		P = CastField<FFloatProperty>(Property))	{ return Make<double>(static_cast<double>(P->GetPropertyValue(ValuePtr))); }
-	if (const FDoubleProperty*	P = CastField<FDoubleProperty>(Property))	{ return Make<double>(P->GetPropertyValue(ValuePtr)); }
-	if (const FNameProperty*		P = CastField<FNameProperty>(Property))		{ return Make<FName>(P->GetPropertyValue(ValuePtr)); }
-	if (const FStrProperty*			P = CastField<FStrProperty>(Property))		{ return Make<FString>(P->GetPropertyValue(ValuePtr)); }
-	if (const FTextProperty*		P = CastField<FTextProperty>(Property))		{ return Make<FText>(P->GetPropertyValue(ValuePtr)); }
+uint8* FKzVariant::GetBagMemory() const
+{
+	if (!Bag)
+	{
+		return nullptr;
+	}
+	return KzVariantPrivate::IsInline(Bag) ? const_cast<uint8*>(Storage) : *reinterpret_cast<uint8* const*>(Storage);
+}
 
-	if (const FStructProperty* P = CastField<FStructProperty>(Property))
+void* FKzVariant::InitializeAs(EPropertyBagPropertyType NewType, const UObject* NewTypeObject)
+{
+	if (Bag && GetType() == NewType && GetTypeObject() == KzVariantPrivate::ResolveTypeObject(NewType, NewTypeObject))
 	{
-		FKzVariant V;
-		V.Type = EPropertyBagPropertyType::Struct;
-		V.StructValue.InitializeAs(P->Struct);
-		P->Struct->CopyScriptStruct(V.StructValue.GetMutableMemory(), ValuePtr);
-		return V;
-	}
-	if (const FClassProperty* P = CastField<FClassProperty>(Property))
-	{
-		FKzVariant V;
-		V.Type = EPropertyBagPropertyType::Class;
-		V.ClassValue = Cast<UClass>(P->GetPropertyValue(ValuePtr));
-		return V;
-	}
-	if (const FSoftClassProperty* P = CastField<FSoftClassProperty>(Property))
-	{
-		FKzVariant V;
-		V.Type = EPropertyBagPropertyType::SoftClass;
-		V.ClassValue = P->MetaClass;
-		V.SoftClassValue = TSoftClassPtr<UObject>(P->GetPropertyValue(ValuePtr).ToSoftObjectPath());
-		return V;
-	}
-	if (const FObjectProperty* P = CastField<FObjectProperty>(Property))
-	{
-		FKzVariant V;
-		V.Type = EPropertyBagPropertyType::Object;
-		V.ObjectValue = P->GetPropertyValue(ValuePtr);
-		return V;
-	}
-	if (const FSoftObjectProperty* P = CastField<FSoftObjectProperty>(Property))
-	{
-		FKzVariant V;
-		V.Type = EPropertyBagPropertyType::SoftObject;
-		V.ObjectValue = P->PropertyClass;
-		V.SoftObjectValue = TSoftObjectPtr<UObject>(P->GetPropertyValue(ValuePtr).ToSoftObjectPath());
-		return V;
-	}
-	if (const FEnumProperty* P = CastField<FEnumProperty>(Property))
-	{
-		FKzVariant V;
-		V.Type = EPropertyBagPropertyType::Enum;
-		V.EnumType = P->GetEnum();
-		V.EnumValue = P->GetUnderlyingProperty()->GetSignedIntPropertyValue(ValuePtr);
-		return V;
+		return GetData();
 	}
 
-	return FKzVariant();
+	Reset();
+	const UPropertyBag* NewBag = KzVariantPrivate::FindBag(NewType, NewTypeObject);
+	if (!NewBag)
+	{
+		return nullptr;
+	}
+	Allocate(NewBag);
+	return GetData();
+}
+
+void FKzVariant::Allocate(const UPropertyBag* NewBag)
+{
+	uint8* Memory = Storage;
+	if (!KzVariantPrivate::IsInline(NewBag))
+	{
+		Memory = static_cast<uint8*>(FMemory::Malloc(NewBag->GetStructureSize(), NewBag->GetMinAlignment()));
+		*reinterpret_cast<uint8**>(Storage) = Memory;
+	}
+	static_cast<const UScriptStruct*>(NewBag)->InitializeStruct(Memory);
+	Bag = NewBag;
+}
+
+void FKzVariant::CopyFrom(const FKzVariant& Other)
+{
+	if (Other.Bag)
+	{
+		Allocate(Other.Bag);
+		Bag->CopyScriptStruct(GetBagMemory(), Other.GetBagMemory());
+	}
+}
+
+void FKzVariant::MoveFrom(FKzVariant& Other)
+{
+	// Unreal types are relocatable, so the value moves with its bytes.
+	FMemory::Memcpy(Storage, Other.Storage, sizeof(Storage));
+	Bag = Other.Bag;
+	Other.Bag = nullptr;
+}
+
+const UObject* FKzVariant::GetObject() const
+{
+	return static_cast<const TObjectPtr<UObject>*>(GetData())->Get();
+}
+
+bool FKzVariant::MatchesTypeObject(const UObject* Expected) const
+{
+	const UObject* Held = GetTypeObject();
+	if (!Expected || Held == Expected)
+	{
+		return true;
+	}
+
+	// Structs and enums match exactly; classes by inheritance.
+	const UClass* ExpectedClass = Cast<UClass>(Expected);
+	const UClass* HeldClass = Cast<UClass>(Held);
+	if (!ExpectedClass || !HeldClass)
+	{
+		return false;
+	}
+	if (HeldClass->IsChildOf(ExpectedClass))
+	{
+		return true;
+	}
+
+	// A hard reference may hold a narrower object than its declared class.
+	if (GetType() == EPropertyBagPropertyType::Object)
+	{
+		const UObject* Object = GetObject();
+		return !Object || Object->IsA(ExpectedClass);
+	}
+	return false;
+}
+
+bool FKzVariant::MatchesType(const FKzTypeDef& TypeDef) const
+{
+	return TypeDef.ContainerType == EPropertyBagContainerType::None && GetType() == TypeDef.ValueType && MatchesTypeObject(TypeDef.ValueTypeObject);
 }
 
 bool FKzVariant::MatchesProperty(const FProperty* Property) const
 {
-	if (!Property) return false;
+	if (!Property || !Bag)
+	{
+		return false;
+	}
 
-	switch (Type)
+	const UObject* TypeObject = GetTypeObject();
+	switch (GetType())
 	{
 		case EPropertyBagPropertyType::Bool:		return Property->IsA<FBoolProperty>();
 		case EPropertyBagPropertyType::Byte:		return Property->IsA<FByteProperty>();
 		case EPropertyBagPropertyType::Int32:		return Property->IsA<FIntProperty>();
 		case EPropertyBagPropertyType::Int64:		return Property->IsA<FInt64Property>();
-		case EPropertyBagPropertyType::Float:		return Property->IsA<FFloatProperty>() || Property->IsA<FDoubleProperty>();
+		case EPropertyBagPropertyType::Float:
 		case EPropertyBagPropertyType::Double:	return Property->IsA<FFloatProperty>() || Property->IsA<FDoubleProperty>();
 		case EPropertyBagPropertyType::Name:		return Property->IsA<FNameProperty>();
 		case EPropertyBagPropertyType::String:	return Property->IsA<FStrProperty>();
 		case EPropertyBagPropertyType::Text:		return Property->IsA<FTextProperty>();
 		case EPropertyBagPropertyType::Enum:
 		{
-			if (const FEnumProperty* EP = CastField<FEnumProperty>(Property)) { return EP->GetEnum() == EnumType; }
-			if (const FByteProperty* BP = CastField<FByteProperty>(Property)) { return BP->Enum == EnumType; }
-			return false;
+			if (const FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property))
+			{
+				return EnumProperty->GetEnum() == TypeObject;
+			}
+			const FByteProperty* ByteProperty = CastField<FByteProperty>(Property);
+			return ByteProperty && ByteProperty->Enum == TypeObject;
 		}
 		case EPropertyBagPropertyType::Struct:
 		{
-			const FStructProperty* SP = CastField<FStructProperty>(Property);
-			return SP && SP->Struct == StructValue.GetScriptStruct();
+			const FStructProperty* StructProperty = CastField<FStructProperty>(Property);
+			return StructProperty && StructProperty->Struct == TypeObject;
 		}
 		case EPropertyBagPropertyType::Object:
 		{
-			const FObjectProperty* OP = CastField<FObjectProperty>(Property);
-			if (!OP) { return false; }
-			if (!ObjectValue) { return true; } // null value is assignable to any object property
-			return OP->PropertyClass && ObjectValue->GetClass()->IsChildOf(OP->PropertyClass);
-		}
-		case EPropertyBagPropertyType::SoftObject:
-		{
-			const FSoftObjectProperty* SOP = CastField<FSoftObjectProperty>(Property);
-			if (!SOP) { return false; }
-			const UClass* ExpectedClass = Cast<UClass>(ObjectValue.Get());
-			if (!ExpectedClass) { return true; }
-			return SOP->PropertyClass && SOP->PropertyClass->IsChildOf(ExpectedClass);
+			const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Property);
+			const UObject* Object = GetObject();
+			return ObjectProperty && (!Object || Object->IsA(ObjectProperty->PropertyClass));
 		}
 		case EPropertyBagPropertyType::Class:
 		{
-			const FClassProperty* CP = CastField<FClassProperty>(Property);
-			if (!CP) { return false; }
-			if (!ClassValue) { return true; }
-			return CP->MetaClass && ClassValue->IsChildOf(CP->MetaClass);
+			const FClassProperty* ClassProperty = CastField<FClassProperty>(Property);
+			const UClass* Class = Cast<UClass>(GetObject());
+			return ClassProperty && (!Class || Class->IsChildOf(ClassProperty->MetaClass));
+		}
+		// A soft reference can only be checked by its declared class without loading it.
+		case EPropertyBagPropertyType::SoftObject:
+		{
+			const FSoftObjectProperty* SoftProperty = CastField<FSoftObjectProperty>(Property);
+			return SoftProperty && CastChecked<UClass>(TypeObject)->IsChildOf(SoftProperty->PropertyClass);
 		}
 		case EPropertyBagPropertyType::SoftClass:
 		{
-			const FSoftClassProperty* SCP = CastField<FSoftClassProperty>(Property);
-			if (!SCP) { return false; }
-			if (!ClassValue) { return true; }
-			return SCP->MetaClass && SCP->MetaClass->IsChildOf(ClassValue);
+			const FSoftClassProperty* SoftProperty = CastField<FSoftClassProperty>(Property);
+			return SoftProperty && CastChecked<UClass>(TypeObject)->IsChildOf(SoftProperty->MetaClass);
 		}
-		default: return false;
+		default:
+			return false;
 	}
 }
 
-bool FKzVariant::MatchesType(const FKzTypeDef& TypeDef) const
+FKzVariant FKzVariant::FromProperty(const FProperty* Property, const void* ValuePtr)
 {
-	// Variants always store scalars (for now) — reject any container type.
-	if (TypeDef.ContainerType != EPropertyBagContainerType::None) { return false; }
-
-	if (Type != TypeDef.ValueType) { return false; }
-
-	const UObject* HeldTypeObj = GetTypeObject();
-	const UObject* ExpectedTypeObj = TypeDef.ValueTypeObject;
-
-	// Primitives without an associated UObject (bool, numbers, string, name, text, byte): match as long as ValueType matches.
-	if (!ExpectedTypeObj && !HeldTypeObj) { return true; }
-	if (!ExpectedTypeObj || !HeldTypeObj) { return false; }
-
-	// Object/Class refs: allow polymorphism (held type is child of expected).
-	if (Type == EPropertyBagPropertyType::Object || Type == EPropertyBagPropertyType::SoftObject || Type == EPropertyBagPropertyType::Class || Type == EPropertyBagPropertyType::SoftClass)
+	FKzVariant Variant;
+	if (!Property || !ValuePtr)
 	{
-		const UClass* ExpectedClass = Cast<UClass>(ExpectedTypeObj);
-		const UClass* HeldClass = Cast<UClass>(HeldTypeObj);
-		return ExpectedClass && HeldClass && HeldClass->IsChildOf(ExpectedClass);
+		return Variant;
 	}
 
-	// Struct and Enum: strict identity match.
-	return ExpectedTypeObj == HeldTypeObj;
+	const FPropertyBagPropertyDesc Desc(NAME_None, Property);
+	void* Value = Desc.ContainerTypes.IsEmpty() ? Variant.InitializeAs(Desc.ValueType, Desc.ValueTypeObject) : nullptr;
+	if (!Value)
+	{
+		return Variant;
+	}
+
+	// Bools may be bitfields and enums any width; the rest share the bag property's layout.
+	if (const FBoolProperty* BoolProperty = CastField<FBoolProperty>(Property))
+	{
+		*static_cast<bool*>(Value) = BoolProperty->GetPropertyValue(ValuePtr);
+	}
+	else if (const FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property))
+	{
+		*static_cast<uint8*>(Value) = static_cast<uint8>(EnumProperty->GetUnderlyingProperty()->GetSignedIntPropertyValue(ValuePtr));
+	}
+	else
+	{
+		Property->CopyCompleteValue(Value, ValuePtr);
+	}
+	return Variant;
 }
 
 bool FKzVariant::ToProperty(const FProperty* Property, void* ValuePtr) const
 {
-	if (!MatchesProperty(Property) || !ValuePtr) return false;
-
-	const void* Src = GetData();
-	if (!Src) return false;
-
-	if (Type == EPropertyBagPropertyType::Enum)
+	if (!ValuePtr || !MatchesProperty(Property))
 	{
-		if (const FEnumProperty* P = CastField<FEnumProperty>(Property))
-		{
-			P->GetUnderlyingProperty()->SetIntPropertyValue(ValuePtr, EnumValue);
-			return true;
-		}
-		if (const FByteProperty* P = CastField<FByteProperty>(Property))
-		{
-			// FByteProperty backing an enum: width is always 1 byte; truncate explicitly.
-			P->SetPropertyValue(ValuePtr, static_cast<uint8>(EnumValue));
-			return true;
-		}
 		return false;
 	}
 
-	// Float<->Double conversion: Property may be float while we store double.
-	if (Type == EPropertyBagPropertyType::Float || Type == EPropertyBagPropertyType::Double)
+	const void* Value = GetData();
+	switch (GetType())
 	{
-		if (const FFloatProperty* P = CastField<FFloatProperty>(Property))
+		case EPropertyBagPropertyType::Bool:
+			CastFieldChecked<FBoolProperty>(Property)->SetPropertyValue(ValuePtr, *static_cast<const bool*>(Value));
+			return true;
+		case EPropertyBagPropertyType::Enum:
+			if (const FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property))
+			{
+				EnumProperty->GetUnderlyingProperty()->SetIntPropertyValue(ValuePtr, static_cast<int64>(*static_cast<const uint8*>(Value)));
+			}
+			else
+			{
+				CastFieldChecked<FByteProperty>(Property)->SetPropertyValue(ValuePtr, *static_cast<const uint8*>(Value));
+			}
+			return true;
+		case EPropertyBagPropertyType::Float:
+		case EPropertyBagPropertyType::Double:
 		{
-			P->SetPropertyValue(ValuePtr, static_cast<float>(DoubleValue));
+			const double Number = GetType() == EPropertyBagPropertyType::Float ? *static_cast<const float*>(Value) : *static_cast<const double*>(Value);
+			if (const FFloatProperty* FloatProperty = CastField<FFloatProperty>(Property))
+			{
+				FloatProperty->SetPropertyValue(ValuePtr, static_cast<float>(Number));
+			}
+			else
+			{
+				CastFieldChecked<FDoubleProperty>(Property)->SetPropertyValue(ValuePtr, Number);
+			}
 			return true;
 		}
-		if (const FDoubleProperty* P = CastField<FDoubleProperty>(Property))
-		{
-			P->SetPropertyValue(ValuePtr, DoubleValue);
+		default:
+			Property->CopyCompleteValue(ValuePtr, Value);
 			return true;
+	}
+}
+
+bool FKzVariant::Serialize(FArchive& Ar)
+{
+	// Type, type object, then the value's size so a value whose type no longer loads can be skipped.
+	if (Ar.IsLoading())
+	{
+		uint8 Type = 0;
+		Ar << Type;
+		UObject* TypeObject = nullptr;
+		Ar << TypeObject;
+		if (TypeObject)
+		{
+			Ar.Preload(TypeObject);
+		}
+		int32 SerialSize = 0;
+		Ar << SerialSize;
+
+		if (InitializeAs(static_cast<EPropertyBagPropertyType>(Type), TypeObject))
+		{
+			const_cast<UPropertyBag*>(Bag.Get())->SerializeItem(Ar, GetBagMemory(), nullptr);
+		}
+		else
+		{
+			Reset();
+			Ar.Seek(Ar.Tell() + SerialSize);
 		}
 	}
+	else if (Ar.IsSaving())
+	{
+		uint8 Type = static_cast<uint8>(GetType());
+		Ar << Type;
+		UObject* TypeObject = const_cast<UObject*>(GetTypeObject());
+		Ar << TypeObject;
 
-	Property->CopyCompleteValue(ValuePtr, Src);
+		const int64 SizeOffset = Ar.Tell();
+		int32 SerialSize = 0;
+		Ar << SerialSize;
+		const int64 ValueOffset = Ar.Tell();
+		if (Bag)
+		{
+			const_cast<UPropertyBag*>(Bag.Get())->SerializeItem(Ar, GetBagMemory(), nullptr);
+		}
+		const int64 EndOffset = Ar.Tell();
+		Ar.Seek(SizeOffset);
+		SerialSize = static_cast<int32>(EndOffset - ValueOffset);
+		Ar << SerialSize;
+		Ar.Seek(EndOffset);
+	}
+	else if (Ar.IsCountingMemory() || Ar.IsModifyingWeakAndStrongReferences() || Ar.IsObjectReferenceCollector())
+	{
+		UObject* TypeObject = const_cast<UObject*>(GetTypeObject());
+		Ar << TypeObject;
+		if (Bag)
+		{
+			const_cast<UPropertyBag*>(Bag.Get())->SerializeItem(Ar, GetBagMemory(), nullptr);
+		}
+	}
 	return true;
 }
 
-bool FKzVariant::operator==(const FKzVariant& Other) const
+bool FKzVariant::Identical(const FKzVariant* Other, uint32 PortFlags) const
 {
-	if (Type != Other.Type) return false;
-
-	switch (Type)
+	if (!Other)
 	{
-		case EPropertyBagPropertyType::None:				return true;
-		case EPropertyBagPropertyType::Bool:				return BoolValue == Other.BoolValue;
-		case EPropertyBagPropertyType::Byte:				return ByteValue == Other.ByteValue;
-		case EPropertyBagPropertyType::Enum:				return EnumType == Other.EnumType && EnumValue == Other.EnumValue;
-		case EPropertyBagPropertyType::Int32:				return Int32Value == Other.Int32Value;
-		case EPropertyBagPropertyType::Int64:				return Int64Value == Other.Int64Value;
-		case EPropertyBagPropertyType::Float:
-		case EPropertyBagPropertyType::Double:			return DoubleValue == Other.DoubleValue;
-		case EPropertyBagPropertyType::Name:				return NameValue == Other.NameValue;
-		case EPropertyBagPropertyType::String:			return StringValue == Other.StringValue;
-		case EPropertyBagPropertyType::Text:				return TextValue.EqualTo(Other.TextValue);
-		case EPropertyBagPropertyType::Struct:			return StructValue == Other.StructValue;
-		case EPropertyBagPropertyType::Object:			return ObjectValue == Other.ObjectValue;
-		case EPropertyBagPropertyType::SoftObject:	return ObjectValue == Other.ObjectValue && SoftObjectValue == Other.SoftObjectValue;
-		case EPropertyBagPropertyType::Class:				return ClassValue == Other.ClassValue;
-		case EPropertyBagPropertyType::SoftClass:		return ClassValue == Other.ClassValue && SoftClassValue == Other.SoftClassValue;
-		default:																		return false;
+		return !Bag;
+	}
+	return Bag == Other->Bag && (!Bag || Bag->CompareScriptStruct(GetBagMemory(), Other->GetBagMemory(), PortFlags));
+}
+
+void FKzVariant::AddStructReferencedObjects(FReferenceCollector& Collector)
+{
+	if (Bag)
+	{
+		Collector.AddReferencedObject(Bag);
+		Collector.AddPropertyReferencesWithStructARO(Bag, GetBagMemory());
+	}
+}
+
+bool FKzVariant::ExportTextItem(FString& ValueStr, const FKzVariant& DefaultValue, UObject* Parent, int32 PortFlags, UObject* ExportRootScope) const
+{
+	// Type name, the type object's path if any, then the bag's own text: "Struct /Script/CoreUObject.Vector(Value=(X=0,Y=0,Z=0))".
+	if (!Bag)
+	{
+		ValueStr += TEXT("None");
+		return true;
+	}
+
+	ValueStr += StaticEnum<EPropertyBagPropertyType>()->GetNameStringByValue(static_cast<int64>(GetType()));
+	if (const UObject* TypeObject = GetTypeObject())
+	{
+		ValueStr += TEXT(" ");
+		ValueStr += TypeObject->GetPathName();
+	}
+	Bag->ExportText(ValueStr, GetBagMemory(), GetBagMemory(), Parent, PortFlags, ExportRootScope);
+	return true;
+}
+
+bool FKzVariant::ImportTextItem(const TCHAR*& Buffer, int32 PortFlags, UObject* Parent, FOutputDevice* ErrorText, FArchive* InSerializingArchive)
+{
+	FNameBuilder TypeName;
+	const TCHAR* Result = FPropertyHelpers::ReadToken(Buffer, TypeName, true);
+	if (!Result)
+	{
+		return false;
+	}
+	Buffer = Result;
+
+	if (FCString::Stricmp(TypeName.ToString(), TEXT("None")) == 0)
+	{
+		Reset();
+		return true;
+	}
+
+	const int64 Type = StaticEnum<EPropertyBagPropertyType>()->GetValueByNameString(TypeName.ToString());
+	if (Type == INDEX_NONE)
+	{
+		return false;
+	}
+
+	KzVariantPrivate::SkipWhitespace(Buffer);
+	UObject* TypeObject = nullptr;
+	if (*Buffer != TCHAR('('))
+	{
+		FNameBuilder TypeObjectPath;
+		Result = FPropertyHelpers::ReadToken(Buffer, TypeObjectPath, true);
+		if (!Result || ((PortFlags & PPF_Copy) && !FPackageName::IsValidObjectPath(TypeObjectPath.ToView())))
+		{
+			return false;
+		}
+		Buffer = Result;
+		TypeObject = LoadObject<UObject>(nullptr, TypeObjectPath.ToString());
+		if (!TypeObject)
+		{
+			return false;
+		}
+	}
+
+	if (!InitializeAs(static_cast<EPropertyBagPropertyType>(Type), TypeObject))
+	{
+		return false;
+	}
+
+	const UPropertyBag* BagStruct = Bag;
+	Result = BagStruct->ImportText(Buffer, GetBagMemory(), Parent, PortFlags, ErrorText, [BagStruct]() { return BagStruct->GetName(); });
+	if (!Result)
+	{
+		return false;
+	}
+	Buffer = Result;
+	return true;
+}
+
+void FKzVariant::GetPreloadDependencies(TArray<UObject*>& OutDeps)
+{
+	if (const UObject* TypeObject = GetTypeObject())
+	{
+		OutDeps.Add(const_cast<UObject*>(TypeObject));
 	}
 }
 
 bool FKzVariant::NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bOutSuccess)
 {
-	uint8 TypeByte = static_cast<uint8>(Type);
-	Ar << TypeByte;
-	if (Ar.IsLoading())
+	uint8 Type = static_cast<uint8>(GetType());
+	Ar << Type;
+
+	UObject* TypeObject = const_cast<UObject*>(GetTypeObject());
+	if (Type != 0)
 	{
-		Type = static_cast<EPropertyBagPropertyType>(TypeByte);
+		Ar << TypeObject;
 	}
 
-	switch (Type)
+	if (Ar.IsLoading() && !InitializeAs(static_cast<EPropertyBagPropertyType>(Type), TypeObject))
 	{
-		case EPropertyBagPropertyType::None:		break;
-		case EPropertyBagPropertyType::Bool:		Ar << BoolValue;		break;
-		case EPropertyBagPropertyType::Byte:		Ar << ByteValue; break;
-		case EPropertyBagPropertyType::Enum:
-		{
-			UEnum* Enum = EnumType.Get();
-			Ar << Enum;
-			if (Ar.IsLoading()) { EnumType = Enum; }
-			Ar << EnumValue;
-			break;
-		}
-		case EPropertyBagPropertyType::Int32:		Ar << Int32Value;		break;
-		case EPropertyBagPropertyType::Int64:		Ar << Int64Value;		break;
-		case EPropertyBagPropertyType::Float:
-		case EPropertyBagPropertyType::Double:	Ar << DoubleValue;	break;
-		case EPropertyBagPropertyType::Name:		Ar << NameValue;		break;
-		case EPropertyBagPropertyType::String:	Ar << StringValue;	break;
-		case EPropertyBagPropertyType::Text:		Ar << TextValue;		break;
-		case EPropertyBagPropertyType::Struct:	StructValue.NetSerialize(Ar, Map, bOutSuccess); break;
-		case EPropertyBagPropertyType::Object:
-		{
-			UObject* Obj = ObjectValue.Get();
-			Ar << Obj;
-			if (Ar.IsLoading()) ObjectValue = Obj;
-			break;
-		}
-		case EPropertyBagPropertyType::SoftObject:
-		{
-			UObject* Obj = ObjectValue.Get();
-			Ar << Obj;
-			if (Ar.IsLoading()) { ObjectValue = Obj; }
-			Ar << SoftObjectValue;
-			break;
-		}
-		case EPropertyBagPropertyType::Class:
-		{
-			UClass* Cls = ClassValue.Get();
-			Ar << Cls;
-			if (Ar.IsLoading()) ClassValue = Cls;
-			break;
-		}
-		case EPropertyBagPropertyType::SoftClass:
-		{
-			UClass* Cls = ClassValue.Get();
-			Ar << Cls;
-			if (Ar.IsLoading()) { ClassValue = Cls; }
-			Ar << SoftClassValue;
-			break;
-		}
-		default:
-			ensureMsgf(false, TEXT("FKzVariant::NetSerialize: unhandled type %d"), (int32)Type);
-			break;
+		Reset();
+		bOutSuccess = Type == 0;
+		return true;
 	}
 
-	bOutSuccess = true;
+	const FProperty* Property = GetValueProperty();
+	bOutSuccess = !Property || Property->NetSerializeItem(Ar, Map, GetData());
 	return true;
 }

@@ -5,18 +5,17 @@
 #include "CoreMinimal.h"
 #include "Core/KzTypeDef.h"
 #include "Core/KzPropertyBagHelpers.h"
-#include "StructUtils/InstancedStruct.h"
 #include "StructUtils/PropertyBag.h"
+#include "UObject/SoftObjectPtr.h"
 #include "KzVariant.generated.h"
 
 /**
- * A type-erased value that can hold any property type supported by the KzLib param system.
- * Uses multi-slot storage so serialization, GC, replication and undo/redo work natively.
+ * A value of any type a property bag supports, containers aside. It lives inline as an instance of a property bag struct with a single
+ * property of its type, shared by every variant of that type, which copies, compares, serializes and reports it to the GC. Structs that do
+ * not fit inline go to the heap.
  *
- * Usage:
  *   FKzVariant V = FKzVariant::Make<float>(100.0f);
  *   if (V.Is<float>()) { float X = V.Get<float>(); }
- *   V.Set<int32>(42);
  */
 USTRUCT(BlueprintType)
 struct KZLIB_API FKzVariant
@@ -27,110 +26,80 @@ public:
 	static const FKzVariant Invalid;
 
 	FKzVariant() = default;
+	FKzVariant(const FKzVariant& Other);
+	FKzVariant(FKzVariant&& Other);
+	FKzVariant& operator=(const FKzVariant& Other);
+	FKzVariant& operator=(FKzVariant&& Other);
+	~FKzVariant();
 
-	/** True if the variant holds a value of any supported type. */
-	bool IsValid() const { return Type != EPropertyBagPropertyType::None; }
-
-	/** Resets the variant to an empty (invalid) state and clears all slots. */
+	bool IsValid() const { return Bag != nullptr; }
 	void Reset();
 
-	/** Returns the bag-level type of the held value. */
-	EPropertyBagPropertyType GetType() const { return Type; }
+	EPropertyBagPropertyType GetType() const;
 
-	/** Resets all slots and sets the type. The new active slot stays at its default value. */
-	void SetType(EPropertyBagPropertyType NewType, const UObject* NewTypeObject = nullptr);
-
-	/** Returns the optional UObject describing the type (UEnum, UScriptStruct, UClass) when applicable. */
+	/** The enum or struct of the type, or for object and class types the class the value must be a child of. */
 	const UObject* GetTypeObject() const;
 
-	/** Returns true if the variant holds a value compatible with type T. */
+	/** Gives the variant a type, holding that type's default value. */
+	void SetType(EPropertyBagPropertyType NewType, const UObject* NewTypeObject = nullptr);
+
 	template <typename T>
 	bool Is() const;
 
-	/** Reads the value as type T. Asserts in debug if the type doesn't match. */
 	template <typename T>
 	T Get() const;
 
-	/** Stores a value of type T, overwriting any previous content. */
 	template <typename T>
 	void Set(const T& Value);
 
-	/** Constructs a new variant holding the given value. */
 	template <typename T>
 	static FKzVariant Make(const T& Value);
 
-	/** Reads a value from a raw FProperty + memory pair into a fresh variant. */
 	static FKzVariant FromProperty(const FProperty* Property, const void* ValuePtr);
-
-	/** Writes the held value into a raw FProperty + memory pair, if the types match. Returns true on success. */
 	bool ToProperty(const FProperty* Property, void* ValuePtr) const;
 
-	/** True if Property's type and the variant's type are compatible (same category, same struct/class/enum if applicable). */
+	/** True if the value can be written into the property. */
 	bool MatchesProperty(const FProperty* Property) const;
-
-	/** True if TypeDef and the variant's type are compatible. */
 	bool MatchesType(const FKzTypeDef& TypeDef) const;
 
-	/** Returns a pointer to the active slot's raw memory, or nullptr if invalid. */
+	/** The value, laid out as GetValueProperty() expects; null when invalid. */
 	void* GetData();
 	const void* GetData() const;
+	const FProperty* GetValueProperty() const;
 
+	/** The shared struct the value is an instance of, and that instance: for editors showing the value through the struct's property. */
+	const UPropertyBag* GetBagStruct() const { return Bag; }
+	uint8* GetBagMemory() const;
+
+	bool Serialize(FArchive& Ar);
+	bool Identical(const FKzVariant* Other, uint32 PortFlags) const;
+	void AddStructReferencedObjects(FReferenceCollector& Collector);
+	bool ExportTextItem(FString& ValueStr, const FKzVariant& DefaultValue, UObject* Parent, int32 PortFlags, UObject* ExportRootScope) const;
+	bool ImportTextItem(const TCHAR*& Buffer, int32 PortFlags, UObject* Parent, FOutputDevice* ErrorText, FArchive* InSerializingArchive = nullptr);
+	void GetPreloadDependencies(TArray<UObject*>& OutDeps);
 	bool NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bOutSuccess);
-	bool operator==(const FKzVariant& Other) const;
+
+	bool operator==(const FKzVariant& Other) const { return Identical(&Other, 0); }
 	bool operator!=(const FKzVariant& Other) const { return !(*this == Other); }
 
 private:
-	UPROPERTY(EditAnywhere, Category = "KzVariant")
-	EPropertyBagPropertyType Type = EPropertyBagPropertyType::None;
+	/** Makes the variant hold the type and returns its value: kept if it already held that type, default otherwise. Null for unsupported types. */
+	void* InitializeAs(EPropertyBagPropertyType NewType, const UObject* NewTypeObject);
 
-	UPROPERTY(EditAnywhere, Category = "KzVariant")
-	bool BoolValue = false;
+	/** Default-initializes a value of the bag's type in an invalid variant. */
+	void Allocate(const UPropertyBag* NewBag);
 
-	UPROPERTY(EditAnywhere, Category = "KzVariant")
-	uint8 ByteValue = 0;
+	bool MatchesTypeObject(const UObject* Expected) const;
 
-	UPROPERTY(EditAnywhere, Category = "KzVariant")
-	TObjectPtr<UEnum> EnumType = nullptr;
+	/** The object a hard object or class reference holds. */
+	const UObject* GetObject() const;
 
-	UPROPERTY(EditAnywhere, Category = "KzVariant")
-	int64 EnumValue = 0;
+	void CopyFrom(const FKzVariant& Other);
+	void MoveFrom(FKzVariant& Other);
 
-	UPROPERTY(EditAnywhere, Category = "KzVariant")
-	int32 Int32Value = 0;
+	alignas(FSoftObjectPtr) uint8 Storage[sizeof(FSoftObjectPtr)];
 
-	UPROPERTY(EditAnywhere, Category = "KzVariant")
-	int64 Int64Value = 0;
-
-	UPROPERTY(EditAnywhere, Category = "KzVariant")
-	double DoubleValue = 0.0;
-
-	UPROPERTY(EditAnywhere, Category = "KzVariant")
-	FName NameValue;
-
-	UPROPERTY(EditAnywhere, Category = "KzVariant")
-	FString StringValue;
-
-	UPROPERTY(EditAnywhere, Category = "KzVariant")
-	FText TextValue;
-
-	UPROPERTY(EditAnywhere, Category = "KzVariant")
-	FInstancedStruct StructValue;
-
-	UPROPERTY(EditAnywhere, Category = "KzVariant")
-	TObjectPtr<UObject> ObjectValue = nullptr;
-
-	UPROPERTY(EditAnywhere, Category = "KzVariant")
-	TSoftObjectPtr<UObject> SoftObjectValue;
-
-	UPROPERTY(EditAnywhere, Category = "KzVariant")
-	TObjectPtr<UClass> ClassValue = nullptr;
-
-	UPROPERTY(EditAnywhere, Category = "KzVariant")
-	TSoftClassPtr<UObject> SoftClassValue;
-
-	/** Internal helper: validates that T matches the currently held type. */
-	template <typename T>
-	bool MatchesType() const;
+	TObjectPtr<const UPropertyBag> Bag;
 };
 
 template<>
@@ -138,110 +107,47 @@ struct TStructOpsTypeTraits<FKzVariant> : public TStructOpsTypeTraitsBase2<FKzVa
 {
 	enum
 	{
+		WithSerializer = true,
+		WithIdentical = true,
+		WithExportTextItem = true,
+		WithImportTextItem = true,
+		WithAddStructReferencedObjects = true,
+		WithGetPreloadDependencies = true,
 		WithNetSerializer = true,
 	};
 };
 
-// =====================================================================================
-// Templated API implementation
-// =====================================================================================
-
-template <typename T>
-bool FKzVariant::MatchesType() const
-{
-	using Traits = KzPropertyBag::TPropertyBagType<T>;
-	if (Type != Traits::Type)
-	{
-		return false;
-	}
-
-	const UObject* ExpectedTypeObj = Traits::GetObjectType();
-	const UObject* HeldTypeObj = GetTypeObject();
-
-	// Primitive without UObject metadata: matching by ValueType is enough.
-	if (ExpectedTypeObj == nullptr && HeldTypeObj == nullptr)
-	{
-		return true;
-	}
-
-	// No restriction stored — accept any compatible T.
-	if (HeldTypeObj == nullptr)
-	{
-		return true;
-	}
-
-	// T is generic (e.g. UObject*) but the variant stores a specific type — always compatible.
-	if (ExpectedTypeObj == nullptr)
-	{
-		return true;
-	}
-
-	// Object/Class refs: allow polymorphism (held type is child of expected).
-	if (Type == EPropertyBagPropertyType::Object ||
-		Type == EPropertyBagPropertyType::SoftObject ||
-		Type == EPropertyBagPropertyType::Class ||
-		Type == EPropertyBagPropertyType::SoftClass)
-	{
-		const UClass* ExpectedClass = Cast<UClass>(ExpectedTypeObj);
-		const UClass* HeldClass = Cast<UClass>(HeldTypeObj);
-		return ExpectedClass && HeldClass && HeldClass->IsChildOf(ExpectedClass);
-	}
-
-	// Structs and enums require exact match.
-	return ExpectedTypeObj == HeldTypeObj;
-}
-
 template <typename T>
 bool FKzVariant::Is() const
 {
-	return MatchesType<T>();
+	using Traits = KzPropertyBag::TPropertyBagType<T>;
+	return GetType() == Traits::Type && MatchesTypeObject(Traits::GetObjectType());
 }
 
 template <typename T>
 T FKzVariant::Get() const
 {
-	checkf(MatchesType<T>(), TEXT("FKzVariant::Get<T>: type mismatch"));
+	checkf(Is<T>(), TEXT("FKzVariant::Get<T>: type mismatch"));
 
 	using Traits = KzPropertyBag::TPropertyBagType<T>;
+	const void* Value = GetData();
 
-	if constexpr (std::is_same_v<T, bool>) { return BoolValue; }
-	else if constexpr (std::is_same_v<T, uint8>) { return ByteValue; }
-	else if constexpr (std::is_same_v<T, int32>) { return Int32Value; }
-	else if constexpr (std::is_same_v<T, int64>) { return Int64Value; }
-	else if constexpr (std::is_same_v<T, float>) { return static_cast<float>(DoubleValue); }
-	else if constexpr (std::is_same_v<T, double>) { return DoubleValue; }
-	else if constexpr (std::is_same_v<T, FName>) { return NameValue; }
-	else if constexpr (std::is_same_v<T, FString>) { return StringValue; }
-	else if constexpr (std::is_same_v<T, FText>) { return TextValue; }
-	else if constexpr (Traits::Type == EPropertyBagPropertyType::Enum)
+	if constexpr (Traits::Type == EPropertyBagPropertyType::Enum)
 	{
-		return static_cast<T>(EnumValue);
-	}
-	else if constexpr (Traits::Type == EPropertyBagPropertyType::Struct)
-	{
-		return StructValue.Get<T>();
+		return static_cast<T>(*static_cast<const uint8*>(Value));
 	}
 	else if constexpr (Traits::Type == EPropertyBagPropertyType::Object)
 	{
-		// T is T* or TObjectPtr<T>. Both convert from raw UObject*.
-		return Cast<std::remove_pointer_t<std::decay_t<T>>>(ObjectValue.Get());
+		using ObjectType = std::remove_pointer_t<decltype(ToRawPtr(std::declval<T>()))>;
+		return Cast<ObjectType>(static_cast<const TObjectPtr<UObject>*>(Value)->Get());
 	}
-	else if constexpr (Traits::Type == EPropertyBagPropertyType::SoftObject)
+	else if constexpr (Traits::Type == EPropertyBagPropertyType::SoftObject || Traits::Type == EPropertyBagPropertyType::SoftClass)
 	{
-		return T(SoftObjectValue.ToSoftObjectPath());
-	}
-	else if constexpr (Traits::Type == EPropertyBagPropertyType::Class)
-	{
-		return T(ClassValue.Get());
-	}
-	else if constexpr (Traits::Type == EPropertyBagPropertyType::SoftClass)
-	{
-		return T(SoftClassValue.ToSoftObjectPath());
+		return T(static_cast<const FSoftObjectPtr*>(Value)->ToSoftObjectPath());
 	}
 	else
 	{
-		static_assert(sizeof(T) == 0, "FKzVariant::Get<T>: unsupported type");
-		return T{};
+		return *static_cast<const T*>(Value);
 	}
 }
 
@@ -249,56 +155,31 @@ template <typename T>
 void FKzVariant::Set(const T& Value)
 {
 	using Traits = KzPropertyBag::TPropertyBagType<T>;
+	void* Data = InitializeAs(Traits::Type, Traits::GetObjectType());
+	check(Data);
 
-	Reset();
-	Type = Traits::Type;
-
-	if constexpr (std::is_same_v<T, bool>) { BoolValue = Value; }
-	else if constexpr (std::is_same_v<T, uint8>) { ByteValue = Value; }
-	else if constexpr (std::is_same_v<T, int32>) { Int32Value = Value; }
-	else if constexpr (std::is_same_v<T, int64>) { Int64Value = Value; }
-	else if constexpr (std::is_same_v<T, float>) { DoubleValue = Value; }
-	else if constexpr (std::is_same_v<T, double>) { DoubleValue = Value; }
-	else if constexpr (std::is_same_v<T, FName>) { NameValue = Value; }
-	else if constexpr (std::is_same_v<T, FString>) { StringValue = Value; }
-	else if constexpr (std::is_same_v<T, FText>) { TextValue = Value; }
-	else if constexpr (Traits::Type == EPropertyBagPropertyType::Enum)
+	if constexpr (Traits::Type == EPropertyBagPropertyType::Enum)
 	{
-		EnumValue = static_cast<int64>(Value);
-		EnumType = const_cast<UEnum*>(Cast<UEnum>(Traits::GetObjectType()));
-	}
-	else if constexpr (Traits::Type == EPropertyBagPropertyType::Struct)
-	{
-		StructValue.InitializeAs<T>(Value);
+		*static_cast<uint8*>(Data) = static_cast<uint8>(Value);
 	}
 	else if constexpr (Traits::Type == EPropertyBagPropertyType::Object)
 	{
-		ObjectValue = Value;
+		*static_cast<TObjectPtr<UObject>*>(Data) = ToRawPtr(Value);
 	}
-	else if constexpr (Traits::Type == EPropertyBagPropertyType::SoftObject)
+	else if constexpr (Traits::Type == EPropertyBagPropertyType::SoftObject || Traits::Type == EPropertyBagPropertyType::SoftClass)
 	{
-		SoftObjectValue = TSoftObjectPtr<UObject>(Value.ToSoftObjectPath());
-		ObjectValue = const_cast<UClass*>(Cast<UClass>(Traits::GetObjectType()));
-	}
-	else if constexpr (Traits::Type == EPropertyBagPropertyType::Class)
-	{
-		ClassValue = Value.Get();
-	}
-	else if constexpr (Traits::Type == EPropertyBagPropertyType::SoftClass)
-	{
-		SoftClassValue = TSoftClassPtr<UObject>(Value.ToSoftObjectPath());
-		ClassValue = const_cast<UClass*>(Cast<UClass>(Traits::GetObjectType()));
+		*static_cast<FSoftObjectPtr*>(Data) = FSoftObjectPtr(Value.ToSoftObjectPath());
 	}
 	else
 	{
-		static_assert(sizeof(T) == 0, "FKzVariant::Set<T>: unsupported type");
+		*static_cast<T*>(Data) = Value;
 	}
 }
 
 template <typename T>
 FKzVariant FKzVariant::Make(const T& Value)
 {
-	FKzVariant V;
-	V.Set<T>(Value);
-	return V;
+	FKzVariant Variant;
+	Variant.Set<T>(Value);
+	return Variant;
 }
