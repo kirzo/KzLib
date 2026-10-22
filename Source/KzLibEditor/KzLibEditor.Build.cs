@@ -31,6 +31,7 @@ public class KzLibEditor : ModuleRules
 				"ToolWidgets",
 				"ApplicationCore",
 				"EditorWidgets",
+				"DataValidation",
 				"KzLibUncooked"
 			});
 	}

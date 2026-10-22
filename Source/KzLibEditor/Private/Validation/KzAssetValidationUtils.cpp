@@ -2,17 +2,20 @@
 
 #include "Validation/KzAssetValidationUtils.h"
 #include "Validation/KzAssetValidator.h"
-#include "UObject/UObjectIterator.h"
+#include "AssetRegistry/AssetData.h"
+#include "Misc/DataValidation.h"
+#include "UObject/UObjectHash.h"
 
 TArray<const UKzAssetValidator*> FKzAssetValidationUtils::GatherValidatorsFor(const UObject* Asset)
 {
 	TArray<const UKzAssetValidator*> Result;
 	if (!IsValid(Asset)) { return Result; }
 
-	for (TObjectIterator<UClass> ClassIt; ClassIt; ++ClassIt)
+	// The class tree's derived-class map, not a walk over every loaded UClass.
+	TArray<UClass*> Classes;
+	GetDerivedClasses(UKzAssetValidator::StaticClass(), Classes);
+	for (UClass* Class : Classes)
 	{
-		UClass* Class = *ClassIt;
-		if (!Class->IsChildOf(UKzAssetValidator::StaticClass())) { continue; }
 		if (Class->HasAnyClassFlags(CLASS_Abstract | CLASS_Deprecated | CLASS_NewerVersionExists)) { continue; }
 
 		// Skip transient skeleton/reinstancer leftovers from BP recompiles.
@@ -36,4 +39,19 @@ TArray<FKzValidationIssue> FKzAssetValidationUtils::RunValidation(const UObject*
 		Validator->Validate(Asset, Issues);
 	}
 	return Issues;
+}
+
+EDataValidationResult FKzAssetValidationUtils::ReportToContext(const FAssetData& AssetData, const TArray<FKzValidationIssue>& Issues, FDataValidationContext& Context)
+{
+	bool bHasErrors = false;
+	for (const FKzValidationIssue& Issue : Issues)
+	{
+		const EMessageSeverity::Type Severity =
+			Issue.Severity == EKzValidationSeverity::Error ? EMessageSeverity::Error :
+			Issue.Severity == EKzValidationSeverity::Warning ? EMessageSeverity::Warning :
+			EMessageSeverity::Info;
+		Context.AddMessage(AssetData, Severity, Issue.Message);
+		bHasErrors |= Issue.Severity == EKzValidationSeverity::Error;
+	}
+	return bHasErrors ? EDataValidationResult::Invalid : EDataValidationResult::Valid;
 }

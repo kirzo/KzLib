@@ -5,20 +5,21 @@
 #include "CoreMinimal.h"
 #include "Core/KzValidationTypes.h"
 
+class FDataValidationContext;
 class UKzAssetValidator;
+enum class EDataValidationResult : uint8;
+struct FAssetData;
 
 /** Utilities for discovering and running validators against an asset. */
 class KZLIBEDITOR_API FKzAssetValidationUtils
 {
 public:
-	/**
-	 * Walk all loaded UClass children of UKzAssetValidator, instantiate one of each
-	 * concrete (non-abstract) class via the CDO, and ask CanValidate. Returns the
-	 * CDOs of the matching validators (no instances are spawned; CDO is sufficient
-	 * because validators are stateless).
-	 */
+	/** The CDOs of every concrete UKzAssetValidator whose CanValidate accepts Asset. Validators are stateless, so the CDO is enough. */
 	static TArray<const UKzAssetValidator*> GatherValidatorsFor(const UObject* Asset);
 
 	/** Run all matching validators against the asset and aggregate the issues. */
 	static TArray<FKzValidationIssue> RunValidation(const UObject* Asset);
+
+	/** Forwards Issues to the engine's data validation as messages on AssetData. Invalid only when one of them is an error. */
+	static EDataValidationResult ReportToContext(const FAssetData& AssetData, const TArray<FKzValidationIssue>& Issues, FDataValidationContext& Context);
 };
