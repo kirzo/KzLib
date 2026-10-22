@@ -29,21 +29,18 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Database", meta = (HideItems))
 	FKzDatabase Database;
 
-	/**
-	 * Returns the parameter definition (Type) of the data stored in this asset.
-	 * Used by container components to route queries efficiently in O(1).
-	 */
+	/** The type of the values stored in this table. */
 	FKzTypeDef GetDataType() const
 	{
 		return Database.Type;
 	}
 
 	/**
-	 * Finds the best matching item for the given query, across the parent hierarchy.
+	 * Finds the best matching item for the given query, across the parent hierarchy, and its score if asked.
 	 * @param Query What is asked for and what is true about the asker.
 	 * @return A pointer to the best matching item, or nullptr if no match was found.
 	 */
-	const FKzDatabaseItem* ResolveMatch(const FKzDatabaseQuery& Query) const;
+	const FKzDatabaseItem* ResolveMatch(const FKzDatabaseQuery& Query, int32* OutScore = nullptr) const;
 
 	/**
 	 * Templated helper to find the best match and extract its typed value directly.
@@ -63,10 +60,6 @@ public:
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
-
-protected:
-	/** Internal recursive function to find the best match and its score. */
-	const FKzDatabaseItem* ResolveBestMatchRecursive(const FKzDatabaseQuery& Query, int32& OutBestScore) const;
 
 private:
 #if WITH_EDITOR

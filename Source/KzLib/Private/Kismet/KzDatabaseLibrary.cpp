@@ -267,16 +267,13 @@ DEFINE_FUNCTION(UKzDatabaseLibrary::execResolveDatabaseQuery)
 		FPropertyBagPropertyDesc Desc(NAME_None, OutValueProp);
 		const FKzTypeDef SearchType(Desc.ContainerTypes.GetFirstContainerType(), Desc.ValueType, Desc.ValueTypeObject.Get());
 
-		if (UKzDatabaseAsset* Asset = Component->GetDatabaseAsset(SearchType))
+		if (const FKzDatabaseItem* BestItem = Component->ResolveItem(SearchType, Query))
 		{
-			if (const FKzDatabaseItem* BestItem = Asset->ResolveMatch(Query))
+			if (BestItem->Value.IsValid() && BestItem->Value.MatchesProperty(OutValueProp))
 			{
-				if (BestItem->Value.IsValid() && BestItem->Value.MatchesProperty(OutValueProp))
+				if (BestItem->Value.ToProperty(OutValueProp, OutValuePtr))
 				{
-					if (BestItem->Value.ToProperty(OutValueProp, OutValuePtr))
-					{
-						Result = EKzSearchResult::Found;
-					}
+					Result = EKzSearchResult::Found;
 				}
 			}
 		}

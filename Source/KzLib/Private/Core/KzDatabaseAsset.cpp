@@ -6,42 +6,35 @@
 #include "Misc/MessageDialog.h"
 #endif
 
-const FKzDatabaseItem* UKzDatabaseAsset::ResolveMatch(const FKzDatabaseQuery& Query) const
+namespace KzDatabaseAsset
 {
-	int32 BestScore = -1;
-	return ResolveBestMatchRecursive(Query, BestScore);
+	/** Deeper than any real hierarchy; stops a parent cycle in corrupt data. */
+	constexpr int32 MaxDepth = 32;
 }
 
-const FKzDatabaseItem* UKzDatabaseAsset::ResolveBestMatchRecursive(const FKzDatabaseQuery& Query, int32& OutBestScore) const
+const FKzDatabaseItem* UKzDatabaseAsset::ResolveMatch(const FKzDatabaseQuery& Query, int32* OutScore) const
 {
-	// 1. Find the best match locally in this Asset
-	const FKzDatabaseItem* LocalBestItem = Database.FindBestMatch(Query);
-	int32 LocalScore = -1;
+	const FKzDatabaseItem* BestItem = nullptr;
+	int32 BestScore = -1;
 
-	if (LocalBestItem)
+	// From child to root, so a parent's item only wins with a strictly better score.
+	int32 Depth = 0;
+	for (const UKzDatabaseAsset* Asset = this; Asset && Depth < KzDatabaseAsset::MaxDepth; Asset = Asset->ParentDatabase, ++Depth)
 	{
-		LocalScore = Query.CalculateScore(LocalBestItem->Tags);
+		int32 Score = -1;
+		const FKzDatabaseItem* Item = Asset->Database.FindBestMatch(Query, &Score);
+		if (Item && Score > BestScore)
+		{
+			BestItem = Item;
+			BestScore = Score;
+		}
 	}
 
-	// 2. Delegate to the parent layout, if any
-	const FKzDatabaseItem* ParentBestItem = nullptr;
-	int32 ParentScore = -1;
-
-	if (ParentDatabase && ParentDatabase != this)
+	if (OutScore)
 	{
-		ParentBestItem = ParentDatabase->ResolveBestMatchRecursive(Query, ParentScore);
+		*OutScore = BestScore;
 	}
-
-	// 3. Compare scores and return the winner.
-	// Note: Local ties win over Parent ties. A child override with the same score takes precedence.
-	if (ParentBestItem && ParentScore > LocalScore)
-	{
-		OutBestScore = ParentScore;
-		return ParentBestItem;
-	}
-
-	OutBestScore = LocalScore;
-	return LocalBestItem;
+	return BestItem;
 }
 
 #if WITH_EDITOR
@@ -89,16 +82,14 @@ void UKzDatabaseAsset::PostEditChangeProperty(FPropertyChangedEvent& PropertyCha
 
 bool UKzDatabaseAsset::HasCircularDependency(const UKzDatabaseAsset* PotentialParent) const
 {
-	const UKzDatabaseAsset* CurrentNode = PotentialParent;
-
-	// Walk up the chain to see if we eventually hit 'this'
-	while (CurrentNode)
+	// Walk up the chain to see if we eventually hit 'this'; the cap also catches a cycle that doesn't.
+	int32 Depth = 0;
+	for (const UKzDatabaseAsset* CurrentNode = PotentialParent; CurrentNode; CurrentNode = CurrentNode->ParentDatabase)
 	{
-		if (CurrentNode == this)
+		if (CurrentNode == this || ++Depth >= KzDatabaseAsset::MaxDepth)
 		{
 			return true;
 		}
-		CurrentNode = CurrentNode->ParentDatabase;
 	}
 
 	return false;

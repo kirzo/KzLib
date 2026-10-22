@@ -213,10 +213,10 @@ struct KZLIB_API FKzDatabase
 	int32 QueryItems(const FKzDatabaseQuery& Query, TArray<const FKzDatabaseItem*>& OutItems) const;
 
 	/**
-	 * Finds the single best match for the query (highest score).
+	 * Finds the single best match for the query (highest score, ties in list order), and its score if asked.
 	 * O(N) complexity and 0 heap allocations. Faster than QueryItems for single lookups.
 	 */
-	const FKzDatabaseItem* FindBestMatch(const FKzDatabaseQuery& Query) const;
+	const FKzDatabaseItem* FindBestMatch(const FKzDatabaseQuery& Query, int32* OutScore = nullptr) const;
 
 	/**
 	 * Templated helper to find the best match and extract its ID and typed Value directly.
