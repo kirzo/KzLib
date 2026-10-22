@@ -10,6 +10,7 @@
 #include "IDetailPropertyRow.h"
 #include "IPropertyUtilities.h"
 #include "IStructureDataProvider.h"
+#include "PropertyCustomizationHelpers.h"
 #include "ScopedTransaction.h"
 #include "UObject/StructOnScope.h"
 #include "Widgets/SBoxPanel.h"
@@ -115,6 +116,23 @@ namespace KzVariantCustomization
 			PropertyUtilities->RequestForceRefresh();
 		}
 	}
+
+	/** The insert, delete and duplicate menu an array element shows on the header these rows replace; null outside resizable arrays. */
+	TSharedPtr<SWidget> MakeArrayElementMenu(const TSharedRef<IPropertyHandle>& RowHandle)
+	{
+		const int32 Index = RowHandle->GetIndexInArray();
+		const TSharedPtr<IPropertyHandle> ParentHandle = RowHandle->GetParentHandle();
+		const TSharedPtr<IPropertyHandleArray> Array = ParentHandle.IsValid() ? ParentHandle->AsArray() : nullptr;
+		if (Index == INDEX_NONE || !Array.IsValid() || ParentHandle->GetProperty()->HasAnyPropertyFlags(CPF_EditFixedSize))
+		{
+			return nullptr;
+		}
+
+		return PropertyCustomizationHelpers::MakeInsertDeleteDuplicateButton(
+			FExecuteAction::CreateLambda([Array, Index]() { Array->Insert(Index); }),
+			FExecuteAction::CreateLambda([Array, Index]() { Array->DeleteItem(Index); }),
+			FExecuteAction::CreateLambda([Array, Index]() { Array->DuplicateItem(Index); }));
+	}
 }
 
 void FKzVariantCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> PropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils)
@@ -134,7 +152,7 @@ void FKzVariantCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> Prop
 			MakeTypeSelector(PropertyHandle, CustomizationUtils.GetPropertyUtilities())
 		];
 
-	AddVariantRow(PropertyHandle, ChildBuilder, NameWidget);
+	AddVariantRow(PropertyHandle, PropertyHandle, ChildBuilder, NameWidget);
 }
 
 TSharedRef<SWidget> FKzVariantCustomization::MakeTypeSelector(const TSharedRef<IPropertyHandle>& VariantHandle, const TSharedPtr<IPropertyUtilities>& PropertyUtilities)
@@ -158,40 +176,98 @@ TSharedRef<SWidget> FKzVariantCustomization::MakeTypeSelector(const TSharedRef<I
 		});
 }
 
-void FKzVariantCustomization::AddVariantRow(const TSharedRef<IPropertyHandle>& VariantHandle, IDetailChildrenBuilder& ChildBuilder, const TSharedRef<SWidget>& NameWidget)
+void FKzVariantCustomization::AddVariantRow(const TSharedRef<IPropertyHandle>& RowHandle, const TSharedRef<IPropertyHandle>& VariantHandle, IDetailChildrenBuilder& ChildBuilder, const TSharedRef<SWidget>& NameWidget)
 {
+	const TSharedPtr<SWidget> ArrayElementMenu = KzVariantCustomization::MakeArrayElementMenu(RowHandle);
+
 	const TSharedRef<KzVariantCustomization::FValueProvider> Provider = MakeShared<KzVariantCustomization::FValueProvider>(VariantHandle);
 	if (!Provider->IsValid())
 	{
 		// No type yet, or several at once: just the name and the type selector.
-		ChildBuilder.AddCustomRow(VariantHandle->GetPropertyDisplayName())
-			.NameContent()
+		FDetailWidgetRow& Row = ChildBuilder.AddCustomRow(RowHandle->GetPropertyDisplayName());
+		Row.NameContent()
 			[
 				NameWidget
 			];
+		if (ArrayElementMenu.IsValid())
+		{
+			Row.ExtensionContent()
+				[
+					ArrayElementMenu.ToSharedRef()
+				];
+		}
 		return;
 	}
 
 	// The bag struct holds one property, so this is the value's row.
 	for (const TSharedPtr<IPropertyHandle>& ValueHandle : VariantHandle->AddChildStructure(Provider))
 	{
-		IDetailPropertyRow& Row = ChildBuilder.AddProperty(ValueHandle.ToSharedRef());
+		IDetailPropertyRow& PropertyRow = ChildBuilder.AddProperty(ValueHandle.ToSharedRef());
 		TSharedPtr<SWidget> DefaultNameWidget;
 		TSharedPtr<SWidget> ValueWidget;
 		FDetailWidgetRow DefaultRow;
-		Row.GetDefaultWidgets(DefaultNameWidget, ValueWidget, DefaultRow);
-		Row.CustomWidget(/*bShowChildren=*/true)
-			.NameContent()
+		PropertyRow.GetDefaultWidgets(DefaultNameWidget, ValueWidget, DefaultRow);
+
+		FDetailWidgetRow& Row = PropertyRow.CustomWidget(/*bShowChildren=*/true);
+		Row.NameContent()
 			.HAlign(HAlign_Fill)
 			[
 				NameWidget
-			]
-			.ValueContent()
+			];
+		Row.ValueContent()
 			.HAlign(HAlign_Fill)
 			[
 				ValueWidget.ToSharedRef()
 			];
+		if (ArrayElementMenu.IsValid())
+		{
+			Row.ExtensionContent()
+				[
+					ArrayElementMenu.ToSharedRef()
+				];
+		}
 	}
+}
+
+void FKzNamedVariantCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> PropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils)
+{
+	const TSharedPtr<IPropertyHandle> NameHandle = PropertyHandle->GetChildHandle(TEXT("Name"));
+	const TSharedPtr<IPropertyHandle> ValueHandle = PropertyHandle->GetChildHandle(TEXT("Value"));
+	if (!NameHandle.IsValid() || !ValueHandle.IsValid())
+	{
+		return;
+	}
+
+	const TSharedRef<SHorizontalBox> NameWidget = SNew(SHorizontalBox);
+
+	// In an array the name box says more than the index would.
+	if (PropertyHandle->GetIndexInArray() == INDEX_NONE)
+	{
+		NameWidget->AddSlot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			.Padding(0.0f, 0.0f, 12.0f, 0.0f)
+			[
+				PropertyHandle->CreatePropertyNameWidget()
+			];
+	}
+
+	NameWidget->AddSlot()
+		.FillWidth(1.0f)
+		.VAlign(VAlign_Center)
+		[
+			NameHandle->CreatePropertyValueWidget()
+		];
+
+	NameWidget->AddSlot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		.Padding(12.0f, 0.0f, 0.0f, 0.0f)
+		[
+			FKzVariantCustomization::MakeTypeSelector(ValueHandle.ToSharedRef(), CustomizationUtils.GetPropertyUtilities())
+		];
+
+	FKzVariantCustomization::AddVariantRow(PropertyHandle, ValueHandle.ToSharedRef(), ChildBuilder, NameWidget);
 }
 
 #undef LOCTEXT_NAMESPACE
