@@ -170,9 +170,9 @@ TSharedRef<SWidget> FKzVariantCustomization::MakeTypeSelector(const TSharedRef<I
 			const FKzVariant* Variant = KzVariantCustomization::GetVariant(VariantHandle);
 			return Variant ? Variant->GetTypeObject() : nullptr;
 		})
-		.OnTypeChanged_Lambda([VariantHandle, PropertyUtilities](EPropertyBagPropertyType NewType, const UObject* NewTypeObject, EPropertyBagContainerType)
+		.OnTypeChanged_Lambda([VariantHandle, WeakUtilities = TWeakPtr<IPropertyUtilities>(PropertyUtilities)](EPropertyBagPropertyType NewType, const UObject* NewTypeObject, EPropertyBagContainerType)
 		{
-			KzVariantCustomization::SetType(VariantHandle, PropertyUtilities, NewType, NewTypeObject);
+			KzVariantCustomization::SetType(VariantHandle, WeakUtilities.Pin(), NewType, NewTypeObject);
 		});
 }
 

@@ -8,7 +8,7 @@
 class IPropertyUtilities;
 
 /** Customization for FKzVariant: a single row with the type selector by the name and the value, edited through its type's bag struct, on the right. */
-class FKzVariantCustomization : public IPropertyTypeCustomization
+class KZLIBEDITOR_API FKzVariantCustomization : public IPropertyTypeCustomization
 {
 public:
 	static TSharedRef<IPropertyTypeCustomization> MakeInstance()
