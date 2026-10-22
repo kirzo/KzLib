@@ -4,12 +4,10 @@
 
 #include "CoreMinimal.h"
 #include "IPropertyTypeCustomization.h"
-#include "StructUtils/PropertyBag.h"
 
 class IPropertyUtilities;
-struct FKzVariant;
 
-/** Customization for FKzVariant: a type selector, and the value edited through the property of its type's bag struct. */
+/** Customization for FKzVariant: a single row with the type selector by the name and the value, edited through its type's bag struct, on the right. */
 class FKzVariantCustomization : public IPropertyTypeCustomization
 {
 public:
@@ -18,15 +16,13 @@ public:
 		return MakeShareable(new FKzVariantCustomization);
 	}
 
-	virtual void CustomizeHeader(TSharedRef<IPropertyHandle> PropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& CustomizationUtils) override;
+	/** Left empty, so the variant shows as its value row alone. */
+	virtual void CustomizeHeader(TSharedRef<IPropertyHandle> PropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& CustomizationUtils) override {}
 	virtual void CustomizeChildren(TSharedRef<IPropertyHandle> PropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils) override;
 
-private:
-	/** The edited variant, or null on multi-edit. */
-	const FKzVariant* GetVariant() const;
+	/** The variant's type selector, collapsed when its type is fixed. */
+	static TSharedRef<SWidget> MakeTypeSelector(const TSharedRef<IPropertyHandle>& VariantHandle, const TSharedPtr<IPropertyUtilities>& PropertyUtilities);
 
-	void OnTypeChanged(EPropertyBagPropertyType NewType, const UObject* NewTypeObject, EPropertyBagContainerType NewContainerType);
-
-	TSharedPtr<IPropertyHandle> StructHandle;
-	TSharedPtr<IPropertyUtilities> PropertyUtilities;
+	/** Adds the variant as one row: NameWidget on the left, the value on the right. Struct values keep their members as children. */
+	static void AddVariantRow(const TSharedRef<IPropertyHandle>& VariantHandle, IDetailChildrenBuilder& ChildBuilder, const TSharedRef<SWidget>& NameWidget);
 };

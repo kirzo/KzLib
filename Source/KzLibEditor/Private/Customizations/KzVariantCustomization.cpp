@@ -7,10 +7,12 @@
 
 #include "DetailWidgetRow.h"
 #include "IDetailChildrenBuilder.h"
+#include "IDetailPropertyRow.h"
 #include "IPropertyUtilities.h"
 #include "IStructureDataProvider.h"
 #include "ScopedTransaction.h"
 #include "UObject/StructOnScope.h"
+#include "Widgets/SBoxPanel.h"
 
 #define LOCTEXT_NAMESPACE "KzVariantCustomization"
 
@@ -80,89 +82,115 @@ namespace KzVariantCustomization
 	private:
 		TSharedRef<IPropertyHandle> Handle;
 	};
-}
 
-void FKzVariantCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> PropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& CustomizationUtils)
-{
-	StructHandle = PropertyHandle;
-
-	if (FKzPropertyHandleUtils::HasMetaDataInHierarchy(PropertyHandle, TEXT("ShowOnlyInnerProperties")))
+	/** The edited variant, or null on multi-edit. */
+	const FKzVariant* GetVariant(const TSharedRef<IPropertyHandle>& Handle)
 	{
-		return;
+		TArray<void*> RawData;
+		Handle->AccessRawData(RawData);
+		return RawData.Num() == 1 ? static_cast<const FKzVariant*>(RawData[0]) : nullptr;
 	}
 
-	HeaderRow
-		.NameContent()
-		[
-			PropertyHandle->CreatePropertyNameWidget()
-		]
-		.ValueContent()
-		[
-			SNew(SKzTypeSelector)
-				.AllowArrays(false)
-				.Visibility_Lambda([this]() { return FKzPropertyHandleUtils::HasMetaDataInHierarchy(StructHandle, TEXT("FixedType")) ? EVisibility::Collapsed : EVisibility::Visible; })
-				.ValueType_Lambda([this]() { const FKzVariant* Variant = GetVariant(); return Variant ? Variant->GetType() : EPropertyBagPropertyType::None; })
-				.ValueTypeObject_Lambda([this]() { const FKzVariant* Variant = GetVariant(); return Variant ? Variant->GetTypeObject() : nullptr; })
-				.OnTypeChanged(this, &FKzVariantCustomization::OnTypeChanged)
-		];
+	void SetType(const TSharedRef<IPropertyHandle>& Handle, const TSharedPtr<IPropertyUtilities>& PropertyUtilities, EPropertyBagPropertyType NewType, const UObject* NewTypeObject)
+	{
+		FScopedTransaction Transaction(LOCTEXT("ChangeVariantType", "Change Variant Type"));
+		Handle->NotifyPreChange();
+
+		TArray<void*> RawData;
+		Handle->AccessRawData(RawData);
+		for (void* Data : RawData)
+		{
+			if (Data)
+			{
+				static_cast<FKzVariant*>(Data)->SetType(NewType, NewTypeObject);
+			}
+		}
+
+		Handle->NotifyPostChange(EPropertyChangeType::ValueSet);
+		Handle->NotifyFinishedChangingProperties();
+
+		// The value row belongs to the old type's struct.
+		if (PropertyUtilities.IsValid())
+		{
+			PropertyUtilities->RequestForceRefresh();
+		}
+	}
 }
 
 void FKzVariantCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> PropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils)
 {
-	StructHandle = PropertyHandle;
-	PropertyUtilities = CustomizationUtils.GetPropertyUtilities();
+	const TSharedRef<SWidget> NameWidget = SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		[
+			PropertyHandle->CreatePropertyNameWidget()
+		]
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		.Padding(12.0f, 0.0f, 0.0f, 0.0f)
+		[
+			MakeTypeSelector(PropertyHandle, CustomizationUtils.GetPropertyUtilities())
+		];
 
-	const TSharedRef<KzVariantCustomization::FValueProvider> Provider = MakeShared<KzVariantCustomization::FValueProvider>(PropertyHandle);
+	AddVariantRow(PropertyHandle, ChildBuilder, NameWidget);
+}
+
+TSharedRef<SWidget> FKzVariantCustomization::MakeTypeSelector(const TSharedRef<IPropertyHandle>& VariantHandle, const TSharedPtr<IPropertyUtilities>& PropertyUtilities)
+{
+	return SNew(SKzTypeSelector)
+		.AllowArrays(false)
+		.Visibility(FKzPropertyHandleUtils::HasMetaDataInHierarchy(VariantHandle, TEXT("FixedType")) ? EVisibility::Collapsed : EVisibility::Visible)
+		.ValueType_Lambda([VariantHandle]()
+		{
+			const FKzVariant* Variant = KzVariantCustomization::GetVariant(VariantHandle);
+			return Variant ? Variant->GetType() : EPropertyBagPropertyType::None;
+		})
+		.ValueTypeObject_Lambda([VariantHandle]()
+		{
+			const FKzVariant* Variant = KzVariantCustomization::GetVariant(VariantHandle);
+			return Variant ? Variant->GetTypeObject() : nullptr;
+		})
+		.OnTypeChanged_Lambda([VariantHandle, PropertyUtilities](EPropertyBagPropertyType NewType, const UObject* NewTypeObject, EPropertyBagContainerType)
+		{
+			KzVariantCustomization::SetType(VariantHandle, PropertyUtilities, NewType, NewTypeObject);
+		});
+}
+
+void FKzVariantCustomization::AddVariantRow(const TSharedRef<IPropertyHandle>& VariantHandle, IDetailChildrenBuilder& ChildBuilder, const TSharedRef<SWidget>& NameWidget)
+{
+	const TSharedRef<KzVariantCustomization::FValueProvider> Provider = MakeShared<KzVariantCustomization::FValueProvider>(VariantHandle);
 	if (!Provider->IsValid())
 	{
+		// No type yet, or several at once: just the name and the type selector.
+		ChildBuilder.AddCustomRow(VariantHandle->GetPropertyDisplayName())
+			.NameContent()
+			[
+				NameWidget
+			];
 		return;
 	}
 
-	for (const TSharedPtr<IPropertyHandle>& ChildHandle : PropertyHandle->AddChildStructure(Provider))
+	// The bag struct holds one property, so this is the value's row.
+	for (const TSharedPtr<IPropertyHandle>& ValueHandle : VariantHandle->AddChildStructure(Provider))
 	{
-		ChildBuilder.AddProperty(ChildHandle.ToSharedRef());
-	}
-}
-
-const FKzVariant* FKzVariantCustomization::GetVariant() const
-{
-	if (!StructHandle.IsValid())
-	{
-		return nullptr;
-	}
-
-	TArray<void*> RawData;
-	StructHandle->AccessRawData(RawData);
-	return RawData.Num() == 1 ? static_cast<const FKzVariant*>(RawData[0]) : nullptr;
-}
-
-void FKzVariantCustomization::OnTypeChanged(EPropertyBagPropertyType NewType, const UObject* NewTypeObject, EPropertyBagContainerType NewContainerType)
-{
-	if (!StructHandle.IsValid())
-	{
-		return;
-	}
-
-	FScopedTransaction Transaction(LOCTEXT("ChangeVariantType", "Change Variant Type"));
-	StructHandle->NotifyPreChange();
-
-	TArray<void*> RawData;
-	StructHandle->AccessRawData(RawData);
-	for (void* Data : RawData)
-	{
-		if (Data)
-		{
-			static_cast<FKzVariant*>(Data)->SetType(NewType, NewTypeObject);
-		}
-	}
-
-	StructHandle->NotifyPostChange(EPropertyChangeType::ValueSet);
-	StructHandle->NotifyFinishedChangingProperties();
-
-	// The value row belongs to the old type's struct.
-	if (PropertyUtilities.IsValid())
-	{
-		PropertyUtilities->RequestForceRefresh();
+		IDetailPropertyRow& Row = ChildBuilder.AddProperty(ValueHandle.ToSharedRef());
+		TSharedPtr<SWidget> DefaultNameWidget;
+		TSharedPtr<SWidget> ValueWidget;
+		FDetailWidgetRow DefaultRow;
+		Row.GetDefaultWidgets(DefaultNameWidget, ValueWidget, DefaultRow);
+		Row.CustomWidget(/*bShowChildren=*/true)
+			.NameContent()
+			.HAlign(HAlign_Fill)
+			[
+				NameWidget
+			]
+			.ValueContent()
+			.HAlign(HAlign_Fill)
+			[
+				ValueWidget.ToSharedRef()
+			];
 	}
 }
 
