@@ -22,6 +22,11 @@
 
 #include "Core/KzDatabaseAsset.h"
 #include "Widgets/SKzDatabaseQueryTester.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Framework/Docking/TabManager.h"
+#include "Widgets/Docking/SDockTab.h"
+#include "WorkspaceMenuStructure.h"
+#include "WorkspaceMenuStructureModule.h"
 
 #include "Components/KzComponentReference.h"
 #include "Customizations/KzComponentReferenceCustomization.h"
@@ -61,7 +66,7 @@ void FKzLibEditorModule::OnStartupModule()
 		QueryTab.IconStyleName = TEXT("Icons.Search");
 		QueryTab.MakeWidget = [](UObject* Asset) -> TSharedRef<SWidget>
 		{
-			return SNew(SKzDatabaseQueryTester, Cast<UKzDatabaseAsset>(Asset));
+			return SNew(SKzDatabaseQueryTester).Object(Asset);
 		};
 	}
 
@@ -72,10 +77,28 @@ void FKzLibEditorModule::OnStartupModule()
 		TArray<FText>{},
 		DatabaseTabs,
 		DatabaseCustomTabs);
+
+	// The same tester for any object and user, such as an item against a character Blueprint
+	FGlobalTabmanager::Get()->RegisterNomadTabSpawner(SKzDatabaseQueryTester::TabId, FOnSpawnTab::CreateLambda([](const FSpawnTabArgs&)
+		{
+			return SNew(SDockTab)
+				.TabRole(ETabRole::NomadTab)
+				[
+					SNew(SKzDatabaseQueryTester)
+				];
+		}))
+		.SetDisplayName(LOCTEXT("QueryTestTab", "Database Query Test"))
+		.SetTooltipText(LOCTEXT("QueryTestTabTooltip", "Try a database query about an object made by a user, and see which row wins and why the others lose."))
+		.SetGroup(WorkspaceMenu::GetMenuStructure().GetToolsCategory())
+		.SetIcon(FSlateIcon(FKzLibEditorStyle::Get().GetStyleSetName(), "ClassIcon.KzDatabaseAsset"));
 }
 
 void FKzLibEditorModule::OnShutdownModule()
 {
+	if (FSlateApplication::IsInitialized())
+	{
+		FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(SKzDatabaseQueryTester::TabId);
+	}
 	FKzLibEditorStyle::Shutdown();
 }
 

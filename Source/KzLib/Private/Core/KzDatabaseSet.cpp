@@ -43,6 +43,26 @@ const FKzDatabaseItem* FKzDatabaseSet::ResolveItem(const FKzTypeDef& Type, const
 	return BestItem;
 }
 
+const FKzDatabaseItem* FKzDatabaseSet::Resolve(const FKzTypeDef& Type, const FKzDatabaseQuery& Query, const FKzDatabaseSet* ObjectTables, const FGameplayTagContainer& ObjectTags, const FKzDatabaseSet* UserTables, const FGameplayTagContainer& UserTags, bool* bOutFromUser)
+{
+	FKzDatabaseQuery ContextQuery = Query;
+	ContextQuery.ContextTags.AppendTags(ObjectTags);
+	ContextQuery.ContextTags.AppendTags(UserTags);
+
+	int32 ObjectScore = -1;
+	const FKzDatabaseItem* ObjectItem = ObjectTables ? ObjectTables->ResolveItem(Type, ContextQuery, &ObjectScore) : nullptr;
+	int32 UserScore = -1;
+	const FKzDatabaseItem* UserItem = UserTables ? UserTables->ResolveItem(Type, ContextQuery, &UserScore) : nullptr;
+
+	// The user overrides the object only with a more specific row.
+	const bool bFromUser = UserItem && UserScore > ObjectScore;
+	if (bOutFromUser)
+	{
+		*bOutFromUser = bFromUser;
+	}
+	return bFromUser ? UserItem : ObjectItem;
+}
+
 void FKzDatabaseSet::GetSoftValuePaths(TArray<FSoftObjectPath>& OutPaths) const
 {
 	for (const FKzDatabase& Table : Tables)

@@ -28,4 +28,10 @@ struct KZLIB_API FKzDatabaseSet
 
 	/** The soft values the tables can answer with, parents included, added to OutPaths once each. */
 	void GetSoftValuePaths(TArray<FSoftObjectPath>& OutPaths) const;
+
+	/**
+	 * A query about an object made by a user, on their tables and tags: both's tags join the context, the object's tables answer, and the user's
+	 * override them only with a more specific row. Says whose row won when asked.
+	 */
+	static const FKzDatabaseItem* Resolve(const FKzTypeDef& Type, const FKzDatabaseQuery& Query, const FKzDatabaseSet* ObjectTables, const FGameplayTagContainer& ObjectTags, const FKzDatabaseSet* UserTables, const FGameplayTagContainer& UserTags, bool* bOutFromUser = nullptr);
 };

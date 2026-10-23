@@ -34,6 +34,7 @@ public class KzLibEditor : ModuleRules
 				"DataValidation",
 				"GameplayTags",
 				"GameplayTagsEditor",
+				"WorkspaceMenuStructure",
 				"KzLibUncooked"
 			});
 	}

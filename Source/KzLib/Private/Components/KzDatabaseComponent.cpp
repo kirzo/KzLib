@@ -26,27 +26,19 @@ UKzDatabaseComponent::UKzDatabaseComponent()
 const FKzDatabaseItem* UKzDatabaseComponent::ResolveItem(const FKzTypeDef& Type, const FKzDatabaseQuery& Query) const
 {
 	FKzDatabaseQuery ContextQuery = Query;
-	AppendContextTags(ContextQuery.ContextTags);
+	AppendDatabaseTags(ContextQuery.ContextTags);
 	return Databases.ResolveItem(Type, ContextQuery);
 }
 
 const FKzDatabaseItem* UKzDatabaseComponent::ResolveItem(const FKzTypeDef& Type, const FKzDatabaseQuery& Query, const FKzDatabaseSet* ObjectTables, const FGameplayTagContainer& ObjectTags, const AActor* User)
 {
-	FKzDatabaseQuery ContextQuery = Query;
-	ContextQuery.ContextTags.AppendTags(ObjectTags);
-	AppendContextTags(User, ContextQuery.ContextTags);
-
-	int32 ObjectScore = -1;
-	const FKzDatabaseItem* ObjectItem = ObjectTables ? ObjectTables->ResolveItem(Type, ContextQuery, &ObjectScore) : nullptr;
-
-	// The user overrides the object only with a more specific row.
 	const UKzDatabaseComponent* UserComponent = User ? User->FindComponentByClass<UKzDatabaseComponent>() : nullptr;
-	int32 UserScore = -1;
-	const FKzDatabaseItem* UserItem = UserComponent ? UserComponent->Databases.ResolveItem(Type, ContextQuery, &UserScore) : nullptr;
-	return UserItem && UserScore > ObjectScore ? UserItem : ObjectItem;
+	FGameplayTagContainer UserTags;
+	AppendContextTags(User, UserTags);
+	return FKzDatabaseSet::Resolve(Type, Query, ObjectTables, ObjectTags, UserComponent ? &UserComponent->Databases : nullptr, UserTags);
 }
 
-void UKzDatabaseComponent::AppendContextTags(FGameplayTagContainer& OutTags) const
+void UKzDatabaseComponent::AppendDatabaseTags(FGameplayTagContainer& OutTags) const
 {
 	OutTags.AppendTags(Tags);
 	KzDatabaseComponent::AppendGameplayTags(GetOwner(), OutTags);
@@ -56,7 +48,7 @@ void UKzDatabaseComponent::AppendContextTags(const AActor* Actor, FGameplayTagCo
 {
 	if (const UKzDatabaseComponent* Component = Actor ? Actor->FindComponentByClass<UKzDatabaseComponent>() : nullptr)
 	{
-		Component->AppendContextTags(OutTags);
+		Component->AppendDatabaseTags(OutTags);
 	}
 	else
 	{

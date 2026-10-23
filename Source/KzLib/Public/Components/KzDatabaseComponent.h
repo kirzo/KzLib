@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "GameFramework/Actor.h"
+#include "Core/KzDatabaseOwner.h"
 #include "Core/KzDatabaseSet.h"
 #include "KzDatabaseComponent.generated.h"
 
@@ -16,7 +17,7 @@ struct FStreamableHandle;
  * A query about an object made by a user goes to both: the object's tables answer, and the user's override them only with a more specific row.
  */
 UCLASS(ClassGroup = (Database), meta = (BlueprintSpawnableComponent))
-class KZLIB_API UKzDatabaseComponent : public UActorComponent
+class KZLIB_API UKzDatabaseComponent : public UActorComponent, public IKzDatabaseOwner
 {
 	GENERATED_BODY()
 
@@ -59,8 +60,11 @@ public:
 	/** A query about an object made by a user: both's tags join the context, the object's tables answer, and the user's override them only with a more specific row. */
 	static const FKzDatabaseItem* ResolveItem(const FKzTypeDef& Type, const FKzDatabaseQuery& Query, const FKzDatabaseSet* ObjectTables, const FGameplayTagContainer& ObjectTags, const AActor* User);
 
+	//~ IKzDatabaseOwner
+	virtual const FKzDatabaseSet& GetDatabaseSet() const override { return Databases; }
+
 	/** Adds what the actor is and its state: Tags here, and the owner's gameplay tags. */
-	void AppendContextTags(FGameplayTagContainer& OutTags) const;
+	virtual void AppendDatabaseTags(FGameplayTagContainer& OutTags) const override;
 
 	/** The same for any actor: through its database component when it has one, else just its gameplay tags. */
 	static void AppendContextTags(const AActor* Actor, FGameplayTagContainer& OutTags);
