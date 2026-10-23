@@ -41,6 +41,10 @@
 		{
 			"Name": "DataValidation",
 			"Enabled": true
+		},
+		{
+			"Name": "GameplayTagsEditor",
+			"Enabled": true
 		}
 	]
 }

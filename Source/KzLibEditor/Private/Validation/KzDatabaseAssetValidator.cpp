@@ -1,17 +1,24 @@
 // Copyright 2026 kirzo
 
 #include "Validation/KzDatabaseAssetValidator.h"
+#include "Validation/KzDatabaseValidation.h"
 #include "Core/KzDatabaseAsset.h"
+
+#include "Engine/Blueprint.h"
+#include "Engine/DataAsset.h"
+#include "Engine/SCS_Node.h"
+#include "Engine/SimpleConstructionScript.h"
+#include "UObject/UObjectHash.h"
 
 #define LOCTEXT_NAMESPACE "KzDatabaseAssetValidator"
 
 namespace KzDatabaseAssetValidator
 {
-	FText RowLabel(int32 Index, const FKzDatabaseItem& Item)
+	/** Component templates go by their variable; anything else by its class, such as an item's Database fragment. */
+	FString OwnerLabel(const UObject* Owner)
 	{
-		return Item.ID.IsNone()
-			? FText::Format(LOCTEXT("Row", "Row {0}"), FText::AsNumber(Index + 1))
-			: FText::Format(LOCTEXT("RowWithId", "Row {0} ({1})"), FText::AsNumber(Index + 1), FText::FromName(Item.ID));
+		const FString Name = Owner->GetName();
+		return Name.EndsWith(TEXT("_GEN_VARIABLE")) ? Name.LeftChop(13) : Owner->GetClass()->GetDisplayNameText().ToString();
 	}
 }
 
@@ -30,11 +37,6 @@ void UKzDatabaseAssetValidator::Validate_Implementation(const UObject* Asset, TA
 
 	const FName Id = GetValidatorId();
 	const FKzDatabase& Database = DatabaseAsset->Database;
-
-	if (!Database.Type.IsValid())
-	{
-		OutIssues.Add(FKzValidationIssue(EKzValidationSeverity::Error, LOCTEXT("NoType", "The table has no data type."), Id));
-	}
 
 	if (const UKzDatabaseAsset* Parent = DatabaseAsset->ParentDatabase)
 	{
@@ -57,54 +59,64 @@ void UKzDatabaseAssetValidator::Validate_Implementation(const UObject* Asset, TA
 		}
 	}
 
-	TMap<FName, int32> FirstWithId;
-	for (int32 Index = 0; Index < Database.Items.Num(); ++Index)
+	KzDatabaseValidation::ValidateTable(Database, Id, OutIssues);
+}
+
+bool UKzDatabaseInlineValidator::CanValidate_Implementation(const UObject* Asset) const
+{
+	return Asset && (Asset->IsA<UBlueprint>() || Asset->IsA<UDataAsset>()) && !Asset->IsA<UKzDatabaseAsset>();
+}
+
+void UKzDatabaseInlineValidator::Validate_Implementation(const UObject* Asset, TArray<FKzValidationIssue>& OutIssues) const
+{
+	// Where inline tables live: a Blueprint's defaults and component templates, or a data asset and its instanced subobjects, such as an item's fragments.
+	TArray<const UObject*> Owners;
+	if (const UBlueprint* Blueprint = Cast<UBlueprint>(Asset))
 	{
-		const FKzDatabaseItem& Item = Database.Items[Index];
-		const FText Row = KzDatabaseAssetValidator::RowLabel(Index, Item);
-
-		if (!Item.ID.IsNone())
+		if (Blueprint->GeneratedClass)
 		{
-			if (const int32* Earlier = FirstWithId.Find(Item.ID))
+			Owners.Add(Blueprint->GeneratedClass->GetDefaultObject());
+		}
+		if (Blueprint->SimpleConstructionScript)
+		{
+			for (const USCS_Node* Node : Blueprint->SimpleConstructionScript->GetAllNodes())
 			{
-				OutIssues.Add(FKzValidationIssue::WithContextIndex(EKzValidationSeverity::Error,
-					FText::Format(LOCTEXT("DuplicateId", "{0} repeats the ID of row {1}; a lookup by ID finds row {1}."), Row, FText::AsNumber(*Earlier + 1)), Id, Index));
-			}
-			else
-			{
-				FirstWithId.Add(Item.ID, Index);
+				if (Node && Node->ComponentTemplate)
+				{
+					Owners.Add(Node->ComponentTemplate);
+				}
 			}
 		}
+	}
+	else
+	{
+		Owners.Add(Asset);
+		TArray<UObject*> Subobjects;
+		GetObjectsWithOuter(Asset, Subobjects, /*bIncludeNestedObjects=*/true);
+		Owners.Append(Subobjects);
+	}
 
-		if (Database.Type.IsValid())
+	const FName Id = GetValidatorId();
+	for (const UObject* Owner : Owners)
+	{
+		for (TPropertyValueIterator<FStructProperty> It(Owner->GetClass(), Owner); It; ++It)
 		{
-			const FObjectPropertyBase* ObjectProperty = CastField<FObjectPropertyBase>(Item.Value.GetValueProperty());
-			if (!Item.Value.MatchesType(Database.Type))
+			if (It.Key()->Struct != FKzDatabase::StaticStruct())
 			{
-				OutIssues.Add(FKzValidationIssue::WithContextIndex(EKzValidationSeverity::Error,
-					FText::Format(LOCTEXT("WrongType", "{0} holds a value of another type than the table's."), Row), Id, Index));
+				continue;
 			}
-			else if (ObjectProperty && ObjectProperty->Identical(Item.Value.GetData(), nullptr, PPF_None))
-			{
-				OutIssues.Add(FKzValidationIssue::WithContextIndex(EKzValidationSeverity::Warning,
-					FText::Format(LOCTEXT("NoValue", "{0} has no value set."), Row), Id, Index));
-			}
-		}
+			It.SkipRecursiveProperty();
 
-		if (Item.Tags.IsEmpty())
-		{
-			OutIssues.Add(FKzValidationIssue::WithContextIndex(EKzValidationSeverity::Info,
-				FText::Format(LOCTEXT("NoTags", "{0} has no tags: only queries that require nothing can pick it."), Row), Id, Index));
-		}
+			TArray<FKzValidationIssue> TableIssues;
+			KzDatabaseValidation::ValidateTable(*static_cast<const FKzDatabase*>(It.Value()), Id, TableIssues);
 
-		// A tie goes to the earlier row, so an exact twin never wins.
-		for (int32 EarlierIndex = 0; EarlierIndex < Index; ++EarlierIndex)
-		{
-			if (Database.Items[EarlierIndex].Tags == Item.Tags)
+			const FText Where = FText::FromString(KzDatabaseAssetValidator::OwnerLabel(Owner));
+			for (FKzValidationIssue& Issue : TableIssues)
 			{
-				OutIssues.Add(FKzValidationIssue::WithContextIndex(EKzValidationSeverity::Warning,
-					FText::Format(LOCTEXT("Shadowed", "{0} has the same tags as row {1}, which always wins over it."), Row, FText::AsNumber(EarlierIndex + 1)), Id, Index));
-				break;
+				// Row indices mean nothing to this asset's editor.
+				Issue.ContextIndex = INDEX_NONE;
+				Issue.Message = FText::Format(LOCTEXT("InlineIssue", "{0}: {1}"), Where, Issue.Message);
+				OutIssues.Add(MoveTemp(Issue));
 			}
 		}
 	}

@@ -176,7 +176,7 @@ TSharedRef<SWidget> FKzVariantCustomization::MakeTypeSelector(const TSharedRef<I
 		});
 }
 
-void FKzVariantCustomization::AddVariantRow(const TSharedRef<IPropertyHandle>& RowHandle, const TSharedRef<IPropertyHandle>& VariantHandle, IDetailChildrenBuilder& ChildBuilder, const TSharedRef<SWidget>& NameWidget)
+void FKzVariantCustomization::AddVariantRow(const TSharedRef<IPropertyHandle>& RowHandle, const TSharedRef<IPropertyHandle>& VariantHandle, IDetailChildrenBuilder& ChildBuilder, const TSharedRef<SWidget>& NameWidget, bool bDisplayThumbnail)
 {
 	const TSharedPtr<SWidget> ArrayElementMenu = KzVariantCustomization::MakeArrayElementMenu(RowHandle);
 
@@ -208,6 +208,15 @@ void FKzVariantCustomization::AddVariantRow(const TSharedRef<IPropertyHandle>& R
 		FDetailWidgetRow DefaultRow;
 		PropertyRow.GetDefaultWidgets(DefaultNameWidget, ValueWidget, DefaultRow);
 
+		// The default asset picker shows a thumbnail whenever the property allows it, and the bag's property is shared by every variant of the type.
+		const FObjectPropertyBase* ObjectProperty = CastField<FObjectPropertyBase>(ValueHandle->GetProperty());
+		if (!bDisplayThumbnail && ObjectProperty && !ObjectProperty->IsA<FClassProperty>() && !ObjectProperty->IsA<FSoftClassProperty>())
+		{
+			ValueWidget = SNew(SObjectPropertyEntryBox)
+				.PropertyHandle(ValueHandle)
+				.AllowedClass(ObjectProperty->PropertyClass)
+				.DisplayThumbnail(false);
+		}
 		FDetailWidgetRow& Row = PropertyRow.CustomWidget(/*bShowChildren=*/true);
 		Row.NameContent()
 			.HAlign(HAlign_Fill)

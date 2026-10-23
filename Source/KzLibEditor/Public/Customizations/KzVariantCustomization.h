@@ -25,9 +25,9 @@ public:
 
 	/**
 	 * Adds the variant as one row: NameWidget on the left, the value on the right, and struct values' members as children. RowHandle is the
-	 * customized property the row stands for, whose array element menu the row shows when it is one.
+	 * customized property the row stands for, whose array element menu the row shows when it is one. Without the thumbnail, an object value keeps to one line.
 	 */
-	static void AddVariantRow(const TSharedRef<IPropertyHandle>& RowHandle, const TSharedRef<IPropertyHandle>& VariantHandle, IDetailChildrenBuilder& ChildBuilder, const TSharedRef<SWidget>& NameWidget);
+	static void AddVariantRow(const TSharedRef<IPropertyHandle>& RowHandle, const TSharedRef<IPropertyHandle>& VariantHandle, IDetailChildrenBuilder& ChildBuilder, const TSharedRef<SWidget>& NameWidget, bool bDisplayThumbnail = true);
 };
 
 /** Customization for FKzNamedVariant: the variant's row with a box for the name before the type selector. Array elements drop their index label. */
