@@ -179,6 +179,9 @@ struct KZLIB_API FKzDatabase
 		return Item;
 	}
 
+	/** The soft values of the items, added to OutPaths once each. */
+	void GetSoftValuePaths(TArray<FSoftObjectPath>& OutPaths) const;
+
 	/** Finds an item by ID */
 	const FKzDatabaseItem* FindItem(FName ID) const;
 	FKzDatabaseItem* FindItem(FName ID);

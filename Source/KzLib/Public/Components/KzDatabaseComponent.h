@@ -5,14 +5,15 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "GameFramework/Actor.h"
-#include "Core/KzDatabaseAsset.h"
+#include "Core/KzDatabaseSet.h"
 #include "KzDatabaseComponent.generated.h"
 
 struct FStreamableHandle;
 
 /**
- * The actor's tables, so a system can ask the actor without knowing which actor it is. A query goes to every table of the requested type, and the best
- * item across them wins. The actor's gameplay tags (IGameplayTagAssetInterface) join the query's context: its state picks the variants.
+ * The actor's tables, so a system can ask the actor without knowing which actor it is. What the actor is and its state (Tags, and its gameplay tags
+ * through IGameplayTagAssetInterface) join the context of every query it takes part in, so they pick the variants.
+ * A query about an object made by a user goes to both: the object's tables answer, and the user's override them only with a more specific row.
  */
 UCLASS(ClassGroup = (Database), meta = (BlueprintSpawnableComponent))
 class KZLIB_API UKzDatabaseComponent : public UActorComponent
@@ -22,9 +23,13 @@ class KZLIB_API UKzDatabaseComponent : public UActorComponent
 public:
 	UKzDatabaseComponent();
 
-	/** The tables assigned to this actor; several may hold the same type. */
+	/** The actor's tables; several may hold the same type. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Database", meta = (ShowOnlyInnerProperties))
+	FKzDatabaseSet Databases;
+
+	/** What the actor is, for the queries it takes part in, such as Item.Heavy. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Database")
-	TArray<TObjectPtr<UKzDatabaseAsset>> Databases;
+	FGameplayTagContainer Tags;
 
 	/** Loads the soft values of these tables and their parents in the background when play begins, so a query answers without a synchronous load. */
 	UPROPERTY(EditAnywhere, Category = "Database")
@@ -48,8 +53,17 @@ public:
 		return false;
 	}
 
-	/** The best item for the query across the tables of the type: the highest score, a tie going to the table listed first. */
+	/** The best item for the query across the actor's tables, the actor's tags joining the context. */
 	const FKzDatabaseItem* ResolveItem(const FKzTypeDef& Type, const FKzDatabaseQuery& Query) const;
+
+	/** A query about an object made by a user: both's tags join the context, the object's tables answer, and the user's override them only with a more specific row. */
+	static const FKzDatabaseItem* ResolveItem(const FKzTypeDef& Type, const FKzDatabaseQuery& Query, const FKzDatabaseSet* ObjectTables, const FGameplayTagContainer& ObjectTags, const AActor* User);
+
+	/** Adds what the actor is and its state: Tags here, and the owner's gameplay tags. */
+	void AppendContextTags(FGameplayTagContainer& OutTags) const;
+
+	/** The same for any actor: through its database component when it has one, else just its gameplay tags. */
+	static void AppendContextTags(const AActor* Actor, FGameplayTagContainer& OutTags);
 
 	/** Resolves through the actor's database component when it has one and the query asks something; Default when that finds nothing. */
 	template <typename T>
@@ -63,6 +77,25 @@ public:
 		}
 		return Value;
 	}
+
+	/** Resolves a query about an object made by a user; Default when the query asks nothing or neither answers. */
+	template <typename T>
+	static T ResolveFor(const FKzDatabaseSet* ObjectTables, const FGameplayTagContainer& ObjectTags, const AActor* User, const FKzDatabaseQuery& Query, const T& Default)
+	{
+		const FKzDatabaseItem* Item = Query.IsEmpty() ? nullptr : ResolveItem(FKzTypeDef::Make<T>(), Query, ObjectTables, ObjectTags, User);
+		return Item && Item->Value.Is<T>() ? Item->GetValue<T>() : Default;
+	}
+
+	/** The same with an actor as the object: its database component's tables, and what it is. */
+	template <typename T>
+	static T ResolveFor(const AActor* Object, const AActor* User, const FKzDatabaseQuery& Query, const T& Default)
+	{
+		const UKzDatabaseComponent* ObjectComponent = Object ? Object->FindComponentByClass<UKzDatabaseComponent>() : nullptr;
+		FGameplayTagContainer ObjectTags;
+		AppendContextTags(Object, ObjectTags);
+		return ResolveFor<T>(ObjectComponent ? &ObjectComponent->Databases : nullptr, ObjectTags, User, Query, Default);
+	}
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;

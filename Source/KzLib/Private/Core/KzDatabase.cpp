@@ -57,6 +57,24 @@ void FKzDatabaseItem::SyncType(const FKzTypeDef& TypeDef)
 	}
 }
 
+void FKzDatabase::GetSoftValuePaths(TArray<FSoftObjectPath>& OutPaths) const
+{
+	for (const FKzDatabaseItem& Item : Items)
+	{
+		const EPropertyBagPropertyType ValueType = Item.Value.GetType();
+		if (ValueType != EPropertyBagPropertyType::SoftObject && ValueType != EPropertyBagPropertyType::SoftClass)
+		{
+			continue;
+		}
+
+		const FSoftObjectPath& Path = static_cast<const FSoftObjectPtr*>(Item.Value.GetData())->ToSoftObjectPath();
+		if (!Path.IsNull())
+		{
+			OutPaths.AddUnique(Path);
+		}
+	}
+}
+
 const FKzDatabaseItem* FKzDatabase::FindItem(FName ID) const
 {
 	return Items.FindByPredicate([&ID](const FKzDatabaseItem& Item) { return Item.ID == ID; });

@@ -42,20 +42,7 @@ void UKzDatabaseAsset::GetSoftValuePaths(TArray<FSoftObjectPath>& OutPaths) cons
 	int32 Depth = 0;
 	for (const UKzDatabaseAsset* Asset = this; Asset && Depth < KzDatabaseAsset::MaxDepth; Asset = Asset->ParentDatabase, ++Depth)
 	{
-		for (const FKzDatabaseItem& Item : Asset->Database.Items)
-		{
-			const EPropertyBagPropertyType Type = Item.Value.GetType();
-			if (Type != EPropertyBagPropertyType::SoftObject && Type != EPropertyBagPropertyType::SoftClass)
-			{
-				continue;
-			}
-
-			const FSoftObjectPath& Path = static_cast<const FSoftObjectPtr*>(Item.Value.GetData())->ToSoftObjectPath();
-			if (!Path.IsNull())
-			{
-				OutPaths.AddUnique(Path);
-			}
-		}
+		Asset->Database.GetSoftValuePaths(OutPaths);
 	}
 }
 
