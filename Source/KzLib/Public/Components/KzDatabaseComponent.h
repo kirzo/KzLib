@@ -7,6 +7,8 @@
 #include "Core/KzDatabaseAsset.h"
 #include "KzDatabaseComponent.generated.h"
 
+struct FStreamableHandle;
+
 /** The actor's tables, so a system can ask the actor without knowing which actor it is. A query goes to every table of the requested type, and the best item across them wins. */
 UCLASS(ClassGroup = (Database), meta = (BlueprintSpawnableComponent))
 class KZLIB_API UKzDatabaseComponent : public UActorComponent
@@ -19,6 +21,10 @@ public:
 	/** The tables assigned to this actor; several may hold the same type. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Database")
 	TArray<TObjectPtr<UKzDatabaseAsset>> Databases;
+
+	/** Loads the soft values of these tables and their parents in the background when play begins, so a query answers without a synchronous load. */
+	UPROPERTY(EditAnywhere, Category = "Database")
+	bool bPreloadValues = true;
 
 	/**
 	 * Queries the component for a specific type of data.
@@ -40,4 +46,12 @@ public:
 
 	/** The best item for the query across the tables of the type: the highest score, a tie going to the table listed first. */
 	const FKzDatabaseItem* ResolveItem(const FKzTypeDef& Type, const FKzDatabaseQuery& Query) const;
+
+protected:
+	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+private:
+	/** Keeps the preloaded values in memory while the actor plays. */
+	TSharedPtr<FStreamableHandle> PreloadHandle;
 };

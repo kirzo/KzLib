@@ -1,6 +1,7 @@
 // Copyright 2026 kirzo
 
 #include "Components/KzDatabaseComponent.h"
+#include "Engine/AssetManager.h"
 
 UKzDatabaseComponent::UKzDatabaseComponent()
 {
@@ -28,4 +29,39 @@ const FKzDatabaseItem* UKzDatabaseComponent::ResolveItem(const FKzTypeDef& Type,
 		}
 	}
 	return BestItem;
+}
+
+void UKzDatabaseComponent::BeginPlay()
+{
+	Super::BeginPlay();
+
+	if (!bPreloadValues)
+	{
+		return;
+	}
+
+	TArray<FSoftObjectPath> Paths;
+	for (const UKzDatabaseAsset* Asset : Databases)
+	{
+		if (Asset)
+		{
+			Asset->GetSoftValuePaths(Paths);
+		}
+	}
+
+	if (!Paths.IsEmpty())
+	{
+		PreloadHandle = UAssetManager::GetStreamableManager().RequestAsyncLoad(MoveTemp(Paths));
+	}
+}
+
+void UKzDatabaseComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (PreloadHandle.IsValid())
+	{
+		PreloadHandle->ReleaseHandle();
+		PreloadHandle.Reset();
+	}
+
+	Super::EndPlay(EndPlayReason);
 }
