@@ -2,6 +2,7 @@
 
 #include "Components/KzDatabaseComponent.h"
 #include "Engine/AssetManager.h"
+#include "GameplayTagAssetInterface.h"
 
 UKzDatabaseComponent::UKzDatabaseComponent()
 {
@@ -10,6 +11,20 @@ UKzDatabaseComponent::UKzDatabaseComponent()
 
 const FKzDatabaseItem* UKzDatabaseComponent::ResolveItem(const FKzTypeDef& Type, const FKzDatabaseQuery& Query) const
 {
+	// The actor's state is the context it asks in, on top of whatever the query brings.
+	FGameplayTagContainer OwnerTags;
+	if (const IGameplayTagAssetInterface* TagOwner = Cast<IGameplayTagAssetInterface>(GetOwner()))
+	{
+		TagOwner->GetOwnedGameplayTags(OwnerTags);
+	}
+	FKzDatabaseQuery OwnerQuery;
+	if (!OwnerTags.IsEmpty())
+	{
+		OwnerQuery = Query;
+		OwnerQuery.ContextTags.AppendTags(OwnerTags);
+	}
+	const FKzDatabaseQuery& EffectiveQuery = OwnerTags.IsEmpty() ? Query : OwnerQuery;
+
 	// A walk over a handful of tables beats hashing a type, and works before BeginPlay and in editor previews.
 	const FKzDatabaseItem* BestItem = nullptr;
 	int32 BestScore = -1;
@@ -21,7 +36,7 @@ const FKzDatabaseItem* UKzDatabaseComponent::ResolveItem(const FKzTypeDef& Type,
 		}
 
 		int32 Score = -1;
-		const FKzDatabaseItem* Item = Asset->ResolveMatch(Query, &Score);
+		const FKzDatabaseItem* Item = Asset->ResolveMatch(EffectiveQuery, &Score);
 		if (Item && Score > BestScore)
 		{
 			BestItem = Item;

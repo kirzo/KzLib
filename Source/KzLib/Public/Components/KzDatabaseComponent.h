@@ -4,12 +4,16 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "GameFramework/Actor.h"
 #include "Core/KzDatabaseAsset.h"
 #include "KzDatabaseComponent.generated.h"
 
 struct FStreamableHandle;
 
-/** The actor's tables, so a system can ask the actor without knowing which actor it is. A query goes to every table of the requested type, and the best item across them wins. */
+/**
+ * The actor's tables, so a system can ask the actor without knowing which actor it is. A query goes to every table of the requested type, and the best
+ * item across them wins. The actor's gameplay tags (IGameplayTagAssetInterface) join the query's context: its state picks the variants.
+ */
 UCLASS(ClassGroup = (Database), meta = (BlueprintSpawnableComponent))
 class KZLIB_API UKzDatabaseComponent : public UActorComponent
 {
@@ -47,6 +51,18 @@ public:
 	/** The best item for the query across the tables of the type: the highest score, a tie going to the table listed first. */
 	const FKzDatabaseItem* ResolveItem(const FKzTypeDef& Type, const FKzDatabaseQuery& Query) const;
 
+	/** Resolves through the actor's database component when it has one and the query asks something; Default when that finds nothing. */
+	template <typename T>
+	static T ResolveFor(const AActor* Actor, const FKzDatabaseQuery& Query, const T& Default)
+	{
+		T Value = Default;
+		const UKzDatabaseComponent* Component = Actor && !Query.IsEmpty() ? Actor->FindComponentByClass<UKzDatabaseComponent>() : nullptr;
+		if (Component)
+		{
+			Component->Resolve<T>(Query, Value);
+		}
+		return Value;
+	}
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
