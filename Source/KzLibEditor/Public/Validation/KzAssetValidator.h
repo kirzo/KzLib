@@ -25,11 +25,11 @@ class KZLIBEDITOR_API UKzAssetValidator : public UObject
 public:
 	/**
 	 * Stable identifier for this validator. Surfaced in the UI as a tag.
-	 * Defaults to the class name; override only if you want a friendlier label.
+	 * Defaults to the class name after its last underscore, spaced ("KzDialogueValidator_EmptyLines" reads "Empty Lines").
 	 */
 	UFUNCTION(BlueprintNativeEvent, Category = "Validation")
 	FName GetValidatorId() const;
-	virtual FName GetValidatorId_Implementation() const { return GetClass()->GetFName(); }
+	virtual FName GetValidatorId_Implementation() const;
 
 	/**
 	 * Whether this validator applies to the given asset.
