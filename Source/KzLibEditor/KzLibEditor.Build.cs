@@ -32,6 +32,7 @@ public class KzLibEditor : ModuleRules
 				"ApplicationCore",
 				"EditorWidgets",
 				"DataValidation",
+				"GameplayTags",
 				"KzLibUncooked"
 			});
 	}
