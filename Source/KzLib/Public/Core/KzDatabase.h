@@ -9,6 +9,16 @@
 #include "Core/KzVariant.h"
 #include "KzDatabase.generated.h"
 
+/** Whether an item is a candidate for a query, or the first rule it breaks. */
+enum class EKzDatabaseMatch : uint8
+{
+	Candidate,
+	MissingRequiredTag,
+	HasIgnoredTag,
+	FailsTagQuery,
+	UncoveredTag
+};
+
 /**
  * What the asker wants and what is true about it. An item is a candidate when it passes RequireTags, IgnoreTags and TagQuery, and each of its own
  * tags is asked for or true of the asker, so variants for other states never apply. The candidate with the most tags wins; on a tie, the first.
@@ -35,7 +45,10 @@ struct KZLIB_API FKzDatabaseQuery
 	FGameplayTagQuery TagQuery;
 
 	/** Whether an item with these tags is a candidate. */
-	bool Matches(const FGameplayTagContainer& Tags) const;
+	bool Matches(const FGameplayTagContainer& Tags) const { return Evaluate(Tags) == EKzDatabaseMatch::Candidate; }
+
+	/** Whether an item with these tags is a candidate, or the first rule it breaks; for an uncovered tag, which one. */
+	EKzDatabaseMatch Evaluate(const FGameplayTagContainer& Tags, FGameplayTag* OutUncoveredTag = nullptr) const;
 
 	/** How specific a candidate is: its tag count, all of them covered. */
 	int32 CalculateScore(const FGameplayTagContainer& Tags) const;

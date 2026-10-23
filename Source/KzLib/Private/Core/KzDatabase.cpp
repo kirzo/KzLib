@@ -1,27 +1,37 @@
 // Copyright 2026 kirzo
 
 #include "Core/KzDatabase.h"
-#include "Algo/AllOf.h"
 #include "Algo/AnyOf.h"
 
-bool FKzDatabaseQuery::Matches(const FGameplayTagContainer& Tags) const
+EKzDatabaseMatch FKzDatabaseQuery::Evaluate(const FGameplayTagContainer& Tags, FGameplayTag* OutUncoveredTag) const
 {
 	if (!RequireTags.IsEmpty() && !Tags.HasAll(RequireTags))
 	{
-		return false;
+		return EKzDatabaseMatch::MissingRequiredTag;
 	}
 
 	if (!IgnoreTags.IsEmpty() && Tags.HasAny(IgnoreTags))
 	{
-		return false;
+		return EKzDatabaseMatch::HasIgnoredTag;
 	}
 
 	if (!TagQuery.IsEmpty() && !TagQuery.Matches(Tags))
 	{
-		return false;
+		return EKzDatabaseMatch::FailsTagQuery;
 	}
 
-	return Algo::AllOf(Tags, [this](const FGameplayTag& Tag) { return Covers(Tag); });
+	for (const FGameplayTag& Tag : Tags)
+	{
+		if (!Covers(Tag))
+		{
+			if (OutUncoveredTag)
+			{
+				*OutUncoveredTag = Tag;
+			}
+			return EKzDatabaseMatch::UncoveredTag;
+		}
+	}
+	return EKzDatabaseMatch::Candidate;
 }
 
 int32 FKzDatabaseQuery::CalculateScore(const FGameplayTagContainer& Tags) const

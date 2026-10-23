@@ -21,6 +21,7 @@
 #include "Customizations/KzDatabaseCustomization.h"
 
 #include "Core/KzDatabaseAsset.h"
+#include "Widgets/SKzDatabaseQueryTester.h"
 
 #include "Components/KzComponentReference.h"
 #include "Customizations/KzComponentReferenceCustomization.h"
@@ -52,12 +53,25 @@ void FKzLibEditorModule::OnStartupModule()
 		TArray<FName>{ GET_MEMBER_NAME_CHECKED(UKzDatabaseAsset, Database), GET_MEMBER_NAME_CHECKED(FKzDatabase, Items) },
 		INVTEXT("Item")));
 
+	TArray<FKzCustomEditorTabConfig> DatabaseCustomTabs;
+	{
+		FKzCustomEditorTabConfig& QueryTab = DatabaseCustomTabs.AddDefaulted_GetRef();
+		QueryTab.TabId = TEXT("KzDatabase_QueryTest");
+		QueryTab.Label = INVTEXT("Query Test");
+		QueryTab.IconStyleName = TEXT("Icons.Search");
+		QueryTab.MakeWidget = [](UObject* Asset) -> TSharedRef<SWidget>
+		{
+			return SNew(SKzDatabaseQueryTester, Cast<UKzDatabaseAsset>(Asset));
+		};
+	}
+
 	RegisterAssetTypeAction<UKzDatabaseAsset, FKzArrayAssetEditor>(
 		KzAssetCategoryBit,
 		INVTEXT("Database"),
 		FColor::FromHex("#3FF1B5"),
 		TArray<FText>{},
-		DatabaseTabs);
+		DatabaseTabs,
+		DatabaseCustomTabs);
 }
 
 void FKzLibEditorModule::OnShutdownModule()

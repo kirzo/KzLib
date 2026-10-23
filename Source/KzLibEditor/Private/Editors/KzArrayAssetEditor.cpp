@@ -308,7 +308,7 @@ void FKzArrayAssetEditor::InitArrayAssetEditor(
 	}
 	RightBottomStack->SetForegroundTab(ValidationTabId);
 
-	const TSharedRef<FTabManager::FLayout> Layout = FTabManager::NewLayout("Standalone_KzArrayEditor_Layout_v5")
+	const TSharedRef<FTabManager::FLayout> Layout = FTabManager::NewLayout("Standalone_KzArrayEditor_Layout_v6")
 		->AddArea
 		(
 			FTabManager::NewPrimaryArea()->SetOrientation(Orient_Horizontal)
