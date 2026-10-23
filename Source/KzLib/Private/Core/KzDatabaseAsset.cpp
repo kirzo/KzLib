@@ -37,6 +37,38 @@ const FKzDatabaseItem* UKzDatabaseAsset::ResolveMatch(const FKzDatabaseQuery& Qu
 	return BestItem;
 }
 
+#if WITH_EDITORONLY_DATA
+void UKzDatabaseAsset::UpdateAssetBundleData()
+{
+	Super::UpdateAssetBundleData();
+
+	if (ValueBundle.IsNone())
+	{
+		return;
+	}
+
+	// Values hide inside variants, out of reach of the AssetBundles metadata scan. A parent's count too: a query may answer with them.
+	int32 Depth = 0;
+	for (const UKzDatabaseAsset* Asset = this; Asset && Depth < KzDatabaseAsset::MaxDepth; Asset = Asset->ParentDatabase, ++Depth)
+	{
+		for (const FKzDatabaseItem& Item : Asset->Database.Items)
+		{
+			const EPropertyBagPropertyType Type = Item.Value.GetType();
+			if (Type != EPropertyBagPropertyType::SoftObject && Type != EPropertyBagPropertyType::SoftClass)
+			{
+				continue;
+			}
+
+			const FSoftObjectPath& Path = static_cast<const FSoftObjectPtr*>(Item.Value.GetData())->ToSoftObjectPath();
+			if (!Path.IsNull())
+			{
+				AssetBundleData.AddBundleAssetTruncated(ValueBundle, Path);
+			}
+		}
+	}
+}
+#endif
+
 #if WITH_EDITOR
 void UKzDatabaseAsset::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {

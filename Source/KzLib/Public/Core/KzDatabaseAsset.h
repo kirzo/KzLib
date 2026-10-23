@@ -29,6 +29,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Database", meta = (HideItems))
 	FKzDatabase Database;
 
+#if WITH_EDITORONLY_DATA
+	/** Asset Manager bundle listing the soft values this table and its parents can answer with, so loading it preloads them. None lists nothing. */
+	UPROPERTY(EditAnywhere, Category = "Database")
+	FName ValueBundle;
+#endif
+
 	/** The type of the values stored in this table. */
 	FKzTypeDef GetDataType() const
 	{
@@ -57,6 +63,10 @@ public:
 		}
 		return false;
 	}
+
+#if WITH_EDITORONLY_DATA
+	virtual void UpdateAssetBundleData() override;
+#endif
 
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
