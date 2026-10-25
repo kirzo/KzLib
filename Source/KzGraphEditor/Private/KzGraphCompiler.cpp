@@ -273,7 +273,13 @@ void KzGraphCompiler::Compile(const UKzEdGraph& Graph, UObject& Outer, FKzGraphD
 		}
 	}
 
+	const int32 FirstGraphIssue = OutIssues.Num();
 	Asset->ValidateGraph(OutData, OutIssues);
+	for (int32 Index = FirstGraphIssue; Index < OutIssues.Num(); ++Index)
+	{
+		FKzValidationIssue& Issue = OutIssues[Index];
+		Issue.ValidatorId = Issue.ValidatorId.IsNone() ? ValidatorId : Issue.ValidatorId;
+	}
 }
 
 #undef LOCTEXT_NAMESPACE
