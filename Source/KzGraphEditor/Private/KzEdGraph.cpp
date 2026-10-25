@@ -56,34 +56,44 @@ void UKzEdGraph::Compile()
 	CompileIssues.Reset();
 	KzGraphCompiler::Compile(*this, *Asset, Data, CompileIssues);
 
-	for (UEdGraphNode* Node : Nodes)
-	{
-		Node->bHasCompilerMessage = false;
-		Node->ErrorType = EMessageSeverity::Info;
-		Node->ErrorMsg.Reset();
-	}
-
 	// Each node shows its own problems; the worst sets the color.
+	TMap<FGuid, TPair<int32, FString>> Problems;
 	for (const FKzValidationIssue& Issue : CompileIssues)
 	{
-		const TObjectPtr<UEdGraphNode>* Node = Nodes.FindByPredicate([&Issue](const UEdGraphNode* Each) { return Each->NodeGuid == Issue.ContextId; });
-		if (!Node || Issue.Severity == EKzValidationSeverity::Info)
+		if (Issue.Severity == EKzValidationSeverity::Info || !Issue.ContextId.IsValid())
 		{
 			continue;
 		}
 
-		const EMessageSeverity::Type Severity = Issue.Severity == EKzValidationSeverity::Error ? EMessageSeverity::Error : EMessageSeverity::Warning;
-		(*Node)->bHasCompilerMessage = true;
-		(*Node)->ErrorType = FMath::Min<int32>((*Node)->ErrorType, Severity);
-		(*Node)->ErrorMsg += ((*Node)->ErrorMsg.IsEmpty() ? FString() : FString(TEXT("\n"))) + Issue.Message.ToString();
+		TPair<int32, FString>& Problem = Problems.FindOrAdd(Issue.ContextId, { EMessageSeverity::Info, FString() });
+		Problem.Key = FMath::Min<int32>(Problem.Key, Issue.Severity == EKzValidationSeverity::Error ? EMessageSeverity::Error : EMessageSeverity::Warning);
+		Problem.Value += (Problem.Value.IsEmpty() ? FString() : FString(TEXT("\n"))) + Issue.Message.ToString();
+	}
+
+	bool bProblemsChanged = false;
+	for (UEdGraphNode* Node : Nodes)
+	{
+		const TPair<int32, FString>* Problem = Problems.Find(Node->NodeGuid);
+		const int32 ErrorType = Problem ? Problem->Key : EMessageSeverity::Info;
+		const FString& ErrorMsg = Problem ? Problem->Value : FString();
+		if (Node->bHasCompilerMessage != (Problem != nullptr) || Node->ErrorType != ErrorType || Node->ErrorMsg != ErrorMsg)
+		{
+			Node->bHasCompilerMessage = Problem != nullptr;
+			Node->ErrorType = ErrorType;
+			Node->ErrorMsg = ErrorMsg;
+			bProblemsChanged = true;
+		}
 	}
 
 	Asset->Modify();
 	Asset->SetData(MoveTemp(Data));
 	bNeedsCompile = false;
 
-	// Node widgets read their problems when they rebuild.
-	Super::NotifyGraphChanged();
+	// Node widgets read their problems when they rebuild, which a large graph pays for.
+	if (bProblemsChanged)
+	{
+		Super::NotifyGraphChanged();
+	}
 	OnCompiled.Broadcast();
 }
 

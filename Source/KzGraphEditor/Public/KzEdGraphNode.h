@@ -17,6 +17,8 @@ class KZGRAPHEDITOR_API UKzEdGraphNodeBase : public UEdGraphNode
 	GENERATED_BODY()
 
 public:
+	/** Moves count too: they reorder the links into the node. */
+	virtual bool Modify(bool bAlwaysMarkDirty = true) override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& Event) override;
 	virtual void PostEditUndo() override;
 	virtual bool CanCreateUnderSpecifiedSchema(const UEdGraphSchema* Schema) const override;

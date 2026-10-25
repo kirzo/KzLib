@@ -1,12 +1,21 @@
 // Copyright 2026 kirzo
 
 #include "KzEdGraphNode.h"
-#include "EdGraph/EdGraph.h"
+#include "KzEdGraph.h"
 #include "KzEdGraphSchema.h"
 #include "KzGraph.h"
 #include "KzGraphEditorUtils.h"
 
 #define LOCTEXT_NAMESPACE "KzEdGraphNode"
+
+bool UKzEdGraphNodeBase::Modify(bool bAlwaysMarkDirty)
+{
+	if (UKzEdGraph* Graph = Cast<UKzEdGraph>(GetGraph()))
+	{
+		Graph->MarkChanged();
+	}
+	return Super::Modify(bAlwaysMarkDirty);
+}
 
 void UKzEdGraphNodeBase::PostEditChangeProperty(FPropertyChangedEvent& Event)
 {
