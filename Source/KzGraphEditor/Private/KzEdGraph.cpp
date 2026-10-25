@@ -2,6 +2,7 @@
 
 #include "KzEdGraph.h"
 #include "Containers/Ticker.h"
+#include "GraphEditAction.h"
 #include "KzEdGraphSchema.h"
 #include "KzGraph.h"
 #include "KzGraphCompiler.h"

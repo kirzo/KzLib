@@ -78,7 +78,7 @@ namespace
 			DetermineWiringStyle(Pin, nullptr, Params);
 			const bool bFromOutput = Pin->Direction == EGPD_Output;
 			const FVector2f Anchor = bFromOutput ? GetOutputPoint(PinGeometry) : GetInputPoint(PinGeometry);
-			DrawSplineWithArrow(bFromOutput ? Anchor : EndPoint, bFromOutput ? EndPoint : Anchor, Params);
+			FConnectionDrawingPolicy::DrawSplineWithArrow(bFromOutput ? Anchor : EndPoint, bFromOutput ? EndPoint : Anchor, Params);
 		}
 
 		virtual FVector2f ComputeSplineTangent(const FVector2f& Start, const FVector2f& End) const override
@@ -93,12 +93,12 @@ namespace
 	private:
 		FVector2f GetOutputPoint(const FGeometry& Geometry) const
 		{
-			return Flow == EKzGraphFlow::Horizontal ? FVector2f(FGeometryHelper::VerticalMiddleRightOf(Geometry)) : Geometry.GetAbsolutePositionAtCoordinates(FVector2f(0.5f, 1.0f));
+			return Flow == EKzGraphFlow::Horizontal ? FVector2f(FGeometryHelper::VerticalMiddleRightOf(Geometry)) : FVector2f(Geometry.GetAbsolutePositionAtCoordinates(FVector2f(0.5f, 1.0f)));
 		}
 
 		FVector2f GetInputPoint(const FGeometry& Geometry) const
 		{
-			return Flow == EKzGraphFlow::Horizontal ? FVector2f(FGeometryHelper::VerticalMiddleLeftOf(Geometry)) : Geometry.GetAbsolutePositionAtCoordinates(FVector2f(0.5f, 0.0f));
+			return Flow == EKzGraphFlow::Horizontal ? FVector2f(FGeometryHelper::VerticalMiddleLeftOf(Geometry)) : FVector2f(Geometry.GetAbsolutePositionAtCoordinates(FVector2f(0.5f, 0.0f)));
 		}
 
 		/** The place of the link among the links of its output, next to where it leaves. */

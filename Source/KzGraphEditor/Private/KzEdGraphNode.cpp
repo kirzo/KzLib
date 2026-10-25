@@ -10,7 +10,7 @@
 
 bool UKzEdGraphNodeBase::Modify(bool bAlwaysMarkDirty)
 {
-	if (UKzEdGraph* Graph = Cast<UKzEdGraph>(GetGraph()))
+	if (UKzEdGraph* Graph = Cast<UKzEdGraph>(GetOuter()))
 	{
 		Graph->MarkChanged();
 	}
