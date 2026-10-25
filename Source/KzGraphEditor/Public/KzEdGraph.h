@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Core/KzValidationTypes.h"
 #include "EdGraph/EdGraph.h"
 #include "KzEdGraph.generated.h"
 
@@ -28,15 +29,20 @@ public:
 	void MarkChanged() { bNeedsCompile = true; }
 	bool NeedsCompile() const { return bNeedsCompile; }
 
+	/** Compiles into the asset and shows the problems on their nodes. */
+	void Compile();
+	const TArray<FKzValidationIssue>& GetCompileIssues() const { return CompileIssues; }
+
+	FSimpleMulticastDelegate OnCompiled;
+
 	/** Announces an edit on the next tick, for wiring done from inside the graph panel, which still holds the pins. */
 	void NotifyGraphChangedSoon();
 
 	/** Recreates every node's pins from its struct; links follow by pin name. */
 	void ReconstructNodes();
 
-protected:
-	bool bNeedsCompile = true;
-
 private:
+	bool bNeedsCompile = false;
 	bool bNotifyPending = false;
+	TArray<FKzValidationIssue> CompileIssues;
 };
