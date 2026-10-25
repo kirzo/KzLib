@@ -7,6 +7,8 @@
 #include "Textures/SlateIcon.h"
 #include "KzGraphNode.generated.h"
 
+class UKzGraph;
+
 /** Which way a graph reads: where pins sit and how the links of one output are ordered. */
 UENUM()
 enum class EKzGraphFlow : uint8
@@ -41,8 +43,9 @@ struct KZGRAPH_API FKzGraphNode
 	virtual FName GetEntryName() const { return NAME_None; }
 
 #if WITH_EDITOR
-	virtual void GetInputPins(TArray<FKzGraphPinDesc>& OutPins) const;
-	virtual void GetOutputPins(TArray<FKzGraphPinDesc>& OutPins) const;
+	/** Pins can follow the graph's own settings, such as the inputs a combo declares. */
+	virtual void GetInputPins(const UKzGraph& Graph, TArray<FKzGraphPinDesc>& OutPins) const;
+	virtual void GetOutputPins(const UKzGraph& Graph, TArray<FKzGraphPinDesc>& OutPins) const;
 
 	/** Empty takes the struct's display name. */
 	virtual FText GetTitle() const { return FText::GetEmpty(); }

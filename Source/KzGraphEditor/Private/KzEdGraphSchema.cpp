@@ -130,18 +130,18 @@ namespace
 	};
 
 	/** True when a node of the struct has a pin facing the one dragged from. */
-	bool HasPinFacing(const UScriptStruct* NodeStruct, EEdGraphPinDirection FromDirection)
+	bool HasPinFacing(const UKzGraph& Graph, const UScriptStruct* NodeStruct, EEdGraphPinDirection FromDirection)
 	{
 		FInstancedStruct Probe;
 		Probe.InitializeAs(NodeStruct);
 		TArray<FKzGraphPinDesc> Pins;
 		if (FromDirection == EGPD_Output)
 		{
-			Probe.Get<FKzGraphNode>().GetInputPins(Pins);
+			Probe.Get<FKzGraphNode>().GetInputPins(Graph, Pins);
 		}
 		else
 		{
-			Probe.Get<FKzGraphNode>().GetOutputPins(Pins);
+			Probe.Get<FKzGraphNode>().GetOutputPins(Graph, Pins);
 		}
 		return !Pins.IsEmpty();
 	}
@@ -176,9 +176,9 @@ void UKzEdGraphSchema::GetGraphContextActions(FGraphContextMenuBuilder& ContextM
 	}
 
 	const UEdGraphPin* FromPin = ContextMenuBuilder.FromPin;
-	ForEachNodeStruct(*Asset, [&ContextMenuBuilder, FromPin](const UScriptStruct* NodeStruct)
+	ForEachNodeStruct(*Asset, [&ContextMenuBuilder, FromPin, Asset](const UScriptStruct* NodeStruct)
 	{
-		if (FromPin && !HasPinFacing(NodeStruct, FromPin->Direction))
+		if (FromPin && !HasPinFacing(*Asset, NodeStruct, FromPin->Direction))
 		{
 			return;
 		}

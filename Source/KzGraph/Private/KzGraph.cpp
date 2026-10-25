@@ -31,12 +31,12 @@ TConstArrayView<FKzGraphLink> FKzGraphData::GetLinks(int32 Node, int32 Output) c
 }
 
 #if WITH_EDITOR
-void FKzGraphNode::GetInputPins(TArray<FKzGraphPinDesc>& OutPins) const
+void FKzGraphNode::GetInputPins(const UKzGraph& Graph, TArray<FKzGraphPinDesc>& OutPins) const
 {
 	OutPins.Add({ TEXT("In") });
 }
 
-void FKzGraphNode::GetOutputPins(TArray<FKzGraphPinDesc>& OutPins) const
+void FKzGraphNode::GetOutputPins(const UKzGraph& Graph, TArray<FKzGraphPinDesc>& OutPins) const
 {
 	OutPins.Add({ TEXT("Out") });
 }

@@ -161,8 +161,8 @@ void KzGraphCompiler::Compile(const UKzEdGraph& Graph, UObject& Outer, FKzGraphD
 		Indices.Add(Node, Nodes.Num());
 
 		FNodePins& NodePins = Pins.AddDefaulted_GetRef();
-		Node->Node.Get().GetInputPins(NodePins.Inputs);
-		Node->Node.Get().GetOutputPins(NodePins.Outputs);
+		Node->Node.Get().GetInputPins(*Asset, NodePins.Inputs);
+		Node->Node.Get().GetOutputPins(*Asset, NodePins.Outputs);
 
 		FInstancedStruct& Copy = Nodes.AddDefaulted_GetRef();
 		Copy.InitializeAs(Node->Node.GetScriptStruct(), Node->Node.GetMemory());

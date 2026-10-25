@@ -92,15 +92,16 @@ void UKzEdGraphNodeBase::NotifyGraphChanged() const
 
 void UKzEdGraphNode::AllocateDefaultPins()
 {
-	if (!Node.IsValid())
+	const UKzGraph* Asset = KzGraphEditor::GetGraphAsset(GetGraph());
+	if (!Node.IsValid() || !Asset)
 	{
 		return;
 	}
 
 	TArray<FKzGraphPinDesc> Inputs;
 	TArray<FKzGraphPinDesc> Outputs;
-	Node.Get().GetInputPins(Inputs);
-	Node.Get().GetOutputPins(Outputs);
+	Node.Get().GetInputPins(*Asset, Inputs);
+	Node.Get().GetOutputPins(*Asset, Outputs);
 
 	// A lone pin on its side needs no label.
 	auto AddPins = [this](EEdGraphPinDirection Direction, const TArray<FKzGraphPinDesc>& Descs)

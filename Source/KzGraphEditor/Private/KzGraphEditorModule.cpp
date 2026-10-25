@@ -40,10 +40,12 @@ public:
 		FEdGraphUtilities::RegisterVisualNodeFactory(NodeFactory);
 
 		PreSaveHandle = FCoreUObjectDelegates::OnObjectPreSave.AddRaw(this, &FKzGraphEditorModule::OnObjectPreSave);
+		PropertyChangedHandle = FCoreUObjectDelegates::OnObjectPropertyChanged.AddRaw(this, &FKzGraphEditorModule::OnObjectPropertyChanged);
 	}
 
 	virtual void ShutdownModule() override
 	{
+		FCoreUObjectDelegates::OnObjectPropertyChanged.Remove(PropertyChangedHandle);
 		FCoreUObjectDelegates::OnObjectPreSave.Remove(PreSaveHandle);
 		FEdGraphUtilities::UnregisterVisualNodeFactory(NodeFactory);
 		FKzGraphEditorCommands::Unregister();
@@ -61,8 +63,21 @@ private:
 		}
 	}
 
+	/** Node pins can follow the asset's settings, so editing them rebuilds the nodes. */
+	void OnObjectPropertyChanged(UObject* Object, FPropertyChangedEvent& Event)
+	{
+		const UKzGraph* Asset = Cast<UKzGraph>(Object);
+		UKzEdGraph* EdGraph = Asset ? Cast<UKzEdGraph>(Asset->EdGraph) : nullptr;
+		if (EdGraph)
+		{
+			EdGraph->ReconstructNodes();
+			EdGraph->NotifyGraphChanged();
+		}
+	}
+
 	TSharedPtr<FGraphPanelNodeFactory> NodeFactory;
 	FDelegateHandle PreSaveHandle;
+	FDelegateHandle PropertyChangedHandle;
 };
 
 IMPLEMENT_MODULE(FKzGraphEditorModule, KzGraphEditor)
