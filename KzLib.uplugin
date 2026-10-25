@@ -27,6 +27,11 @@
 			"LoadingPhase": "Default"
 		},
 		{
+			"Name": "KzGraph",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
 			"Name": "KzLibUncooked",
 			"Type": "UncookedOnly",
 			"LoadingPhase": "PreDefault"
