@@ -16,16 +16,20 @@
 #include "KzEdGraphSchema.h"
 #include "KzGraph.h"
 #include "KzGraphCompiler.h"
+#include "KzGraphPreview.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
 #include "ScopedTransaction.h"
 #include "SKzGraphFindResults.h"
+#include "SKzGraphViewport.h"
 #include "SNodePanel.h"
 #include "Styling/AppStyle.h"
 #include "UObject/Package.h"
 #include "Widgets/Docking/SDockTab.h"
+#include "Widgets/SBoxPanel.h"
 #include "Widgets/SKzValidationPanel.h"
+#include "Widgets/SNullWidget.h"
 
 #define LOCTEXT_NAMESPACE "KzGraphEditor"
 
@@ -36,6 +40,7 @@ namespace
 	const FName DetailsTabId(TEXT("KzGraphEditor_Details"));
 	const FName CompileResultsTabId(TEXT("KzGraphEditor_CompileResults"));
 	const FName FindTabId(TEXT("KzGraphEditor_Find"));
+	const FName ViewportTabId(TEXT("KzGraphEditor_Viewport"));
 
 	const TCHAR* SettingsSection = TEXT("KzGraphEditor");
 	const TCHAR* AutoCompileKey = TEXT("bAutoCompile");
@@ -110,39 +115,61 @@ void FKzGraphEditor::Initialize(const EToolkitMode::Type Mode, const TSharedPtr<
 	ToolbarExtender->AddToolBarExtension("Asset", EExtensionHook::After, GetToolkitCommands(), FToolBarExtensionDelegate::CreateSP(this, &FKzGraphEditor::FillToolbar));
 	AddToolbarExtender(ToolbarExtender);
 
-	const TSharedRef<FTabManager::FLayout> Layout = FTabManager::NewLayout("KzGraphEditor_Layout_v1")
-		->AddArea
+	Preview = CreatePreview();
+	if (Preview.IsValid())
+	{
+		const TSharedPtr<SWidget> BottomPanel = Preview->MakeBottomPanel();
+		PreviewPanel = SNew(SVerticalBox)
+			+ SVerticalBox::Slot()
+			.FillHeight(1.0f)
+			[
+				SNew(SKzGraphViewport, Preview.ToSharedRef())
+			]
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			[
+				BottomPanel.IsValid() ? BottomPanel.ToSharedRef() : SNullWidget::NullWidget
+			];
+	}
+
+	// Compile results and search open below the graph when asked for, as in Blueprints.
+	const TSharedRef<FTabManager::FSplitter> GraphColumn = FTabManager::NewSplitter()
+		->SetOrientation(Orient_Vertical)
+		->SetSizeCoefficient(Preview.IsValid() ? 0.45f : 0.75f)
+		->Split
 		(
-			FTabManager::NewPrimaryArea()
-			->SetOrientation(Orient_Horizontal)
-			->Split
-			(
-				// Compile results and search open below the graph when asked for, as in Blueprints.
-				FTabManager::NewSplitter()
-				->SetOrientation(Orient_Vertical)
-				->SetSizeCoefficient(0.75f)
-				->Split
-				(
-					FTabManager::NewStack()
-					->SetSizeCoefficient(0.8f)
-					->AddTab(GraphTabId, ETabState::OpenedTab)
-					->SetHideTabWell(true)
-				)
-				->Split
-				(
-					FTabManager::NewStack()
-					->SetSizeCoefficient(0.2f)
-					->AddTab(CompileResultsTabId, ETabState::ClosedTab)
-					->AddTab(FindTabId, ETabState::ClosedTab)
-				)
-			)
-			->Split
-			(
-				FTabManager::NewStack()
-				->SetSizeCoefficient(0.25f)
-				->AddTab(DetailsTabId, ETabState::OpenedTab)
-			)
+			FTabManager::NewStack()
+			->SetSizeCoefficient(0.8f)
+			->AddTab(GraphTabId, ETabState::OpenedTab)
+			->SetHideTabWell(true)
+		)
+		->Split
+		(
+			FTabManager::NewStack()
+			->SetSizeCoefficient(0.2f)
+			->AddTab(CompileResultsTabId, ETabState::ClosedTab)
+			->AddTab(FindTabId, ETabState::ClosedTab)
 		);
+
+	const TSharedRef<FTabManager::FArea> Area = FTabManager::NewPrimaryArea()->SetOrientation(Orient_Horizontal);
+	if (Preview.IsValid())
+	{
+		Area->Split
+		(
+			FTabManager::NewStack()
+			->SetSizeCoefficient(0.3f)
+			->AddTab(ViewportTabId, ETabState::OpenedTab)
+		);
+	}
+	Area->Split(GraphColumn)
+		->Split
+		(
+			FTabManager::NewStack()
+			->SetSizeCoefficient(0.25f)
+			->AddTab(DetailsTabId, ETabState::OpenedTab)
+		);
+
+	const TSharedRef<FTabManager::FLayout> Layout = FTabManager::NewLayout(Preview.IsValid() ? "KzGraphEditor_Preview_Layout_v1" : "KzGraphEditor_Layout_v1")->AddArea(Area);
 
 	InitAssetEditor(Mode, Host, AppId, Layout, true, true, InGraph);
 }
@@ -238,6 +265,10 @@ void FKzGraphEditor::RegisterTabSpawners(const TSharedRef<FTabManager>& InTabMan
 	InTabManager->RegisterTabSpawner(DetailsTabId, FOnSpawnTab::CreateSP(this, &FKzGraphEditor::SpawnDetailsTab)).SetDisplayName(LOCTEXT("DetailsTab", "Details")).SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Details")).SetGroup(Category);
 	InTabManager->RegisterTabSpawner(CompileResultsTabId, FOnSpawnTab::CreateSP(this, &FKzGraphEditor::SpawnCompileResultsTab)).SetDisplayName(LOCTEXT("CompileResultsTab", "Compile Results")).SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "Kismet.Tabs.CompilerResults")).SetGroup(Category);
 	InTabManager->RegisterTabSpawner(FindTabId, FOnSpawnTab::CreateSP(this, &FKzGraphEditor::SpawnFindTab)).SetDisplayName(LOCTEXT("FindTab", "Find Results")).SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "Kismet.Tabs.FindResults")).SetGroup(Category);
+	if (Preview.IsValid())
+	{
+		InTabManager->RegisterTabSpawner(ViewportTabId, FOnSpawnTab::CreateSP(this, &FKzGraphEditor::SpawnViewportTab)).SetDisplayName(LOCTEXT("ViewportTab", "Viewport")).SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Viewports")).SetGroup(Category);
+	}
 }
 
 void FKzGraphEditor::UnregisterTabSpawners(const TSharedRef<FTabManager>& InTabManager)
@@ -247,6 +278,7 @@ void FKzGraphEditor::UnregisterTabSpawners(const TSharedRef<FTabManager>& InTabM
 	InTabManager->UnregisterTabSpawner(DetailsTabId);
 	InTabManager->UnregisterTabSpawner(CompileResultsTabId);
 	InTabManager->UnregisterTabSpawner(FindTabId);
+	InTabManager->UnregisterTabSpawner(ViewportTabId);
 }
 
 void FKzGraphEditor::PostUndo(bool bSuccess)
@@ -300,6 +332,11 @@ TSharedRef<SDockTab> FKzGraphEditor::SpawnFindTab(const FSpawnTabArgs& Args)
 	return SNew(SDockTab).Label(LOCTEXT("FindTab", "Find Results"))[FindResults.ToSharedRef()];
 }
 
+TSharedRef<SDockTab> FKzGraphEditor::SpawnViewportTab(const FSpawnTabArgs& Args)
+{
+	return SNew(SDockTab).Label(LOCTEXT("ViewportTab", "Viewport"))[PreviewPanel.ToSharedRef()];
+}
+
 void FKzGraphEditor::OnSelectionChanged(const TSet<UObject*>& Selection)
 {
 	if (Selection.IsEmpty())
@@ -309,6 +346,11 @@ void FKzGraphEditor::OnSelectionChanged(const TSet<UObject*>& Selection)
 	else
 	{
 		DetailsView->SetObjects(Selection.Array());
+	}
+
+	if (Preview.IsValid())
+	{
+		Preview->OnSelectionChanged(Selection);
 	}
 }
 
@@ -339,9 +381,18 @@ FReply FKzGraphEditor::OnSpawnNodeByShortcut(FInputChord Chord, const FVector2f&
 
 void FKzGraphEditor::OnGraphChanged(const FEdGraphEditAction& Action)
 {
-	if (!(Action.Action & GRAPHACTION_SelectNode) && FindResults.IsValid())
+	if (Action.Action & GRAPHACTION_SelectNode)
+	{
+		return;
+	}
+
+	if (FindResults.IsValid())
 	{
 		FindResults->Refresh();
+	}
+	if (Preview.IsValid())
+	{
+		Preview->OnGraphChanged();
 	}
 }
 

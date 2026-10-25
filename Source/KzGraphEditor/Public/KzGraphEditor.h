@@ -9,6 +9,7 @@
 #include "Framework/Commands/Commands.h"
 #include "Toolkits/AssetEditorToolkit.h"
 
+class FKzGraphPreview;
 class IDetailsView;
 class SGraphEditor;
 class SKzGraphFindResults;
@@ -33,8 +34,9 @@ public:
 };
 
 /**
- * Asset editor of any graph: the graph, the details of the selection or of the asset, search and compile results.
+ * Asset editor of any graph: the graph, the details of the selection or of the asset, search and compile results, and a viewport for the kinds of graph that preview something.
  * The graph takes the engine's usual commands: clipboard, deletion, comments, alignment, and a node's Shortcut key held while clicking to place it.
+ * Kinds of graph subclass it for a viewport, with their own static CreateEditor to register.
  */
 class KZGRAPHEDITOR_API FKzGraphEditor : public FAssetEditorToolkit, public FSelfRegisteringEditorUndoClient
 {
@@ -58,6 +60,12 @@ public:
 	virtual void PostUndo(bool bSuccess) override;
 	virtual void PostRedo(bool bSuccess) override;
 
+protected:
+	/** What the viewport shows; none leaves the editor without one. */
+	virtual TSharedPtr<FKzGraphPreview> CreatePreview() { return nullptr; }
+
+	UKzGraph* GetGraphAsset() const { return Graph.Get(); }
+
 private:
 	UKzEdGraph* GetEdGraph() const;
 
@@ -68,6 +76,7 @@ private:
 	TSharedRef<SDockTab> SpawnDetailsTab(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnCompileResultsTab(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnFindTab(const FSpawnTabArgs& Args);
+	TSharedRef<SDockTab> SpawnViewportTab(const FSpawnTabArgs& Args);
 
 	void OnSelectionChanged(const TSet<UObject*>& Selection);
 	void OnNodeTitleCommitted(const FText& Text, ETextCommit::Type CommitType, UEdGraphNode* Node);
@@ -113,6 +122,10 @@ private:
 	TSharedPtr<IDetailsView> DetailsView;
 	TSharedPtr<SKzValidationPanel> CompileResults;
 	TSharedPtr<SKzGraphFindResults> FindResults;
+	TSharedPtr<FKzGraphPreview> Preview;
+
+	/** The viewport with the preview's panel under it, made once so reopening its tab keeps the scene. */
+	TSharedPtr<SWidget> PreviewPanel;
 	FDelegateHandle GraphChangedHandle;
 	FTSTicker::FDelegateHandle AutoCompileTicker;
 
