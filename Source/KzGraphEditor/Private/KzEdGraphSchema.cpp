@@ -209,6 +209,10 @@ void UKzEdGraphSchema::GetContextMenuActions(UToolMenu* Menu, UGraphNodeContextM
 	NodeSection.AddMenuEntry(FGenericCommands::Get().Cut);
 	NodeSection.AddMenuEntry(FGenericCommands::Get().Copy);
 	NodeSection.AddMenuEntry(FGenericCommands::Get().Duplicate);
+	if (Context->Node->GetCanRenameNode())
+	{
+		NodeSection.AddMenuEntry(FGenericCommands::Get().Rename);
+	}
 	NodeSection.AddMenuEntry(FGraphEditorCommands::Get().BreakNodeLinks);
 	NodeSection.AddMenuEntry(FGraphEditorCommands::Get().ReconstructNodes);
 

@@ -14,6 +14,8 @@ public class KzGraphEditor : ModuleRules
 				"Core",
 				"CoreUObject",
 				"Engine",
+				"Slate",
+				"SlateCore",
 				"UnrealEd",
 				"GraphEditor",
 				"KzLib",
@@ -25,8 +27,6 @@ public class KzGraphEditor : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
-				"Slate",
-				"SlateCore",
 				"InputCore",
 				"ToolMenus",
 				"PropertyEditor",

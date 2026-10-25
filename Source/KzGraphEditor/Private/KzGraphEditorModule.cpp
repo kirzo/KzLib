@@ -4,6 +4,7 @@
 #include "KzEdGraph.h"
 #include "KzEdGraphNode.h"
 #include "KzGraph.h"
+#include "KzGraphEditor.h"
 #include "Modules/ModuleManager.h"
 #include "SGraphNodeKnot.h"
 #include "SKzGraphNode.h"
@@ -33,6 +34,8 @@ class FKzGraphEditorModule : public IModuleInterface
 public:
 	virtual void StartupModule() override
 	{
+		FKzGraphEditorCommands::Register();
+
 		NodeFactory = MakeShared<FKzGraphNodeFactory>();
 		FEdGraphUtilities::RegisterVisualNodeFactory(NodeFactory);
 
@@ -43,6 +46,7 @@ public:
 	{
 		FCoreUObjectDelegates::OnObjectPreSave.Remove(PreSaveHandle);
 		FEdGraphUtilities::UnregisterVisualNodeFactory(NodeFactory);
+		FKzGraphEditorCommands::Unregister();
 	}
 
 private:
