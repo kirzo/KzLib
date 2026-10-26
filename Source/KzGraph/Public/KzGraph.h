@@ -100,6 +100,8 @@ struct KZGRAPH_API FKzGraphData
 	/** Where an output leads, in order. */
 	TConstArrayView<FKzGraphLink> GetLinks(int32 Node, int32 Output) const;
 
+	const FGuid& GetNodeGuid(int32 Node) const { return NodeGuids[Node]; }
+
 	UPROPERTY()
 	FInstancedStructContainer Nodes;
 
@@ -118,11 +120,9 @@ struct KZGRAPH_API FKzGraphData
 	UPROPERTY()
 	TArray<FKzGraphEntry> Entries;
 
-#if WITH_EDITORONLY_DATA
-	/** The editor node each node was compiled from. */
+	/** The editor node each node was compiled from: an id that survives recompiles, for runners that remember nodes (visits, saves). */
 	UPROPERTY()
 	TArray<FGuid> NodeGuids;
-#endif
 };
 
 /** Base of graph assets. Each kind of graph inherits, tells the editor which nodes it takes and how they connect, and its runner reads the data. */
