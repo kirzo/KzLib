@@ -6,13 +6,59 @@
 #include "KzGraphEditorUtils.h"
 #include "SGraphPin.h"
 #include "Styling/AppStyle.h"
-#include "Brushes/SlateRoundedBoxBrush.h"
+#include "Rendering/DrawElements.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SBoxPanel.h"
+#include "Widgets/SLeafWidget.h"
 #include "Widgets/SNullWidget.h"
+#include "Widgets/SOverlay.h"
 #include "Widgets/Text/STextBlock.h"
+
+namespace
+{
+	/** Lightens toward white (positive) or darkens toward black (negative) in sRGB, as a designer picks shades. */
+	FLinearColor Shade(const FLinearColor& Color, float Amount)
+	{
+		const FColor SRGB = Color.ToFColor(true);
+		auto Channel = [Amount](uint8 Value)
+		{
+			const float Shaded = Amount >= 0.0f ? Value + (255.0f - Value) * Amount : Value * (1.0f + Amount);
+			return static_cast<uint8>(FMath::Clamp(FMath::RoundToInt(Shaded), 0, 255));
+		};
+		return FLinearColor(FColor(Channel(SRGB.R), Channel(SRGB.G), Channel(SRGB.B), SRGB.A));
+	}
+
+	/** The title band of a vertical node: its color, lighter at the top and darker at the bottom. */
+	class SKzGraphTitleBand : public SLeafWidget
+	{
+	public:
+		SLATE_BEGIN_ARGS(SKzGraphTitleBand) {}
+			SLATE_ATTRIBUTE(FSlateColor, Color)
+		SLATE_END_ARGS()
+
+		void Construct(const FArguments& InArgs)
+		{
+			Color = InArgs._Color;
+		}
+
+		virtual FVector2D ComputeDesiredSize(float) const override { return FVector2D::ZeroVector; }
+
+		virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override
+		{
+			const FLinearColor Base = Color.Get().GetSpecifiedColor() * InWidgetStyle.GetColorAndOpacityTint();
+			TArray<FSlateGradientStop> Stops;
+			Stops.Emplace(FVector2f(0.0f, 0.0f), Shade(Base, 0.25f));
+			Stops.Emplace(FVector2f(0.0f, AllottedGeometry.GetLocalSize().Y), Shade(Base, -0.38f));
+			FSlateDrawElement::MakeGradient(OutDrawElements, LayerId, AllottedGeometry.ToPaintGeometry(), MoveTemp(Stops), Orient_Horizontal, ESlateDrawEffect::None, FVector4f(4.0f));
+			return LayerId;
+		}
+
+	private:
+		TAttribute<FSlateColor> Color;
+	};
+}
 
 void SKzGraphPin::Construct(const FArguments& InArgs, UEdGraphPin* InPin)
 {
@@ -102,7 +148,6 @@ void SKzGraphNode::UpdateGraphNode()
 
 	// A big grid cell wide at least, so short titles do not make thin nodes.
 	const float MinWidth = 8.0f * SNodePanel::GetSnapGridSize();
-	static const FSlateRoundedBoxBrush TitleBrush(FLinearColor::White, 4.0f);
 
 	// A side without pins takes no room, so the title band can be the top or the bottom of the node.
 	const bool bHasInputs = GraphNode->Pins.ContainsByPredicate([](const UEdGraphPin* Pin) { return Pin->Direction == EGPD_Input; });
@@ -131,9 +176,13 @@ void SKzGraphNode::UpdateGraphNode()
 				.AutoHeight()
 				.Padding(2.0f)
 				[
-					SNew(SBorder)
-					.BorderImage(&TitleBrush)
-					.BorderBackgroundColor(this, &SKzGraphNode::GetBodyColor)
+					SNew(SOverlay)
+					+ SOverlay::Slot()
+					[
+						SNew(SKzGraphTitleBand)
+						.Color(this, &SKzGraphNode::GetBodyColor)
+					]
+					+ SOverlay::Slot()
 					.HAlign(HAlign_Center)
 					.Padding(FMargin(10.0f, 4.0f))
 					[
