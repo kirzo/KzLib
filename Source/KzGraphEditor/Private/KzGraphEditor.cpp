@@ -28,6 +28,8 @@
 #include "Framework/SlateDelegates.h"
 #include "SNodePanel.h"
 #include "Styling/AppStyle.h"
+#include "ToolMenu.h"
+#include "ToolMenuSection.h"
 #include "UObject/Package.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/SBoxPanel.h"
@@ -574,6 +576,55 @@ void FKzGraphEditor::StraightenConnections()
 	{
 		KzGraphEditor::StraightenConnections(*GraphEditor);
 	}
+}
+
+void FKzGraphEditor::AddGraphEditorPinActionsToContextMenu(FToolMenuSection& InSection) const
+{
+	if (!Graph.IsValid() || Graph->GetFlow() != EKzGraphFlow::Vertical || !GraphEditor.IsValid())
+	{
+		return;
+	}
+
+	// Replaces the engine's submenu of the same name, which straightens across a horizontal flow.
+	InSection.RemoveEntry(TEXT("StraightenPinConnection"));
+	const UGraphNodeContextMenuContext* NodeContext = InSection.FindContext<UGraphNodeContextMenuContext>();
+	if (!NodeContext || !NodeContext->Pin || NodeContext->Pin->LinkedTo.IsEmpty())
+	{
+		return;
+	}
+
+	const TWeakPtr<SGraphEditor> WeakEditor = GraphEditor;
+	const FEdGraphPinReference PinReference(NodeContext->Pin);
+	InSection.AddSubMenu(TEXT("StraightenPinConnection"), LOCTEXT("StraightenPin", "Straighten Connection..."), LOCTEXT("StraightenPinTip", "Straighten specific connection..."), FNewToolMenuDelegate::CreateLambda([WeakEditor, PinReference](UToolMenu* Menu)
+	{
+		UEdGraphPin* Pin = PinReference.Get();
+		if (!Pin)
+		{
+			return;
+		}
+
+		FToolMenuSection& Section = Menu->AddSection(TEXT("KzStraightenPin"));
+		auto AddEntry = [&Section, WeakEditor, PinReference](const FEdGraphPinReference& OnlyTo, const FText& Label)
+		{
+			Section.AddMenuEntry(NAME_None, Label, FText::GetEmpty(), FGraphEditorCommands::Get().StraightenConnections->GetIcon(), FUIAction(FExecuteAction::CreateLambda([WeakEditor, PinReference, OnlyTo]()
+			{
+				const TSharedPtr<SGraphEditor> Editor = WeakEditor.Pin();
+				if (UEdGraphPin* Anchor = PinReference.Get(); Editor.IsValid() && Anchor)
+				{
+					KzGraphEditor::StraightenPinConnections(*Editor, *Anchor, OnlyTo.Get());
+				}
+			})));
+		};
+
+		AddEntry(FEdGraphPinReference(), LOCTEXT("StraightenAllPin", "Straighten All Pin Connections"));
+		for (UEdGraphPin* Linked : Pin->LinkedTo)
+		{
+			if (Linked)
+			{
+				AddEntry(FEdGraphPinReference(Linked), FText::Format(LOCTEXT("StraightenPinTo", "Straighten Connection to {0}"), Linked->GetOwningNode()->GetNodeTitle(ENodeTitleType::ListView)));
+			}
+		}
+	}));
 }
 
 FReply FKzGraphEditor::OnGraphPreviewKeyDown(const FGeometry& Geometry, const FKeyEvent& KeyEvent)

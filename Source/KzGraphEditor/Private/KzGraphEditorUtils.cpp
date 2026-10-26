@@ -13,6 +13,26 @@
 
 namespace
 {
+	/** Moves the node of Moving sideways until Moving's center lines up with Anchor's, down a vertical flow. */
+	bool AlignPins(SGraphPanel& Panel, UEdGraphPin& Anchor, UEdGraphPin& Moving)
+	{
+		UEdGraphNode* AnchorNode = Anchor.GetOwningNode();
+		UEdGraphNode* MovingNode = Moving.GetOwningNode();
+		const TSharedPtr<SGraphNode> AnchorWidget = Panel.GetNodeWidgetFromGuid(AnchorNode->NodeGuid);
+		const TSharedPtr<SGraphNode> MovingWidget = Panel.GetNodeWidgetFromGuid(MovingNode->NodeGuid);
+		const TSharedPtr<SGraphPin> AnchorPin = AnchorWidget.IsValid() ? AnchorWidget->FindWidgetForPin(&Anchor) : nullptr;
+		const TSharedPtr<SGraphPin> MovingPin = MovingWidget.IsValid() ? MovingWidget->FindWidgetForPin(&Moving) : nullptr;
+		if (!AnchorPin.IsValid() || !MovingPin.IsValid())
+		{
+			return false;
+		}
+
+		const float AnchorX = AnchorNode->NodePosX + AnchorPin->GetNodeOffset().X + AnchorPin->GetDesiredSize().X * 0.5f;
+		const float MovingX = MovingPin->GetNodeOffset().X + MovingPin->GetDesiredSize().X * 0.5f;
+		MovingNode->GetSchema()->SetNodePosition(MovingNode, FVector2f(AnchorX - MovingX, MovingNode->NodePosY));
+		return true;
+	}
+
 	TMap<TWeakObjectPtr<const UScriptStruct>, FKzOnMakeGraphNodeBody>& GetNodeBodies()
 	{
 		static TMap<TWeakObjectPtr<const UScriptStruct>, FKzOnMakeGraphNodeBody> NodeBodies;
@@ -142,16 +162,15 @@ void KzGraphEditor::StraightenConnections(SGraphEditor& Editor)
 	}
 	Selected.Sort([](const UEdGraphNode& A, const UEdGraphNode& B) { return A.NodePosY < B.NodePosY; });
 
+	if (!Panel)
+	{
+		return;
+	}
+
 	const FScopedTransaction Transaction(FGraphEditorCommands::Get().StraightenConnections->GetLabel());
 	TSet<const UEdGraphNode*> Moved;
 	for (UEdGraphNode* Source : Selected)
 	{
-		const TSharedPtr<SGraphNode> SourceWidget = Panel ? Panel->GetNodeWidgetFromGuid(Source->NodeGuid) : nullptr;
-		if (!SourceWidget.IsValid())
-		{
-			continue;
-		}
-
 		for (UEdGraphPin* Output : Source->Pins)
 		{
 			if (Output->Direction != EGPD_Output)
@@ -162,24 +181,30 @@ void KzGraphEditor::StraightenConnections(SGraphEditor& Editor)
 			for (UEdGraphPin* Input : Output->LinkedTo)
 			{
 				UEdGraphNode* Target = Input ? Input->GetOwningNode() : nullptr;
-				if (!Target || Target == Source || Moved.Contains(Target) || !Selected.Contains(Target))
+				if (Target && Target != Source && !Moved.Contains(Target) && Selected.Contains(Target) && AlignPins(*Panel, *Output, *Input))
 				{
-					continue;
+					Moved.Add(Target);
 				}
-
-				const TSharedPtr<SGraphNode> TargetWidget = Panel->GetNodeWidgetFromGuid(Target->NodeGuid);
-				const TSharedPtr<SGraphPin> OutputWidget = SourceWidget->FindWidgetForPin(Output);
-				const TSharedPtr<SGraphPin> InputWidget = TargetWidget.IsValid() ? TargetWidget->FindWidgetForPin(Input) : nullptr;
-				if (!OutputWidget.IsValid() || !InputWidget.IsValid())
-				{
-					continue;
-				}
-
-				const float OutputX = Source->NodePosX + OutputWidget->GetNodeOffset().X + OutputWidget->GetDesiredSize().X * 0.5f;
-				const float InputX = InputWidget->GetNodeOffset().X + InputWidget->GetDesiredSize().X * 0.5f;
-				Target->GetSchema()->SetNodePosition(Target, FVector2f(OutputX - InputX, Target->NodePosY));
-				Moved.Add(Target);
 			}
+		}
+	}
+}
+
+void KzGraphEditor::StraightenPinConnections(SGraphEditor& Editor, UEdGraphPin& Pin, UEdGraphPin* OnlyTo)
+{
+	SGraphPanel* Panel = Editor.GetGraphPanel();
+	if (!Panel)
+	{
+		return;
+	}
+
+	const FScopedTransaction Transaction(FGraphEditorCommands::Get().StraightenConnections->GetLabel());
+	const TArray<UEdGraphPin*> Linked = OnlyTo ? TArray<UEdGraphPin*>{ OnlyTo } : Pin.LinkedTo;
+	for (UEdGraphPin* Other : Linked)
+	{
+		if (Other && Other->GetOwningNode() != Pin.GetOwningNode())
+		{
+			AlignPins(*Panel, Pin, *Other);
 		}
 	}
 }

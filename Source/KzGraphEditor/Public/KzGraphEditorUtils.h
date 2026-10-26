@@ -45,4 +45,7 @@ namespace KzGraphEditor
 
 	/** Lines the links between the selected nodes up along the graph's flow; the engine's own straightening only knows a horizontal one. */
 	KZGRAPHEDITOR_API void StraightenConnections(SGraphEditor& Editor);
+
+	/** Down a vertical flow, moves the nodes linked to Pin, or only the one OnlyTo is on, until their pins line up with it. */
+	KZGRAPHEDITOR_API void StraightenPinConnections(SGraphEditor& Editor, UEdGraphPin& Pin, UEdGraphPin* OnlyTo = nullptr);
 }
