@@ -13,6 +13,26 @@ namespace
 		return NodeBodies;
 	}
 
+	TMap<TWeakObjectPtr<const UScriptStruct>, FKzOnGraphNodeDoubleClicked>& GetNodeDoubleClicks()
+	{
+		static TMap<TWeakObjectPtr<const UScriptStruct>, FKzOnGraphNodeDoubleClicked> NodeDoubleClicks;
+		return NodeDoubleClicks;
+	}
+
+	/** The entry of the node's struct or its closest parent. */
+	template <typename DelegateType>
+	const DelegateType* FindForNode(const TMap<TWeakObjectPtr<const UScriptStruct>, DelegateType>& Map, const UKzEdGraphNode& Node)
+	{
+		for (const UStruct* Struct = Node.Node.GetScriptStruct(); Struct; Struct = Struct->GetSuperStruct())
+		{
+			if (const DelegateType* Found = Map.Find(Cast<UScriptStruct>(Struct)))
+			{
+				return Found;
+			}
+		}
+		return nullptr;
+	}
+
 	void GatherTargets(const UEdGraphPin& Output, EKzGraphFlow Flow, TArray<UEdGraphPin*>& OutTargets, TSet<const UEdGraphNode*>& Visited)
 	{
 		TArray<UEdGraphPin*> Linked = Output.LinkedTo;
@@ -50,14 +70,26 @@ void KzGraphEditor::UnregisterNodeBody(const UScriptStruct* Struct)
 
 TSharedPtr<SWidget> KzGraphEditor::MakeNodeBody(const UKzEdGraphNode& Node)
 {
-	for (const UStruct* Struct = Node.Node.GetScriptStruct(); Struct; Struct = Struct->GetSuperStruct())
+	const FKzOnMakeGraphNodeBody* MakeBody = FindForNode(GetNodeBodies(), Node);
+	return MakeBody && MakeBody->IsBound() ? MakeBody->Execute(Node) : nullptr;
+}
+
+void KzGraphEditor::RegisterNodeDoubleClick(const UScriptStruct* Struct, FKzOnGraphNodeDoubleClicked OnDoubleClicked)
+{
+	GetNodeDoubleClicks().Add(Struct, MoveTemp(OnDoubleClicked));
+}
+
+void KzGraphEditor::UnregisterNodeDoubleClick(const UScriptStruct* Struct)
+{
+	GetNodeDoubleClicks().Remove(Struct);
+}
+
+void KzGraphEditor::DoubleClickNode(const UKzEdGraphNode& Node)
+{
+	if (const FKzOnGraphNodeDoubleClicked* OnDoubleClicked = FindForNode(GetNodeDoubleClicks(), Node))
 	{
-		if (const FKzOnMakeGraphNodeBody* MakeBody = GetNodeBodies().Find(Cast<UScriptStruct>(Struct)))
-		{
-			return MakeBody->IsBound() ? MakeBody->Execute(Node) : nullptr;
-		}
+		OnDoubleClicked->ExecuteIfBound(Node);
 	}
-	return nullptr;
 }
 
 UKzGraph* KzGraphEditor::GetGraphAsset(const UEdGraph* Graph)

@@ -13,7 +13,9 @@
 #include "HAL/PlatformApplicationMisc.h"
 #include "IDetailsView.h"
 #include "KzEdGraph.h"
+#include "KzEdGraphNode.h"
 #include "KzEdGraphSchema.h"
+#include "KzGraphEditorUtils.h"
 #include "KzGraph.h"
 #include "KzGraphCompiler.h"
 #include "KzGraphPreview.h"
@@ -304,6 +306,7 @@ TSharedRef<SDockTab> FKzGraphEditor::SpawnGraphTab(const FSpawnTabArgs& Args)
 	Events.OnSelectionChanged = SGraphEditor::FOnSelectionChanged::CreateSP(this, &FKzGraphEditor::OnSelectionChanged);
 	Events.OnTextCommitted = FOnNodeTextCommitted::CreateSP(this, &FKzGraphEditor::OnNodeTitleCommitted);
 	Events.OnSpawnNodeByShortcutAtLocation = SGraphEditor::FOnSpawnNodeByShortcutAtLocation::CreateSP(this, &FKzGraphEditor::OnSpawnNodeByShortcut);
+	Events.OnNodeDoubleClicked = FSingleNodeEvent::CreateSP(this, &FKzGraphEditor::OnNodeDoubleClicked);
 
 	FGraphAppearanceInfo Appearance;
 	Appearance.CornerText = Graph.IsValid() ? Graph->GetClass()->GetDisplayNameText().ToUpper() : FText::GetEmpty();
@@ -351,6 +354,14 @@ void FKzGraphEditor::OnSelectionChanged(const TSet<UObject*>& Selection)
 	if (Preview.IsValid())
 	{
 		Preview->OnSelectionChanged(Selection);
+	}
+}
+
+void FKzGraphEditor::OnNodeDoubleClicked(UEdGraphNode* Node)
+{
+	if (const UKzEdGraphNode* KzNode = Cast<UKzEdGraphNode>(Node))
+	{
+		KzGraphEditor::DoubleClickNode(*KzNode);
 	}
 }
 

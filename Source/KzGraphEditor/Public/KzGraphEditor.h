@@ -79,6 +79,7 @@ private:
 	TSharedRef<SDockTab> SpawnViewportTab(const FSpawnTabArgs& Args);
 
 	void OnSelectionChanged(const TSet<UObject*>& Selection);
+	void OnNodeDoubleClicked(UEdGraphNode* Node);
 	void OnNodeTitleCommitted(const FText& Text, ETextCommit::Type CommitType, UEdGraphNode* Node);
 	FReply OnSpawnNodeByShortcut(FInputChord Chord, const FVector2f& Location);
 	void OnGraphChanged(const FEdGraphEditAction& Action);
