@@ -6,8 +6,10 @@
 #include "KzGraphEditorUtils.h"
 #include "SGraphPin.h"
 #include "Styling/AppStyle.h"
+#include "Brushes/SlateRoundedBoxBrush.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SBorder.h"
+#include "Widgets/Layout/SBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SNullWidget.h"
 #include "Widgets/Text/STextBlock.h"
@@ -98,6 +100,14 @@ void SKzGraphNode::UpdateGraphNode()
 
 	const TSharedPtr<SNodeTitle> NodeTitle = SNew(SNodeTitle, GraphNode);
 
+	// A big grid cell wide at least, so short titles do not make thin nodes.
+	const float MinWidth = 8.0f * SNodePanel::GetSnapGridSize();
+	static const FSlateRoundedBoxBrush TitleBrush(FLinearColor::White, 4.0f);
+
+	// A side without pins takes no room, so the title band can be the top or the bottom of the node.
+	const bool bHasInputs = GraphNode->Pins.ContainsByPredicate([](const UEdGraphPin* Pin) { return Pin->Direction == EGPD_Input; });
+	const bool bHasOutputs = GraphNode->Pins.ContainsByPredicate([](const UEdGraphPin* Pin) { return Pin->Direction == EGPD_Output; });
+
 	GetOrAddSlot(ENodeZone::Center)
 	.HAlign(HAlign_Center)
 	.VAlign(VAlign_Center)
@@ -106,64 +116,72 @@ void SKzGraphNode::UpdateGraphNode()
 		.BorderImage(FAppStyle::GetBrush("Graph.Node.Body"))
 		.Padding(0.0f)
 		[
-			SNew(SVerticalBox)
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.HAlign(HAlign_Center)
-			.Padding(4.0f, 2.0f)
+			SNew(SBox)
+			.MinDesiredWidth(MinWidth)
 			[
-				SAssignNew(TopPinBox, SHorizontalBox)
-			]
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			[
-				SNew(SBorder)
-				.BorderImage(FAppStyle::GetBrush("Graph.Node.ColorSpill"))
-				.BorderBackgroundColor(this, &SKzGraphNode::GetBodyColor)
-				.Padding(FMargin(10.0f, 4.0f))
+				SNew(SVerticalBox)
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				.HAlign(HAlign_Center)
+				.Padding(bHasInputs ? FMargin(4.0f, 2.0f) : FMargin(0.0f))
 				[
-					SNew(SHorizontalBox)
-					+ SHorizontalBox::Slot()
-					.AutoWidth()
-					.VAlign(VAlign_Center)
-					.Padding(0.0f, 0.0f, 4.0f, 0.0f)
+					SAssignNew(TopPinBox, SHorizontalBox)
+				]
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				.Padding(2.0f)
+				[
+					SNew(SBorder)
+					.BorderImage(&TitleBrush)
+					.BorderBackgroundColor(this, &SKzGraphNode::GetBodyColor)
+					.HAlign(HAlign_Center)
+					.Padding(FMargin(10.0f, 4.0f))
 					[
-						CreateIconWidget()
-					]
-					+ SHorizontalBox::Slot()
-					.AutoWidth()
-					.VAlign(VAlign_Center)
-					[
-						SNew(SVerticalBox)
-						+ SVerticalBox::Slot()
-						.AutoHeight()
+						SNew(SHorizontalBox)
+						+ SHorizontalBox::Slot()
+						.AutoWidth()
+						.VAlign(VAlign_Center)
+						.Padding(0.0f, 0.0f, 4.0f, 0.0f)
 						[
-							CreateTitleWidget(NodeTitle)
+							CreateIconWidget()
 						]
-						+ SVerticalBox::Slot()
-						.AutoHeight()
+						+ SHorizontalBox::Slot()
+						.AutoWidth()
+						.VAlign(VAlign_Center)
 						[
-							NodeTitle.ToSharedRef()
+							SNew(SVerticalBox)
+							+ SVerticalBox::Slot()
+							.AutoHeight()
+							.HAlign(HAlign_Center)
+							[
+								CreateTitleWidget(NodeTitle)
+							]
+							+ SVerticalBox::Slot()
+							.AutoHeight()
+							.HAlign(HAlign_Center)
+							[
+								NodeTitle.ToSharedRef()
+							]
 						]
 					]
 				]
-			]
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			[
-				MakeBody()
-			]
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.HAlign(HAlign_Center)
-			.Padding(4.0f, 2.0f)
-			[
-				SAssignNew(BottomPinBox, SHorizontalBox)
-			]
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			[
-				ErrorReporting->AsWidget()
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				[
+					MakeBody()
+				]
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				.HAlign(HAlign_Center)
+				.Padding(bHasOutputs ? FMargin(4.0f, 2.0f) : FMargin(0.0f))
+				[
+					SAssignNew(BottomPinBox, SHorizontalBox)
+				]
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				[
+					ErrorReporting->AsWidget()
+				]
 			]
 		]
 	];
