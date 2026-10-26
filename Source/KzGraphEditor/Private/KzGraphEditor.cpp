@@ -25,6 +25,9 @@
 #include "ScopedTransaction.h"
 #include "SKzGraphFindResults.h"
 #include "SKzGraphViewport.h"
+#include "SGraphNode.h"
+#include "SGraphPanel.h"
+#include "SGraphPin.h"
 #include "SNodePanel.h"
 #include "Styling/AppStyle.h"
 #include "UObject/Package.h"
@@ -214,7 +217,7 @@ void FKzGraphEditor::BindCommands()
 	Commands->MapAction(GraphCommands.AlignNodesLeft, FExecuteAction::CreateSPLambda(this, [this]() { GraphEditor->OnAlignLeft(); }));
 	Commands->MapAction(GraphCommands.AlignNodesCenter, FExecuteAction::CreateSPLambda(this, [this]() { GraphEditor->OnAlignCenter(); }));
 	Commands->MapAction(GraphCommands.AlignNodesRight, FExecuteAction::CreateSPLambda(this, [this]() { GraphEditor->OnAlignRight(); }));
-	Commands->MapAction(GraphCommands.StraightenConnections, FExecuteAction::CreateSPLambda(this, [this]() { GraphEditor->OnStraightenConnections(); }));
+	Commands->MapAction(GraphCommands.StraightenConnections, FExecuteAction::CreateSP(this, &FKzGraphEditor::StraightenConnections));
 	Commands->MapAction(GraphCommands.DistributeNodesHorizontally, FExecuteAction::CreateSPLambda(this, [this]() { GraphEditor->OnDistributeNodesH(); }));
 	Commands->MapAction(GraphCommands.DistributeNodesVertically, FExecuteAction::CreateSPLambda(this, [this]() { GraphEditor->OnDistributeNodesV(); }));
 
@@ -527,6 +530,68 @@ void FKzGraphEditor::FindInGraph()
 {
 	TabManager->TryInvokeTab(FindTabId);
 	FindResults->FocusSearch();
+}
+
+void FKzGraphEditor::StraightenConnections()
+{
+	if (!Graph.IsValid() || Graph->GetFlow() != EKzGraphFlow::Vertical)
+	{
+		GraphEditor->OnStraightenConnections();
+		return;
+	}
+
+	// Each selected node moves sideways until its input sits under the output feeding it; top to bottom, so chains follow.
+	SGraphPanel* Panel = GraphEditor->GetGraphPanel();
+	TArray<UEdGraphNode*> Selected;
+	for (UObject* Object : GraphEditor->GetSelectedNodes())
+	{
+		if (UEdGraphNode* Node = Cast<UEdGraphNode>(Object))
+		{
+			Selected.Add(Node);
+		}
+	}
+	Selected.Sort([](const UEdGraphNode& A, const UEdGraphNode& B) { return A.NodePosY < B.NodePosY; });
+
+	const FScopedTransaction Transaction(FGraphEditorCommands::Get().StraightenConnections->GetLabel());
+	TSet<const UEdGraphNode*> Moved;
+	for (UEdGraphNode* Source : Selected)
+	{
+		const TSharedPtr<SGraphNode> SourceWidget = Panel ? Panel->GetNodeWidgetFromGuid(Source->NodeGuid) : nullptr;
+		if (!SourceWidget.IsValid())
+		{
+			continue;
+		}
+
+		for (UEdGraphPin* Output : Source->Pins)
+		{
+			if (Output->Direction != EGPD_Output)
+			{
+				continue;
+			}
+
+			for (UEdGraphPin* Input : Output->LinkedTo)
+			{
+				UEdGraphNode* Target = Input ? Input->GetOwningNode() : nullptr;
+				if (!Target || Target == Source || Moved.Contains(Target) || !Selected.Contains(Target))
+				{
+					continue;
+				}
+
+				const TSharedPtr<SGraphNode> TargetWidget = Panel->GetNodeWidgetFromGuid(Target->NodeGuid);
+				const TSharedPtr<SGraphPin> OutputWidget = SourceWidget->FindWidgetForPin(Output);
+				const TSharedPtr<SGraphPin> InputWidget = TargetWidget.IsValid() ? TargetWidget->FindWidgetForPin(Input) : nullptr;
+				if (!OutputWidget.IsValid() || !InputWidget.IsValid())
+				{
+					continue;
+				}
+
+				const float OutputX = Source->NodePosX + OutputWidget->GetNodeOffset().X + OutputWidget->GetDesiredSize().X * 0.5f;
+				const float InputX = InputWidget->GetNodeOffset().X + InputWidget->GetDesiredSize().X * 0.5f;
+				Target->GetSchema()->SetNodePosition(Target, FVector2f(OutputX - InputX, Target->NodePosY));
+				Moved.Add(Target);
+			}
+		}
+	}
 }
 
 void FKzGraphEditor::DeleteSelectedNodes(bool bReconnect)

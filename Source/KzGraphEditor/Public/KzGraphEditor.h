@@ -103,6 +103,9 @@ private:
 	void FindInGraph();
 
 	/** Deletes the selected nodes; reconnecting lets the flow pass each node with one input and one output, as Shift+Delete does in Blueprints. */
+	/** Q: lines linked pins up along the graph's flow. */
+	void StraightenConnections();
+
 	void DeleteSelectedNodes(bool bReconnect);
 	bool CanDeleteNodes() const;
 	void CopySelectedNodes();
