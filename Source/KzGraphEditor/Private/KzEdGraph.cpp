@@ -121,4 +121,7 @@ void UKzEdGraph::ReconstructNodes()
 	{
 		Node->ReconstructNode();
 	}
+
+	// The panel's pin widgets still point at the pins just thrown away.
+	NotifyGraphChanged();
 }

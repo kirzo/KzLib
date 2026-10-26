@@ -38,7 +38,7 @@ public:
 	/** Announces an edit on the next tick, for wiring done from inside the graph panel, which still holds the pins. */
 	void NotifyGraphChangedSoon();
 
-	/** Recreates every node's pins from its struct; links follow by pin name. */
+	/** Recreates every node's pins from its struct, and their widgets; links follow by pin name. */
 	void ReconstructNodes();
 
 private:

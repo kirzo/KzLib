@@ -123,7 +123,6 @@ private:
 		if (EdGraph)
 		{
 			EdGraph->ReconstructNodes();
-			EdGraph->NotifyGraphChanged();
 		}
 	}
 
