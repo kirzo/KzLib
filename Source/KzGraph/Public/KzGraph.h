@@ -81,7 +81,7 @@ struct KZGRAPH_API FKzGraphData
 	FConstStructView GetNode(int32 Node) const { return Nodes[Node]; }
 
 	template<typename T>
-	const T* GetNode(int32 Node) const { return Nodes[Node].GetPtr<T>(); }
+	const T* GetNode(int32 Node) const { return Nodes[Node].GetPtr<const T>(); }
 
 	TConstArrayView<FKzGraphEntry> GetEntries() const { return Entries; }
 
