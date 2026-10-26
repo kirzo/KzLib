@@ -51,7 +51,7 @@ namespace
 			TArray<FSlateGradientStop> Stops;
 			Stops.Emplace(FVector2f(0.0f, 0.0f), Shade(Base, 0.25f));
 			Stops.Emplace(FVector2f(0.0f, AllottedGeometry.GetLocalSize().Y), Shade(Base, -0.38f));
-			FSlateDrawElement::MakeGradient(OutDrawElements, LayerId, AllottedGeometry.ToPaintGeometry(), MoveTemp(Stops), Orient_Horizontal, ESlateDrawEffect::None, FVector4f(4.0f));
+			FSlateDrawElement::MakeGradient(OutDrawElements, LayerId, AllottedGeometry.ToPaintGeometry(), MoveTemp(Stops), Orient_Horizontal, ESlateDrawEffect::None, FVector4f(4.0f, 4.0f, 4.0f, 4.0f));
 			return LayerId;
 		}
 
