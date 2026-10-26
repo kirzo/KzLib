@@ -31,7 +31,8 @@ public class KzGraphEditor : ModuleRules
 				"ToolMenus",
 				"PropertyEditor",
 				"ApplicationCore",
-				"AdvancedPreviewScene"
+				"AdvancedPreviewScene",
+				"StructUtilsEditor"
 			}
 			);
 	}
