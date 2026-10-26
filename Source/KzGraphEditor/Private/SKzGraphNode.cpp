@@ -16,8 +16,10 @@ void SKzGraphPin::Construct(const FArguments& InArgs, UEdGraphPin* InPin)
 
 FSlateColor SKzGraphPin::GetPinColor() const
 {
+	// A rebuilt node trashes its old pins, whose widgets still paint until the panel catches up.
 	const UEdGraphPin* Pin = GetPinObj();
-	const UKzGraph* Asset = Pin ? KzGraphEditor::GetGraphAsset(Pin->GetOwningNode()->GetGraph()) : nullptr;
+	const UEdGraphNode* Node = Pin && !Pin->IsPendingKill() ? Pin->GetOwningNodeUnchecked() : nullptr;
+	const UKzGraph* Asset = Node ? Node->GetTypedOuter<UKzGraph>() : nullptr;
 	if (!Asset)
 	{
 		return SGraphPinExec::GetPinColor();
