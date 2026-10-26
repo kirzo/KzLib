@@ -6,13 +6,58 @@
 #include "KzGraphEditorUtils.h"
 #include "SGraphPin.h"
 #include "Styling/AppStyle.h"
+#include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SNullWidget.h"
+#include "Widgets/Text/STextBlock.h"
 
 void SKzGraphPin::Construct(const FArguments& InArgs, UEdGraphPin* InPin)
 {
 	SGraphPinExec::Construct(SGraphPinExec::FArguments(), InPin);
+
+	const UEdGraphNode* Node = InPin->GetOwningNode();
+	const UKzGraph* Asset = KzGraphEditor::GetGraphAsset(Node->GetGraph());
+	if (!Asset || Asset->GetFlow() != EKzGraphFlow::Vertical)
+	{
+		return;
+	}
+
+	// Vertical flow: the arrow turned to point down along the flow, wires leaving below it and arriving above it.
+	const TSharedRef<SWidget> Arrow = SNew(SImage)
+		.Image_Lambda([this]() { return GetPinIcon(); })
+		.ColorAndOpacity_Lambda([this]() { return GetPinColor(); })
+		.RenderTransform(FSlateRenderTransform(FQuat2D(FMath::DegreesToRadians(90.0f))))
+		.RenderTransformPivot(FVector2D(0.5f, 0.5f));
+	Arrow->SetCursor(TAttribute<TOptional<EMouseCursor::Type>>::CreateLambda([this]() { return GetPinCursor(); }));
+	SetPinImageWidget(Arrow);
+
+	// A lone input or output needs no name; several are told apart by theirs.
+	const int32 PinsOnSide = Node->Pins.FilterByPredicate([InPin](const UEdGraphPin* Pin) { return Pin->Direction == InPin->Direction; }).Num();
+	TSharedRef<SWidget> Label = SNullWidget::NullWidget;
+	if (PinsOnSide > 1)
+	{
+		Label = SNew(STextBlock)
+			.Text_Lambda([this]() { return GetPinLabel(); })
+			.TextStyle(FAppStyle::Get(), "Graph.Node.PinName")
+			.ColorAndOpacity_Lambda([this]() { return GetPinTextColor(); });
+	}
+
+	const bool bInput = InPin->Direction == EGPD_Input;
+	SetContent(
+		SNew(SVerticalBox)
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.HAlign(HAlign_Center)
+		[
+			bInput ? Arrow : Label
+		]
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.HAlign(HAlign_Center)
+		[
+			bInput ? Label : Arrow
+		]);
 }
 
 FSlateColor SKzGraphPin::GetPinColor() const
