@@ -24,12 +24,6 @@ UKzGraph* UKzEdGraph::GetGraphAsset() const
 	return GetTypedOuter<UKzGraph>();
 }
 
-void UKzEdGraph::NotifyGraphChanged()
-{
-	MarkChanged();
-	Super::NotifyGraphChanged();
-}
-
 void UKzEdGraph::NotifyGraphChanged(const FEdGraphEditAction& Action)
 {
 	if (!(Action.Action & GRAPHACTION_SelectNode))
@@ -42,6 +36,7 @@ void UKzEdGraph::NotifyGraphChanged(const FEdGraphEditAction& Action)
 void UKzEdGraph::PostEditUndo()
 {
 	Super::PostEditUndo();
+	MarkChanged();
 	NotifyGraphChanged();
 }
 

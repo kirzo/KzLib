@@ -21,7 +21,8 @@ public:
 
 	UKzGraph* GetGraphAsset() const;
 
-	virtual void NotifyGraphChanged() override;
+	/** Without an action it is also the engine's view refresh, sent when the editor opens, so it marks no change: edits mark theirs through Modify or their action. */
+	using UEdGraph::NotifyGraphChanged;
 	virtual void NotifyGraphChanged(const FEdGraphEditAction& Action) override;
 	virtual void PostEditUndo() override;
 

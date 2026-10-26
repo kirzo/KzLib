@@ -10,23 +10,30 @@
 
 bool UKzEdGraphNodeBase::Modify(bool bAlwaysMarkDirty)
 {
-	if (UKzEdGraph* Graph = Cast<UKzEdGraph>(GetOuter()))
-	{
-		Graph->MarkChanged();
-	}
+	MarkGraphChanged();
 	return Super::Modify(bAlwaysMarkDirty);
 }
 
 void UKzEdGraphNodeBase::PostEditChangeProperty(FPropertyChangedEvent& Event)
 {
 	Super::PostEditChangeProperty(Event);
+	MarkGraphChanged();
 	NotifyGraphChanged();
 }
 
 void UKzEdGraphNodeBase::PostEditUndo()
 {
 	Super::PostEditUndo();
+	MarkGraphChanged();
 	NotifyGraphChanged();
+}
+
+void UKzEdGraphNodeBase::MarkGraphChanged() const
+{
+	if (UKzEdGraph* Graph = Cast<UKzEdGraph>(GetOuter()))
+	{
+		Graph->MarkChanged();
+	}
 }
 
 bool UKzEdGraphNodeBase::CanCreateUnderSpecifiedSchema(const UEdGraphSchema* Schema) const

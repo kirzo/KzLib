@@ -29,6 +29,9 @@ public:
 
 protected:
 	void NotifyGraphChanged() const;
+
+	/** The graph needs a compile: what the runtime reads may have changed. */
+	void MarkGraphChanged() const;
 };
 
 /** Holds one node struct of the graph and shows the pins, title and color it declares. */
