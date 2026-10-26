@@ -16,6 +16,8 @@
 #include "KzGraph.h"
 #include "KzGraphEditorUtils.h"
 #include "ScopedTransaction.h"
+#include "SNodePanel.h"
+#include "AssetRegistry/AssetData.h"
 #include "StructUtils/InstancedStruct.h"
 #include "Styling/CoreStyle.h"
 #include "ToolMenu.h"
@@ -377,13 +379,65 @@ const UScriptStruct* UKzEdGraphSchema::FindNodeStructForShortcut(const UKzGraph&
 
 UKzEdGraphNode* UKzEdGraphSchema::CreateNode(UEdGraph& Graph, const UScriptStruct* NodeStruct, const FVector2f& Location, bool bSelect)
 {
+	TInstancedStruct<FKzGraphNode> Node;
+	Node.InitializeAsScriptStruct(NodeStruct);
+	return CreateNode(Graph, Node, Location, bSelect);
+}
+
+UKzEdGraphNode* UKzEdGraphSchema::CreateNode(UEdGraph& Graph, const TInstancedStruct<FKzGraphNode>& Node, const FVector2f& Location, bool bSelect)
+{
 	FGraphNodeCreator<UKzEdGraphNode> Creator(Graph);
-	UKzEdGraphNode* Node = Creator.CreateNode(bSelect);
-	Node->Node.InitializeAsScriptStruct(NodeStruct);
-	Node->NodePosX = static_cast<int32>(Location.X);
-	Node->NodePosY = static_cast<int32>(Location.Y);
+	UKzEdGraphNode* EdNode = Creator.CreateNode(bSelect);
+	EdNode->Node = Node;
+	EdNode->NodePosX = static_cast<int32>(Location.X);
+	EdNode->NodePosY = static_cast<int32>(Location.Y);
 	Creator.Finalize();
-	return Node;
+	return EdNode;
+}
+
+void UKzEdGraphSchema::DroppedAssetsOnGraph(const TArray<FAssetData>& Assets, const FVector2f& GraphPosition, UEdGraph* Graph) const
+{
+	const UKzGraph* Asset = KzGraphEditor::GetGraphAsset(Graph);
+	if (!Asset)
+	{
+		return;
+	}
+
+	const FScopedTransaction Transaction(LOCTEXT("DropAssets", "Add Nodes From Assets"));
+	Graph->Modify();
+
+	// Several assets land in a column, one grid cell apart.
+	FVector2f Location = GraphPosition;
+	for (const FAssetData& Dropped : Assets)
+	{
+		UObject* Object = Dropped.GetAsset();
+		TInstancedStruct<FKzGraphNode> Node;
+		if (Object && Asset->MakeNodeForAsset(*Object, Node) && Node.IsValid())
+		{
+			CreateNode(*Graph, Node, Location, true);
+			Location.Y += 8.0f * SNodePanel::GetSnapGridSize();
+		}
+	}
+	Graph->NotifyGraphChanged();
+}
+
+void UKzEdGraphSchema::GetAssetsGraphHoverMessage(const TArray<FAssetData>& Assets, const UEdGraph* HoverGraph, FString& OutTooltipText, bool& OutOkIcon) const
+{
+	OutOkIcon = false;
+	const UKzGraph* Asset = KzGraphEditor::GetGraphAsset(HoverGraph);
+	for (const FAssetData& Hovered : Assets)
+	{
+		// The graph is asked with the asset loaded, as the drop loads it anyway.
+		UObject* Object = Asset ? Hovered.GetAsset() : nullptr;
+		TInstancedStruct<FKzGraphNode> Node;
+		if (Object && Asset->MakeNodeForAsset(*Object, Node) && Node.IsValid())
+		{
+			OutOkIcon = true;
+			OutTooltipText = FText::Format(LOCTEXT("DropAssetsTip", "Add a {0} node"), Node.GetScriptStruct()->GetDisplayNameText()).ToString();
+			return;
+		}
+	}
+	OutTooltipText = LOCTEXT("DropAssetsNone", "This graph makes no node from these assets").ToString();
 }
 
 void UKzEdGraphSchema::NotifySoon(UEdGraph* Graph)

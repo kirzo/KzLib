@@ -4,10 +4,13 @@
 
 #include "CoreMinimal.h"
 #include "EdGraph/EdGraphSchema.h"
+#include "KzGraphNode.h"
+#include "StructUtils/InstancedStruct.h"
 #include "KzEdGraphSchema.generated.h"
 
 class UKzEdGraphNode;
 class UKzGraph;
+struct FAssetData;
 class UToolMenu;
 class UGraphNodeContextMenuContext;
 struct FKey;
@@ -33,6 +36,10 @@ public:
 	/** Double-clicking a wire puts a reroute on it there. */
 	virtual void OnPinConnectionDoubleCicked(UEdGraphPin* PinA, UEdGraphPin* PinB, const FVector2f& GraphPosition) const override;
 
+	/** Assets dropped from the Content Browser make the nodes their graph asks for (UKzGraph::MakeNodeForAsset). */
+	virtual void DroppedAssetsOnGraph(const TArray<FAssetData>& Assets, const FVector2f& GraphPosition, UEdGraph* Graph) const override;
+	virtual void GetAssetsGraphHoverMessage(const TArray<FAssetData>& Assets, const UEdGraph* HoverGraph, FString& OutTooltipText, bool& OutOkIcon) const override;
+
 	virtual FConnectionDrawingPolicy* CreateConnectionDrawingPolicy(int32 InBackLayerID, int32 InFrontLayerID, float InZoomFactor, const FSlateRect& InClippingRect, FSlateWindowElementList& InDrawElements, UEdGraph* InGraphObj) const override;
 	virtual TSharedPtr<FEdGraphSchemaAction> GetCreateCommentAction() const override;
 
@@ -44,6 +51,9 @@ public:
 
 	/** Adds a node of the struct with its corner at Location. */
 	static UKzEdGraphNode* CreateNode(UEdGraph& Graph, const UScriptStruct* NodeStruct, const FVector2f& Location, bool bSelect);
+
+	/** Adds a node holding a copy of Node with its corner at Location. */
+	static UKzEdGraphNode* CreateNode(UEdGraph& Graph, const TInstancedStruct<FKzGraphNode>& Node, const FVector2f& Location, bool bSelect);
 
 private:
 	/** Announces a wiring edit on the next tick. */

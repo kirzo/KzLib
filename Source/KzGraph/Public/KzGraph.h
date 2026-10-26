@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "KzGraphNode.h"
+#include "StructUtils/InstancedStruct.h"
 #include "StructUtils/InstancedStructContainer.h"
 #include "StructUtils/StructView.h"
 #include "KzGraph.generated.h"
@@ -152,6 +153,9 @@ public:
 
 	/** Checks of the graph as a whole, after each compile. */
 	virtual void ValidateGraph(const FKzGraphData& InData, TArray<FKzValidationIssue>& OutIssues) const {}
+
+	/** Fills the node an asset dropped on the graph makes, such as a sub graph from another graph asset. False for assets that make none. */
+	virtual bool MakeNodeForAsset(UObject& Asset, TInstancedStruct<FKzGraphNode>& OutNode) const { return false; }
 
 	void SetData(FKzGraphData&& InData) { Data = MoveTemp(InData); }
 #endif
