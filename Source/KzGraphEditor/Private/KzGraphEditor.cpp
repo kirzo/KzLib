@@ -586,7 +586,8 @@ void FKzGraphEditor::AddGraphEditorPinActionsToContextMenu(FToolMenuSection& InS
 	}
 
 	// Replaces the engine's submenu of the same name, which straightens across a horizontal flow.
-	InSection.RemoveEntry(TEXT("StraightenPinConnection"));
+	static const FName StraightenName(TEXT("StraightenPinConnection"));
+	InSection.Blocks.RemoveAll([](const FToolMenuEntry& Entry) { return Entry.Name == StraightenName; });
 	const UGraphNodeContextMenuContext* NodeContext = InSection.FindContext<UGraphNodeContextMenuContext>();
 	if (!NodeContext || !NodeContext->Pin || NodeContext->Pin->LinkedTo.IsEmpty())
 	{
@@ -595,7 +596,7 @@ void FKzGraphEditor::AddGraphEditorPinActionsToContextMenu(FToolMenuSection& InS
 
 	const TWeakPtr<SGraphEditor> WeakEditor = GraphEditor;
 	const FEdGraphPinReference PinReference(NodeContext->Pin);
-	InSection.AddSubMenu(TEXT("StraightenPinConnection"), LOCTEXT("StraightenPin", "Straighten Connection..."), LOCTEXT("StraightenPinTip", "Straighten specific connection..."), FNewToolMenuDelegate::CreateLambda([WeakEditor, PinReference](UToolMenu* Menu)
+	InSection.AddSubMenu(StraightenName, LOCTEXT("StraightenPin", "Straighten Connection..."), LOCTEXT("StraightenPinTip", "Straighten specific connection..."), FNewToolMenuDelegate::CreateLambda([WeakEditor, PinReference](UToolMenu* Menu)
 	{
 		UEdGraphPin* Pin = PinReference.Get();
 		if (!Pin)
