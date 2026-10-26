@@ -14,11 +14,11 @@ struct FAssetData;
 class KZLIBEDITOR_API FKzAssetValidationUtils
 {
 public:
-	/** The CDOs of every concrete UKzAssetValidator whose CanValidate accepts Asset. Validators are stateless, so the CDO is enough. */
-	static TArray<const UKzAssetValidator*> GatherValidatorsFor(const UObject* Asset);
+	/** The CDOs of every concrete UKzAssetValidator whose CanValidate accepts Asset, leaving out on save those that do not run then. Validators are stateless, so the CDO is enough. */
+	static TArray<const UKzAssetValidator*> GatherValidatorsFor(const UObject* Asset, bool bSaving = false);
 
 	/** Run all matching validators against the asset and aggregate the issues. */
-	static TArray<FKzValidationIssue> RunValidation(const UObject* Asset);
+	static TArray<FKzValidationIssue> RunValidation(const UObject* Asset, bool bSaving = false);
 
 	/** Forwards Issues to the engine's data validation as messages on AssetData. Invalid only when one of them is an error. */
 	static EDataValidationResult ReportToContext(const FAssetData& AssetData, const TArray<FKzValidationIssue>& Issues, FDataValidationContext& Context);

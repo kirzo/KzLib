@@ -43,4 +43,7 @@ public:
 	UFUNCTION(BlueprintNativeEvent, Category = "Validation")
 	void Validate(const UObject* Asset, TArray<FKzValidationIssue>& OutIssues) const;
 	virtual void Validate_Implementation(const UObject* /*Asset*/, TArray<FKzValidationIssue>& /*OutIssues*/) const {}
+
+	/** False keeps the validator out of the check on save, for assets that report their problems themselves, such as graphs when compiled. */
+	virtual bool RunsOnSave() const { return true; }
 };

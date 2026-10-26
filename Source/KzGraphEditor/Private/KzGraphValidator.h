@@ -16,4 +16,7 @@ public:
 	virtual FName GetValidatorId_Implementation() const override;
 	virtual bool CanValidate_Implementation(const UObject* Asset) const override;
 	virtual void Validate_Implementation(const UObject* Asset, TArray<FKzValidationIssue>& OutIssues) const override;
+
+	/** A graph that does not compile still saves: its editor reports the problems when compiled. */
+	virtual bool RunsOnSave() const override { return false; }
 };

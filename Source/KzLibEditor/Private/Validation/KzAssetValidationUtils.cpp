@@ -6,7 +6,7 @@
 #include "Misc/DataValidation.h"
 #include "UObject/UObjectHash.h"
 
-TArray<const UKzAssetValidator*> FKzAssetValidationUtils::GatherValidatorsFor(const UObject* Asset)
+TArray<const UKzAssetValidator*> FKzAssetValidationUtils::GatherValidatorsFor(const UObject* Asset, bool bSaving)
 {
 	TArray<const UKzAssetValidator*> Result;
 	if (!IsValid(Asset)) { return Result; }
@@ -23,7 +23,7 @@ TArray<const UKzAssetValidator*> FKzAssetValidationUtils::GatherValidatorsFor(co
 		if (ClassName.StartsWith(TEXT("SKEL_")) || ClassName.StartsWith(TEXT("REINST_"))) { continue; }
 
 		const UKzAssetValidator* CDO = Cast<UKzAssetValidator>(Class->GetDefaultObject());
-		if (CDO && CDO->CanValidate(Asset))
+		if (CDO && (!bSaving || CDO->RunsOnSave()) && CDO->CanValidate(Asset))
 		{
 			Result.Add(CDO);
 		}
@@ -31,10 +31,10 @@ TArray<const UKzAssetValidator*> FKzAssetValidationUtils::GatherValidatorsFor(co
 	return Result;
 }
 
-TArray<FKzValidationIssue> FKzAssetValidationUtils::RunValidation(const UObject* Asset)
+TArray<FKzValidationIssue> FKzAssetValidationUtils::RunValidation(const UObject* Asset, bool bSaving)
 {
 	TArray<FKzValidationIssue> Issues;
-	for (const UKzAssetValidator* Validator : GatherValidatorsFor(Asset))
+	for (const UKzAssetValidator* Validator : GatherValidatorsFor(Asset, bSaving))
 	{
 		Validator->Validate(Asset, Issues);
 	}
