@@ -29,3 +29,11 @@ FKzShapeInstance FKzShapeInstance::MakeFromCollisionShape(const FCollisionShape&
 
 	return FKzShapeInstance::Make<FKzSphere>(1.0f);
 }
+
+void FKzShapeInstance::DrawWire(FPrimitiveDrawInterface* PDI, const FTransform& Transform, const FLinearColor& Color, float Thickness, uint8 DepthPriority) const
+{
+	if (IsValid())
+	{
+		Shape.Get().DrawWire(PDI, Transform.ToMatrixNoScale(), Color, Thickness, DepthPriority);
+	}
+}

@@ -55,6 +55,9 @@ public:
 	/** Renders this shape using the given primitive draw interface. */
 	virtual void DrawSceneProxy(FPrimitiveDrawInterface* PDI, const FMatrix& LocalToWorld, const FLinearColor& Color, bool bDrawSolid, float Thickness, int32 ViewIndex, FMeshElementCollector& Collector) const PURE_VIRTUAL(FKzShape::DrawSceneProxy, );
 
+	/** Draws the shape's outline, as its scene proxy does, for whatever draws with a primitive draw interface, such as an editor viewport. */
+	virtual void DrawWire(FPrimitiveDrawInterface* PDI, const FMatrix& LocalToWorld, const FLinearColor& Color, float Thickness, uint8 DepthPriority) const {}
+
 	/** Returns true if this shape provides a fast analytical raycast. */
 	virtual bool ImplementsRaycast() const { return false; }
 

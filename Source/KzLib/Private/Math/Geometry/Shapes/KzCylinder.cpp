@@ -35,18 +35,23 @@ void FKzCylinder::DrawDebug(const UWorld* InWorld, FVector const& Center, const 
 	DrawDebugCylinder(InWorld, Center - UpVector * HalfHeight, Center + UpVector * HalfHeight, Radius, 12, Color, bPersistentLines, LifeTime, DepthPriority, Thickness);
 }
 
+void FKzCylinder::DrawWire(FPrimitiveDrawInterface* PDI, const FMatrix& LocalToWorld, const FLinearColor& Color, float Thickness, uint8 DepthPriority) const
+{
+	const int32 CylinderSides = FMath::Clamp<int32>(Radius / 50, 16, 64);
+	DrawWireCylinder(PDI, LocalToWorld.GetOrigin(), LocalToWorld.GetUnitAxis(EAxis::X), LocalToWorld.GetUnitAxis(EAxis::Y), LocalToWorld.GetUnitAxis(EAxis::Z), Color, Radius, HalfHeight, CylinderSides, DepthPriority, Thickness);
+}
+
 void FKzCylinder::DrawSceneProxy(FPrimitiveDrawInterface* PDI, const FMatrix& LocalToWorld, const FLinearColor& Color, bool bDrawSolid, float Thickness, int32 ViewIndex, FMeshElementCollector& Collector) const
 {
-	const FVector Origin = LocalToWorld.GetOrigin();
-	const FVector UnitX = LocalToWorld.GetUnitAxis(EAxis::X);
-	const FVector UnitY = LocalToWorld.GetUnitAxis(EAxis::Y);
-	const FVector UnitZ = LocalToWorld.GetUnitAxis(EAxis::Z);
-
-	const int32 CylinderSides = FMath::Clamp<int32>(Radius / 50, 16, 64);
-	DrawWireCylinder(PDI, Origin, UnitX, UnitY, UnitZ, Color, Radius, HalfHeight, CylinderSides, SDPG_World, Thickness);
+	DrawWire(PDI, LocalToWorld, Color, Thickness, SDPG_World);
 
 	if (bDrawSolid)
 	{
+		const FVector Origin = LocalToWorld.GetOrigin();
+		const FVector UnitX = LocalToWorld.GetUnitAxis(EAxis::X);
+		const FVector UnitY = LocalToWorld.GetUnitAxis(EAxis::Y);
+		const FVector UnitZ = LocalToWorld.GetUnitAxis(EAxis::Z);
+		const int32 CylinderSides = FMath::Clamp<int32>(Radius / 50, 16, 64);
 		const FLinearColor SolidColor = FLinearColor(Color.R, Color.G, Color.B, 0.2f);
 
 		FMaterialRenderProxy* const MaterialRenderProxy = new FColoredMaterialRenderProxy(GEngine->DebugMeshMaterial->GetRenderProxy(), SolidColor);

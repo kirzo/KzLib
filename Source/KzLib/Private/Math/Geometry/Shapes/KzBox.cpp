@@ -34,14 +34,14 @@ void FKzBox::DrawDebug(const UWorld* InWorld, FVector const& Center, const FQuat
 	DrawDebugBox(InWorld, Center, HalfSize, Rotation, Color, bPersistentLines, LifeTime, DepthPriority, Thickness);
 }
 
+void FKzBox::DrawWire(FPrimitiveDrawInterface* PDI, const FMatrix& LocalToWorld, const FLinearColor& Color, float Thickness, uint8 DepthPriority) const
+{
+	DrawOrientedWireBox(PDI, LocalToWorld.GetOrigin(), LocalToWorld.GetUnitAxis(EAxis::X), LocalToWorld.GetUnitAxis(EAxis::Y), LocalToWorld.GetUnitAxis(EAxis::Z), HalfSize, Color, DepthPriority, Thickness);
+}
+
 void FKzBox::DrawSceneProxy(FPrimitiveDrawInterface* PDI, const FMatrix& LocalToWorld, const FLinearColor& Color, bool bDrawSolid, float Thickness, int32 ViewIndex, FMeshElementCollector& Collector) const
 {
-	const FVector Origin = LocalToWorld.GetOrigin();
-	const FVector UnitX = LocalToWorld.GetUnitAxis(EAxis::X);
-	const FVector UnitY = LocalToWorld.GetUnitAxis(EAxis::Y);
-	const FVector UnitZ = LocalToWorld.GetUnitAxis(EAxis::Z);
-
-	DrawOrientedWireBox(PDI, Origin, UnitX, UnitY, UnitZ, HalfSize, Color, SDPG_World, Thickness);
+	DrawWire(PDI, LocalToWorld, Color, Thickness, SDPG_World);
 
 	if (bDrawSolid)
 	{

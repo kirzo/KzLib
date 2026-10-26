@@ -225,6 +225,9 @@ public:
 		return IsValid() ? Shape.Get().GetBoundingBox(Position, Orientation) : FBox(ForceInitToZero);
 	}
 
+	/** Draws the shape's outline at Transform, ignoring its scale, for whatever draws with a primitive draw interface. */
+	void DrawWire(FPrimitiveDrawInterface* PDI, const FTransform& Transform, const FLinearColor& Color, float Thickness = 0.0f, uint8 DepthPriority = 0) const;
+
 	/** Returns an engine-level FCollisionShape representing this Kz shape. */
 	FORCEINLINE FCollisionShape ToCollisionShape(float Inflation = 0.0f) const
 	{
