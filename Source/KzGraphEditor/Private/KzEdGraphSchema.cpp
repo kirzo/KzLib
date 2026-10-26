@@ -1,7 +1,11 @@
 // Copyright 2026 kirzo
 
 #include "KzEdGraphSchema.h"
+#include "Brushes/SlateRoundedBoxBrush.h"
 #include "ConnectionDrawingPolicy.h"
+#include "Fonts/FontMeasure.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Rendering/SlateRenderer.h"
 #include "EdGraph/EdGraph.h"
 #include "EdGraphNode_Comment.h"
 #include "Framework/Commands/GenericCommands.h"
@@ -63,7 +67,7 @@ namespace
 			const FVector2f Start = IsReroute(Params.AssociatedPin1) ? FVector2f(FGeometryHelper::CenterOf(StartGeom)) : GetOutputPoint(StartGeom);
 			const FVector2f End = IsReroute(Params.AssociatedPin2) ? FVector2f(FGeometryHelper::CenterOf(EndGeom)) : GetInputPoint(EndGeom);
 			FConnectionDrawingPolicy::DrawSplineWithArrow(Start, End, Params);
-			DrawOrder(Start, Params);
+			DrawOrder(Start, End, Params);
 		}
 
 		virtual void DrawPreviewConnector(const FGeometry& PinGeometry, const FVector2f& StartPoint, const FVector2f& EndPoint, UEdGraphPin* Pin) override
@@ -101,8 +105,8 @@ namespace
 			return Flow == EKzGraphFlow::Horizontal ? FVector2f(FGeometryHelper::VerticalMiddleLeftOf(Geometry)) : FVector2f(Geometry.GetAbsolutePositionAtCoordinates(FVector2f(0.5f, 0.0f)));
 		}
 
-		/** The place of the link among the links of its output, next to where it leaves. */
-		void DrawOrder(const FVector2f& Start, const FConnectionParams& Params)
+		/** The place of the link among the links of its output, at the middle of the wire, where links of one output no longer overlap. */
+		void DrawOrder(const FVector2f& Start, const FVector2f& End, const FConnectionParams& Params)
 		{
 			const UEdGraphPin* Output = Params.AssociatedPin1;
 			const UEdGraphPin* Input = Params.AssociatedPin2;
@@ -120,9 +124,16 @@ namespace
 				return;
 			}
 
-			const FVector2f Offset = Flow == EKzGraphFlow::Horizontal ? FVector2f(10.0f, -14.0f) : FVector2f(6.0f, 4.0f);
+			// Both ends share one tangent, so the spline's middle is the middle of its ends.
+			static const FSlateRoundedBoxBrush BadgeBrush(FLinearColor::White, 4.0f);
+			const FString Number = FString::FromInt(Order + 1);
 			const FSlateFontInfo Font = FCoreStyle::GetDefaultFontStyle("Bold", 8);
-			FSlateDrawElement::MakeText(DrawElementsList, WireLayerID + 1, FPaintGeometry(Start + Offset * ZoomFactor, FVector2f(12.0f, 12.0f) * ZoomFactor, ZoomFactor), FString::FromInt(Order + 1), Font, ESlateDrawEffect::None, Params.WireColor);
+			const FVector2f TextSize = FVector2f(FSlateApplication::Get().GetRenderer()->GetFontMeasureService()->Measure(Number, Font, ZoomFactor));
+			const FVector2f BadgeSize = TextSize + FVector2f(8.0f, 2.0f) * ZoomFactor;
+			const FVector2f Middle = (Start + End) * 0.5f;
+
+			FSlateDrawElement::MakeBox(DrawElementsList, WireLayerID + 1, FPaintGeometry(Middle - BadgeSize * 0.5f, BadgeSize, ZoomFactor), &BadgeBrush, ESlateDrawEffect::None, FLinearColor(0.02f, 0.02f, 0.02f, 0.9f));
+			FSlateDrawElement::MakeText(DrawElementsList, WireLayerID + 2, FPaintGeometry(Middle - TextSize * 0.5f, TextSize, ZoomFactor), Number, Font, ESlateDrawEffect::None, Params.WireColor);
 		}
 
 		const UKzGraph* Asset;
