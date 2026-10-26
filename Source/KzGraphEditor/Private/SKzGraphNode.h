@@ -35,7 +35,13 @@ public:
 	virtual void AddPin(const TSharedRef<SGraphPin>& PinToAdd) override;
 	virtual TSharedPtr<SGraphPin> CreatePinWidget(UEdGraphPin* Pin) const override;
 
+protected:
+	virtual void CreateBelowPinControls(TSharedPtr<SVerticalBox> MainBox) override;
+
 private:
+	/** The domain's body for this node, or an empty widget. */
+	TSharedRef<SWidget> MakeBody() const;
+
 	bool IsVertical() const;
 	FSlateColor GetBodyColor() const;
 

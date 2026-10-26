@@ -8,6 +8,7 @@
 #include "Styling/AppStyle.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/SBoxPanel.h"
+#include "Widgets/SNullWidget.h"
 
 void SKzGraphPin::Construct(const FArguments& InArgs, UEdGraphPin* InPin)
 {
@@ -104,6 +105,11 @@ void SKzGraphNode::UpdateGraphNode()
 			]
 			+ SVerticalBox::Slot()
 			.AutoHeight()
+			[
+				MakeBody()
+			]
+			+ SVerticalBox::Slot()
+			.AutoHeight()
 			.HAlign(HAlign_Center)
 			.Padding(4.0f, 2.0f)
 			[
@@ -142,6 +148,22 @@ void SKzGraphNode::AddPin(const TSharedRef<SGraphPin>& PinToAdd)
 TSharedPtr<SGraphPin> SKzGraphNode::CreatePinWidget(UEdGraphPin* Pin) const
 {
 	return SNew(SKzGraphPin, Pin);
+}
+
+void SKzGraphNode::CreateBelowPinControls(TSharedPtr<SVerticalBox> MainBox)
+{
+	MainBox->AddSlot()
+	.AutoHeight()
+	[
+		MakeBody()
+	];
+}
+
+TSharedRef<SWidget> SKzGraphNode::MakeBody() const
+{
+	const UKzEdGraphNode* Node = Cast<UKzEdGraphNode>(GraphNode);
+	const TSharedPtr<SWidget> Body = Node ? KzGraphEditor::MakeNodeBody(*Node) : nullptr;
+	return Body.IsValid() ? Body.ToSharedRef() : SNullWidget::NullWidget;
 }
 
 bool SKzGraphNode::IsVertical() const

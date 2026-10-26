@@ -7,6 +7,12 @@
 
 namespace
 {
+	TMap<TWeakObjectPtr<const UScriptStruct>, FKzOnMakeGraphNodeBody>& GetNodeBodies()
+	{
+		static TMap<TWeakObjectPtr<const UScriptStruct>, FKzOnMakeGraphNodeBody> NodeBodies;
+		return NodeBodies;
+	}
+
 	void GatherTargets(const UEdGraphPin& Output, EKzGraphFlow Flow, TArray<UEdGraphPin*>& OutTargets, TSet<const UEdGraphNode*>& Visited)
 	{
 		TArray<UEdGraphPin*> Linked = Output.LinkedTo;
@@ -30,6 +36,28 @@ namespace
 			}
 		}
 	}
+}
+
+void KzGraphEditor::RegisterNodeBody(const UScriptStruct* Struct, FKzOnMakeGraphNodeBody MakeBody)
+{
+	GetNodeBodies().Add(Struct, MoveTemp(MakeBody));
+}
+
+void KzGraphEditor::UnregisterNodeBody(const UScriptStruct* Struct)
+{
+	GetNodeBodies().Remove(Struct);
+}
+
+TSharedPtr<SWidget> KzGraphEditor::MakeNodeBody(const UKzEdGraphNode& Node)
+{
+	for (const UStruct* Struct = Node.Node.GetScriptStruct(); Struct; Struct = Struct->GetSuperStruct())
+	{
+		if (const FKzOnMakeGraphNodeBody* MakeBody = GetNodeBodies().Find(Cast<UScriptStruct>(Struct)))
+		{
+			return MakeBody->IsBound() ? MakeBody->Execute(Node) : nullptr;
+		}
+	}
+	return nullptr;
 }
 
 UKzGraph* KzGraphEditor::GetGraphAsset(const UEdGraph* Graph)
