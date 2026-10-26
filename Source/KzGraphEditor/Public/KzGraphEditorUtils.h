@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "KzGraphNode.h"
 
+class SGraphEditor;
 class SWidget;
 class UEdGraph;
 class UEdGraphPin;
@@ -41,4 +42,7 @@ namespace KzGraphEditor
 
 	/** The node inputs an output reaches through any reroutes, in link order. */
 	KZGRAPHEDITOR_API void GatherTargets(const UEdGraphPin& Output, EKzGraphFlow Flow, TArray<UEdGraphPin*>& OutTargets);
+
+	/** Lines the links between the selected nodes up along the graph's flow; the engine's own straightening only knows a horizontal one. */
+	KZGRAPHEDITOR_API void StraightenConnections(SGraphEditor& Editor);
 }

@@ -4,6 +4,12 @@
 #include "EdGraph/EdGraph.h"
 #include "KzEdGraphNode.h"
 #include "KzGraph.h"
+#include "GraphEditor.h"
+#include "GraphEditorActions.h"
+#include "SGraphNode.h"
+#include "SGraphPanel.h"
+#include "SGraphPin.h"
+#include "ScopedTransaction.h"
 
 namespace
 {
@@ -113,4 +119,67 @@ void KzGraphEditor::GatherTargets(const UEdGraphPin& Output, EKzGraphFlow Flow, 
 {
 	TSet<const UEdGraphNode*> Visited;
 	::GatherTargets(Output, Flow, OutTargets, Visited);
+}
+
+void KzGraphEditor::StraightenConnections(SGraphEditor& Editor)
+{
+	const UKzGraph* Asset = GetGraphAsset(Editor.GetCurrentGraph());
+	if (!Asset || Asset->GetFlow() != EKzGraphFlow::Vertical)
+	{
+		Editor.OnStraightenConnections();
+		return;
+	}
+
+	// Each selected node moves sideways until its input sits under the output feeding it; top to bottom, so chains follow.
+	SGraphPanel* Panel = Editor.GetGraphPanel();
+	TArray<UEdGraphNode*> Selected;
+	for (UObject* Object : Editor.GetSelectedNodes())
+	{
+		if (UEdGraphNode* Node = Cast<UEdGraphNode>(Object))
+		{
+			Selected.Add(Node);
+		}
+	}
+	Selected.Sort([](const UEdGraphNode& A, const UEdGraphNode& B) { return A.NodePosY < B.NodePosY; });
+
+	const FScopedTransaction Transaction(FGraphEditorCommands::Get().StraightenConnections->GetLabel());
+	TSet<const UEdGraphNode*> Moved;
+	for (UEdGraphNode* Source : Selected)
+	{
+		const TSharedPtr<SGraphNode> SourceWidget = Panel ? Panel->GetNodeWidgetFromGuid(Source->NodeGuid) : nullptr;
+		if (!SourceWidget.IsValid())
+		{
+			continue;
+		}
+
+		for (UEdGraphPin* Output : Source->Pins)
+		{
+			if (Output->Direction != EGPD_Output)
+			{
+				continue;
+			}
+
+			for (UEdGraphPin* Input : Output->LinkedTo)
+			{
+				UEdGraphNode* Target = Input ? Input->GetOwningNode() : nullptr;
+				if (!Target || Target == Source || Moved.Contains(Target) || !Selected.Contains(Target))
+				{
+					continue;
+				}
+
+				const TSharedPtr<SGraphNode> TargetWidget = Panel->GetNodeWidgetFromGuid(Target->NodeGuid);
+				const TSharedPtr<SGraphPin> OutputWidget = SourceWidget->FindWidgetForPin(Output);
+				const TSharedPtr<SGraphPin> InputWidget = TargetWidget.IsValid() ? TargetWidget->FindWidgetForPin(Input) : nullptr;
+				if (!OutputWidget.IsValid() || !InputWidget.IsValid())
+				{
+					continue;
+				}
+
+				const float OutputX = Source->NodePosX + OutputWidget->GetNodeOffset().X + OutputWidget->GetDesiredSize().X * 0.5f;
+				const float InputX = InputWidget->GetNodeOffset().X + InputWidget->GetDesiredSize().X * 0.5f;
+				Target->GetSchema()->SetNodePosition(Target, FVector2f(OutputX - InputX, Target->NodePosY));
+				Moved.Add(Target);
+			}
+		}
+	}
 }

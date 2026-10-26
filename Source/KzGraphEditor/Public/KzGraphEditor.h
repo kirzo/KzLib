@@ -106,6 +106,9 @@ private:
 	/** Q: lines linked pins up along the graph's flow. */
 	void StraightenConnections();
 
+	/** Keys the engine's graph editor would take for its own versions, answered here first. */
+	FReply OnGraphPreviewKeyDown(const FGeometry& Geometry, const FKeyEvent& KeyEvent);
+
 	void DeleteSelectedNodes(bool bReconnect);
 	bool CanDeleteNodes() const;
 	void CopySelectedNodes();
@@ -123,6 +126,7 @@ private:
 
 	TWeakObjectPtr<UKzGraph> Graph;
 	TSharedPtr<SGraphEditor> GraphEditor;
+	TSharedPtr<FUICommandList> PreviewCommands;
 	TSharedPtr<IDetailsView> DetailsView;
 	TSharedPtr<SKzValidationPanel> CompileResults;
 	TSharedPtr<SKzGraphFindResults> FindResults;

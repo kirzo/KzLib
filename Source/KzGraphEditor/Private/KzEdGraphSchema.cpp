@@ -231,7 +231,7 @@ void UKzEdGraphSchema::GetContextMenuActions(UToolMenu* Menu, UGraphNodeContextM
 
 	FToolMenuSection& OrganizationSection = Menu->AddSection(TEXT("KzGraphOrganization"), LOCTEXT("OrganizationHeader", "Organization"));
 	OrganizationSection.AddMenuEntry(FGraphEditorCommands::Get().CreateComment);
-	OrganizationSection.AddSubMenu(TEXT("Alignment"), LOCTEXT("AlignmentHeader", "Alignment"), FText(), FNewToolMenuDelegate::CreateLambda([](UToolMenu* AlignmentMenu)
+	OrganizationSection.AddSubMenu(TEXT("Alignment"), LOCTEXT("AlignmentHeader", "Alignment"), FText(), FNewToolMenuDelegate::CreateLambda([WeakGraph = TWeakObjectPtr<const UEdGraph>(Context->Graph.Get())](UToolMenu* AlignmentMenu)
 	{
 		FToolMenuSection& AlignSection = AlignmentMenu->AddSection(TEXT("KzGraphAlign"), LOCTEXT("AlignHeader", "Align"));
 		AlignSection.AddMenuEntry(FGraphEditorCommands::Get().AlignNodesTop);
@@ -240,7 +240,15 @@ void UKzEdGraphSchema::GetContextMenuActions(UToolMenu* Menu, UGraphNodeContextM
 		AlignSection.AddMenuEntry(FGraphEditorCommands::Get().AlignNodesLeft);
 		AlignSection.AddMenuEntry(FGraphEditorCommands::Get().AlignNodesCenter);
 		AlignSection.AddMenuEntry(FGraphEditorCommands::Get().AlignNodesRight);
-		AlignSection.AddMenuEntry(FGraphEditorCommands::Get().StraightenConnections);
+		// The engine's command is bound by its graph editor to a horizontal straightening.
+		const TSharedPtr<FUICommandInfo>& Straighten = FGraphEditorCommands::Get().StraightenConnections;
+		AlignSection.AddMenuEntry(TEXT("KzStraightenConnections"), Straighten->GetLabel(), Straighten->GetDescription(), Straighten->GetIcon(), FUIAction(FExecuteAction::CreateLambda([WeakGraph]()
+		{
+			if (const TSharedPtr<SGraphEditor> Editor = SGraphEditor::FindGraphEditorForGraph(WeakGraph.Get()))
+			{
+				KzGraphEditor::StraightenConnections(*Editor);
+			}
+		})));
 
 		FToolMenuSection& DistributeSection = AlignmentMenu->AddSection(TEXT("KzGraphDistribute"), LOCTEXT("DistributeHeader", "Distribute"));
 		DistributeSection.AddMenuEntry(FGraphEditorCommands::Get().DistributeNodesHorizontally);

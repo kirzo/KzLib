@@ -25,9 +25,7 @@
 #include "ScopedTransaction.h"
 #include "SKzGraphFindResults.h"
 #include "SKzGraphViewport.h"
-#include "SGraphNode.h"
-#include "SGraphPanel.h"
-#include "SGraphPin.h"
+#include "Framework/SlateDelegates.h"
 #include "SNodePanel.h"
 #include "Styling/AppStyle.h"
 #include "UObject/Package.h"
@@ -49,6 +47,33 @@ namespace
 
 	const TCHAR* SettingsSection = TEXT("KzGraphEditor");
 	const TCHAR* AutoCompileKey = TEXT("bAutoCompile");
+
+	/** Holds the graph editor and sees its keys first, so the base can answer some its own way. */
+	class SKzGraphKeyHost : public SCompoundWidget
+	{
+	public:
+		SLATE_BEGIN_ARGS(SKzGraphKeyHost) {}
+			SLATE_EVENT(FOnKeyDown, OnPreviewKeyDown)
+			SLATE_DEFAULT_SLOT(FArguments, Content)
+		SLATE_END_ARGS()
+
+		void Construct(const FArguments& InArgs)
+		{
+			PreviewKeyDown = InArgs._OnPreviewKeyDown;
+			ChildSlot
+			[
+				InArgs._Content.Widget
+			];
+		}
+
+		virtual FReply OnPreviewKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override
+		{
+			return PreviewKeyDown.IsBound() ? PreviewKeyDown.Execute(MyGeometry, InKeyEvent) : FReply::Unhandled();
+		}
+
+	private:
+		FOnKeyDown PreviewKeyDown;
+	};
 }
 
 FKzGraphEditorCommands::FKzGraphEditorCommands()
@@ -221,6 +246,10 @@ void FKzGraphEditor::BindCommands()
 	Commands->MapAction(GraphCommands.DistributeNodesHorizontally, FExecuteAction::CreateSPLambda(this, [this]() { GraphEditor->OnDistributeNodesH(); }));
 	Commands->MapAction(GraphCommands.DistributeNodesVertically, FExecuteAction::CreateSPLambda(this, [this]() { GraphEditor->OnDistributeNodesV(); }));
 
+	// The engine's graph editor binds these itself, ahead of the toolkit's: taken before it sees the key.
+	PreviewCommands = MakeShared<FUICommandList>();
+	PreviewCommands->MapAction(GraphCommands.StraightenConnections, FExecuteAction::CreateSP(this, &FKzGraphEditor::StraightenConnections));
+
 	const FKzGraphEditorCommands& KzCommands = FKzGraphEditorCommands::Get();
 	Commands->MapAction(KzCommands.Compile, FExecuteAction::CreateSP(this, &FKzGraphEditor::Compile));
 	Commands->MapAction(KzCommands.AutoCompile, FExecuteAction::CreateSP(this, &FKzGraphEditor::ToggleAutoCompile), FCanExecuteAction(), FIsActionChecked::CreateSP(this, &FKzGraphEditor::IsAutoCompile));
@@ -320,7 +349,14 @@ TSharedRef<SDockTab> FKzGraphEditor::SpawnGraphTab(const FSpawnTabArgs& Args)
 		.GraphEvents(Events)
 		.Appearance(Appearance);
 
-	return SNew(SDockTab).Label(LOCTEXT("GraphTab", "Graph"))[GraphEditor.ToSharedRef()];
+	return SNew(SDockTab).Label(LOCTEXT("GraphTab", "Graph"))
+		[
+			SNew(SKzGraphKeyHost)
+			.OnPreviewKeyDown(this, &FKzGraphEditor::OnGraphPreviewKeyDown)
+			[
+				GraphEditor.ToSharedRef()
+			]
+		];
 }
 
 TSharedRef<SDockTab> FKzGraphEditor::SpawnDetailsTab(const FSpawnTabArgs& Args)
@@ -534,64 +570,23 @@ void FKzGraphEditor::FindInGraph()
 
 void FKzGraphEditor::StraightenConnections()
 {
-	if (!Graph.IsValid() || Graph->GetFlow() != EKzGraphFlow::Vertical)
+	if (GraphEditor.IsValid())
 	{
-		GraphEditor->OnStraightenConnections();
-		return;
+		KzGraphEditor::StraightenConnections(*GraphEditor);
 	}
+}
 
-	// Each selected node moves sideways until its input sits under the output feeding it; top to bottom, so chains follow.
-	SGraphPanel* Panel = GraphEditor->GetGraphPanel();
-	TArray<UEdGraphNode*> Selected;
-	for (UObject* Object : GraphEditor->GetSelectedNodes())
+FReply FKzGraphEditor::OnGraphPreviewKeyDown(const FGeometry& Geometry, const FKeyEvent& KeyEvent)
+{
+	// A text edited inside the graph, such as a comment, keeps its letters.
+	static const FName EditableText(TEXT("SEditableText"));
+	static const FName MultiLineEditableText(TEXT("SMultiLineEditableText"));
+	const TSharedPtr<SWidget> Focused = FSlateApplication::Get().GetKeyboardFocusedWidget();
+	if (Focused.IsValid() && (Focused->GetType() == EditableText || Focused->GetType() == MultiLineEditableText))
 	{
-		if (UEdGraphNode* Node = Cast<UEdGraphNode>(Object))
-		{
-			Selected.Add(Node);
-		}
+		return FReply::Unhandled();
 	}
-	Selected.Sort([](const UEdGraphNode& A, const UEdGraphNode& B) { return A.NodePosY < B.NodePosY; });
-
-	const FScopedTransaction Transaction(FGraphEditorCommands::Get().StraightenConnections->GetLabel());
-	TSet<const UEdGraphNode*> Moved;
-	for (UEdGraphNode* Source : Selected)
-	{
-		const TSharedPtr<SGraphNode> SourceWidget = Panel ? Panel->GetNodeWidgetFromGuid(Source->NodeGuid) : nullptr;
-		if (!SourceWidget.IsValid())
-		{
-			continue;
-		}
-
-		for (UEdGraphPin* Output : Source->Pins)
-		{
-			if (Output->Direction != EGPD_Output)
-			{
-				continue;
-			}
-
-			for (UEdGraphPin* Input : Output->LinkedTo)
-			{
-				UEdGraphNode* Target = Input ? Input->GetOwningNode() : nullptr;
-				if (!Target || Target == Source || Moved.Contains(Target) || !Selected.Contains(Target))
-				{
-					continue;
-				}
-
-				const TSharedPtr<SGraphNode> TargetWidget = Panel->GetNodeWidgetFromGuid(Target->NodeGuid);
-				const TSharedPtr<SGraphPin> OutputWidget = SourceWidget->FindWidgetForPin(Output);
-				const TSharedPtr<SGraphPin> InputWidget = TargetWidget.IsValid() ? TargetWidget->FindWidgetForPin(Input) : nullptr;
-				if (!OutputWidget.IsValid() || !InputWidget.IsValid())
-				{
-					continue;
-				}
-
-				const float OutputX = Source->NodePosX + OutputWidget->GetNodeOffset().X + OutputWidget->GetDesiredSize().X * 0.5f;
-				const float InputX = InputWidget->GetNodeOffset().X + InputWidget->GetDesiredSize().X * 0.5f;
-				Target->GetSchema()->SetNodePosition(Target, FVector2f(OutputX - InputX, Target->NodePosY));
-				Moved.Add(Target);
-			}
-		}
-	}
+	return PreviewCommands.IsValid() && PreviewCommands->ProcessCommandBindings(KeyEvent) ? FReply::Handled() : FReply::Unhandled();
 }
 
 void FKzGraphEditor::DeleteSelectedNodes(bool bReconnect)
