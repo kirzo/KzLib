@@ -57,6 +57,9 @@ struct KZGRAPH_API FKzGraphNode
 	virtual void GetSearchTexts(TArray<FText>& OutTexts) const {}
 
 	virtual void Validate(TArray<FKzValidationIssue>& OutIssues) const {}
+
+	/** After an edit in Details, before the pins are rebuilt: the place to keep ids unique. */
+	virtual void PostEditChange() {}
 	virtual bool CanUserDelete() const { return true; }
 	virtual bool CanDuplicate() const { return true; }
 #endif

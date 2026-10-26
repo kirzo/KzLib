@@ -173,6 +173,11 @@ bool UKzEdGraphNode::CanPasteHere(const UEdGraph* TargetGraph) const
 
 void UKzEdGraphNode::PostEditChangeProperty(FPropertyChangedEvent& Event)
 {
+	if (Node.IsValid())
+	{
+		Node.GetMutable().PostEditChange();
+	}
+
 	// Pins can follow the node's properties, such as one output per option.
 	ReconstructNode();
 	Super::PostEditChangeProperty(Event);
