@@ -27,8 +27,8 @@ namespace
 		virtual void Tick(float DeltaSeconds) override
 		{
 			FEditorViewportClient::Tick(DeltaSeconds);
-			Preview->Tick(DeltaSeconds);
 			PreviewScene->GetWorld()->Tick(LEVELTICK_All, DeltaSeconds);
+			Preview->Tick(DeltaSeconds);
 		}
 
 		virtual void Draw(const FSceneView* View, FPrimitiveDrawInterface* PDI) override

@@ -26,7 +26,7 @@ public:
 	virtual void OnSelectionChanged(const TSet<UObject*>& Selection) {}
 	virtual void OnGraphChanged() {}
 
-	/** Runs every frame, before the scene's world moves on. */
+	/** Runs every frame, once the scene's world has moved on, so poses read are this frame's. */
 	virtual void Tick(float DeltaTime) {}
 
 	/** Draws over the scene, in the world and on the screen. */
