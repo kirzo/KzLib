@@ -140,6 +140,7 @@ void KzGraphCompiler::Compile(const UKzEdGraph& Graph, UObject& Outer, FKzGraphD
 		}
 	}
 
+	// As in Blueprints, what no entry reaches is not compiled, nor checked.
 	TArray<const UKzEdGraphNode*> Included;
 	for (const UKzEdGraphNode* Node : Candidates)
 	{
@@ -147,9 +148,25 @@ void KzGraphCompiler::Compile(const UKzEdGraph& Graph, UObject& Outer, FKzGraphD
 		{
 			Included.Add(Node);
 		}
-		else
+	}
+
+	for (const UKzEdGraphNode* Entry : EntryNodes)
+	{
+		bool bHasOutputs = false;
+		bool bLeadsSomewhere = false;
+		for (const UEdGraphPin* Pin : Entry->Pins)
 		{
-			AddIssue(EKzValidationSeverity::Warning, LOCTEXT("Unreachable", "No entry reaches this node; it is left out."), *Node);
+			if (Pin->Direction == EGPD_Output)
+			{
+				TArray<UEdGraphPin*> Targets;
+				KzGraphEditor::GatherTargets(*Pin, Flow, Targets);
+				bHasOutputs = true;
+				bLeadsSomewhere |= !Targets.IsEmpty();
+			}
+		}
+		if (bHasOutputs && !bLeadsSomewhere)
+		{
+			AddIssue(EKzValidationSeverity::Warning, LOCTEXT("LoneEntry", "Nothing is connected to this entry."), *Entry);
 		}
 	}
 
