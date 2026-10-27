@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "KzGraphNode.h"
 
+class FObjectProperty;
 class SGraphEditor;
 class SWidget;
 class UEdGraph;
@@ -33,6 +34,9 @@ namespace KzGraphEditor
 
 	/** Runs the double click registered for the node's struct or its closest parent. */
 	void DoubleClickNode(const UKzEdGraphNode& Node);
+
+	/** Gives each object the struct holds, down instanced structs and arrays, a copy of its own in Outer when ShouldCopy picks it. */
+	void DuplicateObjects(const UStruct* Struct, void* Memory, UObject& Outer, TFunctionRef<bool(const FObjectProperty&, const UObject&)> ShouldCopy);
 
 	/** The graph asset an editor graph belongs to. */
 	KZGRAPHEDITOR_API UKzGraph* GetGraphAsset(const UEdGraph* Graph);

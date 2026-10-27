@@ -23,6 +23,7 @@
 #include "ToolMenu.h"
 #include "ToolMenuSection.h"
 #include "UObject/UObjectIterator.h"
+#include "UObject/UnrealType.h"
 
 #define LOCTEXT_NAMESPACE "KzEdGraphSchema"
 
@@ -397,6 +398,13 @@ UKzEdGraphNode* UKzEdGraphSchema::CreateNode(UEdGraph& Graph, const TInstancedSt
 	FGraphNodeCreator<UKzEdGraphNode> Creator(Graph);
 	UKzEdGraphNode* EdNode = Creator.CreateNode(bSelect);
 	EdNode->Node = Node;
+
+	// Instanced objects made elsewhere, such as by UKzGraph::MakeNodeForAsset, belong to the new node.
+	KzGraphEditor::DuplicateObjects(EdNode->Node.GetScriptStruct(), EdNode->Node.GetMutableMemory(), *EdNode, [EdNode](const FObjectProperty& Property, const UObject& Object)
+	{
+		return Property.HasAnyPropertyFlags(CPF_InstancedReference) && !Object.IsIn(EdNode);
+	});
+
 	EdNode->NodePosX = static_cast<int32>(Location.X);
 	EdNode->NodePosY = static_cast<int32>(Location.Y);
 	Creator.Finalize();

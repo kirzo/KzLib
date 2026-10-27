@@ -10,6 +10,8 @@
 #include "SGraphPanel.h"
 #include "SGraphPin.h"
 #include "ScopedTransaction.h"
+#include "StructUtils/InstancedStruct.h"
+#include "UObject/UnrealType.h"
 
 namespace
 {
@@ -57,6 +59,41 @@ namespace
 			}
 		}
 		return nullptr;
+	}
+
+	void DuplicateObjects(const FProperty* Property, void* Value, UObject& Outer, TFunctionRef<bool(const FObjectProperty&, const UObject&)> ShouldCopy)
+	{
+		if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Property))
+		{
+			UObject* Object = ObjectProperty->GetObjectPropertyValue(Value);
+			if (Object && ShouldCopy(*ObjectProperty, *Object))
+			{
+				ObjectProperty->SetObjectPropertyValue(Value, DuplicateObject(Object, &Outer));
+			}
+		}
+		else if (const FStructProperty* StructProperty = CastField<FStructProperty>(Property))
+		{
+			if (StructProperty->Struct == FInstancedStruct::StaticStruct())
+			{
+				FInstancedStruct& Instanced = *static_cast<FInstancedStruct*>(Value);
+				if (Instanced.IsValid())
+				{
+					KzGraphEditor::DuplicateObjects(Instanced.GetScriptStruct(), Instanced.GetMutableMemory(), Outer, ShouldCopy);
+				}
+			}
+			else
+			{
+				KzGraphEditor::DuplicateObjects(StructProperty->Struct, Value, Outer, ShouldCopy);
+			}
+		}
+		else if (const FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property))
+		{
+			FScriptArrayHelper Array(ArrayProperty, Value);
+			for (int32 Index = 0; Index < Array.Num(); ++Index)
+			{
+				DuplicateObjects(ArrayProperty->Inner, Array.GetRawPtr(Index), Outer, ShouldCopy);
+			}
+		}
 	}
 
 	void GatherTargets(const UEdGraphPin& Output, EKzGraphFlow Flow, TArray<UEdGraphPin*>& OutTargets, TSet<const UEdGraphNode*>& Visited)
@@ -115,6 +152,17 @@ void KzGraphEditor::DoubleClickNode(const UKzEdGraphNode& Node)
 	if (const FKzOnGraphNodeDoubleClicked* OnDoubleClicked = FindForNode(GetNodeDoubleClicks(), Node))
 	{
 		OnDoubleClicked->ExecuteIfBound(Node);
+	}
+}
+
+void KzGraphEditor::DuplicateObjects(const UStruct* Struct, void* Memory, UObject& Outer, TFunctionRef<bool(const FObjectProperty&, const UObject&)> ShouldCopy)
+{
+	for (TFieldIterator<FProperty> It(Struct); It; ++It)
+	{
+		for (int32 Index = 0; Index < It->ArrayDim; ++Index)
+		{
+			::DuplicateObjects(*It, It->ContainerPtrToValuePtr<void>(Memory, Index), Outer, ShouldCopy);
+		}
 	}
 }
 

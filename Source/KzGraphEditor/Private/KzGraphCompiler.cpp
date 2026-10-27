@@ -6,7 +6,6 @@
 #include "KzGraph.h"
 #include "KzGraphEditorUtils.h"
 #include "StructUtils/InstancedStruct.h"
-#include "UObject/UnrealType.h"
 
 #define LOCTEXT_NAMESPACE "KzGraphCompiler"
 
@@ -14,55 +13,6 @@ const FName KzGraphCompiler::ValidatorId(TEXT("Compile"));
 
 namespace
 {
-	void DuplicateOwnedObjects(const UStruct* Struct, void* Memory, const UObject& Source, UObject& Outer);
-
-	/** Objects the editor node owns, such as instanced conditions, get a copy of their own in the asset. */
-	void DuplicateOwnedObjects(const FProperty* Property, void* Value, const UObject& Source, UObject& Outer)
-	{
-		if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Property))
-		{
-			UObject* Object = ObjectProperty->GetObjectPropertyValue(Value);
-			if (Object && Object->IsIn(&Source))
-			{
-				ObjectProperty->SetObjectPropertyValue(Value, DuplicateObject(Object, &Outer));
-			}
-		}
-		else if (const FStructProperty* StructProperty = CastField<FStructProperty>(Property))
-		{
-			if (StructProperty->Struct == FInstancedStruct::StaticStruct())
-			{
-				FInstancedStruct& Instanced = *static_cast<FInstancedStruct*>(Value);
-				if (Instanced.IsValid())
-				{
-					DuplicateOwnedObjects(Instanced.GetScriptStruct(), Instanced.GetMutableMemory(), Source, Outer);
-				}
-			}
-			else
-			{
-				DuplicateOwnedObjects(StructProperty->Struct, Value, Source, Outer);
-			}
-		}
-		else if (const FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property))
-		{
-			FScriptArrayHelper Array(ArrayProperty, Value);
-			for (int32 Index = 0; Index < Array.Num(); ++Index)
-			{
-				DuplicateOwnedObjects(ArrayProperty->Inner, Array.GetRawPtr(Index), Source, Outer);
-			}
-		}
-	}
-
-	void DuplicateOwnedObjects(const UStruct* Struct, void* Memory, const UObject& Source, UObject& Outer)
-	{
-		for (TFieldIterator<FProperty> It(Struct); It; ++It)
-		{
-			for (int32 Index = 0; Index < It->ArrayDim; ++Index)
-			{
-				DuplicateOwnedObjects(*It, It->ContainerPtrToValuePtr<void>(Memory, Index), Source, Outer);
-			}
-		}
-	}
-
 	struct FNodePins
 	{
 		TArray<FKzGraphPinDesc> Inputs;
@@ -183,7 +133,8 @@ void KzGraphCompiler::Compile(const UKzEdGraph& Graph, UObject& Outer, FKzGraphD
 
 		FInstancedStruct& Copy = Nodes.AddDefaulted_GetRef();
 		Copy.InitializeAs(Node->Node.GetScriptStruct(), Node->Node.GetMemory());
-		DuplicateOwnedObjects(Copy.GetScriptStruct(), Copy.GetMutableMemory(), *Node, Outer);
+		// Objects the editor node owns, such as instanced conditions, get a copy of their own in the asset.
+		KzGraphEditor::DuplicateObjects(Copy.GetScriptStruct(), Copy.GetMutableMemory(), Outer, [Node](const FObjectProperty&, const UObject& Object) { return Object.IsIn(Node); });
 	}
 
 	OutData = FKzGraphData();
