@@ -49,6 +49,10 @@ public:
 	virtual FText GetTooltipText() const override;
 	virtual FLinearColor GetNodeTitleColor() const override;
 	virtual FSlateIcon GetIconAndTint(FLinearColor& OutColor) const override;
+
+	/** The engine draws the title icon only for nodes that ask; a node without one shows nothing. */
+	virtual bool ShowPaletteIconOnNode() const override { return true; }
+
 	virtual bool CanUserDeleteNode() const override;
 	virtual bool CanDuplicateNode() const override;
 	virtual bool CanPasteHere(const UEdGraph* TargetGraph) const override;
