@@ -198,8 +198,13 @@ void KzGraphEditor::StraightenConnections(SGraphEditor& Editor)
 		return;
 	}
 
-	// Each selected node moves sideways until its input sits under the output feeding it; top to bottom, so chains follow.
 	SGraphPanel* Panel = Editor.GetGraphPanel();
+	if (!Panel)
+	{
+		return;
+	}
+
+	// Each selected node moves sideways until its input sits under the output feeding it; top to bottom, so chains follow.
 	TArray<UEdGraphNode*> Selected;
 	for (UObject* Object : Editor.GetSelectedNodes())
 	{
@@ -209,11 +214,6 @@ void KzGraphEditor::StraightenConnections(SGraphEditor& Editor)
 		}
 	}
 	Selected.Sort([](const UEdGraphNode& A, const UEdGraphNode& B) { return A.NodePosY < B.NodePosY; });
-
-	if (!Panel)
-	{
-		return;
-	}
 
 	const FScopedTransaction Transaction(FGraphEditorCommands::Get().StraightenConnections->GetLabel());
 	TSet<const UEdGraphNode*> Moved;

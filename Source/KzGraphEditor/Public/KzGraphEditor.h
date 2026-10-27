@@ -58,13 +58,13 @@ public:
 	virtual void RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager) override;
 	virtual void UnregisterTabSpawners(const TSharedRef<FTabManager>& InTabManager) override;
 	virtual void PostUndo(bool bSuccess) override;
+	virtual void PostRedo(bool bSuccess) override;
 
 	/** The graph, and the assets it names in UKzGraph::GetAssetsSavedWith that have changes. */
 	virtual void GetSaveableObjects(TArray<UObject*>& OutObjects) const override;
 
 	/** Down a vertical flow, a pin's Straighten Connection entries line pins up vertically, as Q does. */
 	virtual void AddGraphEditorPinActionsToContextMenu(FToolMenuSection& InSection) const override;
-	virtual void PostRedo(bool bSuccess) override;
 
 protected:
 	/** What the viewport shows; none leaves the editor without one. */
@@ -108,13 +108,13 @@ private:
 
 	void FindInGraph();
 
-	/** Deletes the selected nodes; reconnecting lets the flow pass each node with one input and one output, as Shift+Delete does in Blueprints. */
 	/** Q: lines linked pins up along the graph's flow. */
 	void StraightenConnections();
 
 	/** Keys the engine's graph editor would take for its own versions, answered here first. */
 	FReply OnGraphPreviewKeyDown(const FGeometry& Geometry, const FKeyEvent& KeyEvent);
 
+	/** Deletes the selected nodes; reconnecting lets the flow pass each node with one input and one output, as Shift+Delete does in Blueprints. */
 	void DeleteSelectedNodes(bool bReconnect);
 	bool CanDeleteNodes() const;
 	void CopySelectedNodes();
