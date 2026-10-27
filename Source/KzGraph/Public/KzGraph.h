@@ -157,6 +157,9 @@ public:
 	/** Fills the node an asset dropped on the graph makes, such as a sub graph from another graph asset. False for assets that make none. */
 	virtual bool MakeNodeForAsset(UObject& Asset, TInstancedStruct<FKzGraphNode>& OutNode) const { return false; }
 
+	/** Other assets the graph's editor changes, such as a dialogue graph's lines: its Save saves those with changes too. */
+	virtual void GetAssetsSavedWith(TArray<UObject*>& OutAssets) const {}
+
 	void SetData(FKzGraphData&& InData) { Data = MoveTemp(InData); }
 #endif
 

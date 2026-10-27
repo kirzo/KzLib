@@ -59,6 +59,9 @@ public:
 	virtual void UnregisterTabSpawners(const TSharedRef<FTabManager>& InTabManager) override;
 	virtual void PostUndo(bool bSuccess) override;
 
+	/** The graph, and the assets it names in UKzGraph::GetAssetsSavedWith that have changes. */
+	virtual void GetSaveableObjects(TArray<UObject*>& OutObjects) const override;
+
 	/** Down a vertical flow, a pin's Straighten Connection entries line pins up vertically, as Q does. */
 	virtual void AddGraphEditorPinActionsToContextMenu(FToolMenuSection& InSection) const override;
 	virtual void PostRedo(bool bSuccess) override;

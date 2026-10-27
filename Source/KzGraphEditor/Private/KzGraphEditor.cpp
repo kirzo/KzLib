@@ -578,6 +578,24 @@ void FKzGraphEditor::StraightenConnections()
 	}
 }
 
+void FKzGraphEditor::GetSaveableObjects(TArray<UObject*>& OutObjects) const
+{
+	FAssetEditorToolkit::GetSaveableObjects(OutObjects);
+
+	TArray<UObject*> SavedWith;
+	if (const UKzGraph* Asset = Graph.Get())
+	{
+		Asset->GetAssetsSavedWith(SavedWith);
+	}
+	for (UObject* Other : SavedWith)
+	{
+		if (Other && Other->GetPackage()->IsDirty())
+		{
+			OutObjects.AddUnique(Other);
+		}
+	}
+}
+
 void FKzGraphEditor::AddGraphEditorPinActionsToContextMenu(FToolMenuSection& InSection) const
 {
 	if (!Graph.IsValid() || Graph->GetFlow() != EKzGraphFlow::Vertical || !GraphEditor.IsValid())
