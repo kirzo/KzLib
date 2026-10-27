@@ -169,6 +169,11 @@ bool UKzEdGraphNode::CanUserDeleteNode() const
 
 bool UKzEdGraphNode::CanDuplicateNode() const
 {
+	// The paste asks the class default, which holds no node: each pasted node is checked by CanPasteHere.
+	if (HasAnyFlags(RF_ClassDefaultObject))
+	{
+		return true;
+	}
 	return Node.IsValid() && Node.Get().CanDuplicate();
 }
 
