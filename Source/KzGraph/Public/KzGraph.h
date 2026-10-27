@@ -103,6 +103,9 @@ struct KZGRAPH_API FKzGraphData
 
 	const FGuid& GetNodeGuid(int32 Node) const { return NodeGuids[Node]; }
 
+	/** The node with that editor GUID, which survives recompiling, or INDEX_NONE. */
+	int32 FindNode(const FGuid& Guid) const { return Guid.IsValid() ? NodeGuids.IndexOfByKey(Guid) : INDEX_NONE; }
+
 	UPROPERTY()
 	FInstancedStructContainer Nodes;
 
