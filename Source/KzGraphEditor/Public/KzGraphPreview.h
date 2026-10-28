@@ -37,6 +37,9 @@ public:
 	/** What the camera frames. */
 	virtual FBox GetBounds() const { return FBox(ForceInit); }
 
+	/** Which way the camera looks when the viewport opens; unset keeps the editor's default. */
+	virtual TOptional<FRotator> GetViewRotation() const { return {}; }
+
 	/** A panel under the viewport, such as a timeline. */
 	virtual TSharedPtr<SWidget> MakeBottomPanel() { return nullptr; }
 

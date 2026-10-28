@@ -136,6 +136,16 @@ void SKzGraphViewport::Construct(const FArguments& InArgs, const TSharedRef<FKzG
 
 	SEditorViewport::Construct(SEditorViewport::FArguments());
 	Preview->Initialize(*PreviewScene);
+
+	// Framing keeps the camera's direction, and may wait for the viewport to have a size, so the camera starts on what the preview shows.
+	const FBox Bounds = Preview->GetBounds();
+	const TOptional<FRotator> Rotation = Preview->GetViewRotation();
+	if (Rotation && Bounds.IsValid && Client.IsValid())
+	{
+		Client->SetViewRotation(*Rotation);
+		Client->SetViewLocation(Bounds.GetCenter() - Rotation->Vector() * Bounds.GetExtent().Size() * 3.0);
+		Client->SetLookAtLocation(Bounds.GetCenter());
+	}
 	Frame();
 }
 
