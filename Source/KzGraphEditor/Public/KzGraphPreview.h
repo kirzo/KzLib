@@ -7,7 +7,7 @@
 class FAdvancedPreviewScene;
 class FCanvas;
 class FPrimitiveDrawInterface;
-struct HHitProxy;
+class HHitProxy;
 class FSceneView;
 class FViewport;
 class SWidget;
