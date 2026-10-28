@@ -43,8 +43,86 @@ namespace
 			Preview->DrawCanvas(InViewport, View, Canvas);
 		}
 
+		virtual void ProcessClick(FSceneView& View, HHitProxy* HitProxy, FKey Key, EInputEvent Event, uint32 HitX, uint32 HitY) override
+		{
+			if (Key == EKeys::LeftMouseButton && Preview->HandleClick(HitProxy))
+			{
+				Invalidate();
+				return;
+			}
+			FEditorViewportClient::ProcessClick(View, HitProxy, Key, Event, HitX, HitY);
+		}
+
+		// The gizmo answers to the preview alone: no editor mode drives this viewport.
+		virtual UE::Widget::EWidgetMode GetWidgetMode() const override
+		{
+			return Preview->GetGizmoTransform() ? WidgetMode : UE::Widget::WM_None;
+		}
+
+		virtual bool CanSetWidgetMode(UE::Widget::EWidgetMode NewMode) const override
+		{
+			return NewMode == UE::Widget::WM_Translate || NewMode == UE::Widget::WM_Rotate;
+		}
+
+		virtual void SetWidgetMode(UE::Widget::EWidgetMode NewMode) override
+		{
+			if (CanSetWidgetMode(NewMode))
+			{
+				WidgetMode = NewMode;
+				Invalidate();
+			}
+		}
+
+		virtual FVector GetWidgetLocation() const override
+		{
+			const TOptional<FTransform> Gizmo = Preview->GetGizmoTransform();
+			return Gizmo ? Gizmo->GetLocation() : FVector::ZeroVector;
+		}
+
+		virtual FMatrix GetWidgetCoordSystem() const override
+		{
+			const TOptional<FTransform> Gizmo = Preview->GetGizmoTransform();
+			return Gizmo ? FRotationMatrix::Make(Gizmo->GetRotation()) : FMatrix::Identity;
+		}
+
+		virtual ECoordSystem GetWidgetCoordSystemSpace() const override
+		{
+			return COORD_Local;
+		}
+
+		virtual bool InputWidgetDelta(FViewport* InViewport, EAxisList::Type CurrentAxis, FVector& Drag, FRotator& Rot, FVector& Scale) override
+		{
+			if (CurrentAxis == EAxisList::None || !Preview->GetGizmoTransform())
+			{
+				return false;
+			}
+			Preview->MoveGizmo(Drag, Rot);
+			Invalidate();
+			return true;
+		}
+
+		virtual void TrackingStarted(const FInputEventState& InInputState, bool bIsDraggingWidget, bool bNudge) override
+		{
+			if (bIsDraggingWidget && Preview->GetGizmoTransform())
+			{
+				bDraggingGizmo = true;
+				Preview->BeginGizmoDrag();
+			}
+		}
+
+		virtual void TrackingStopped() override
+		{
+			if (bDraggingGizmo)
+			{
+				bDraggingGizmo = false;
+				Preview->EndGizmoDrag();
+			}
+		}
+
 	private:
 		TSharedRef<FKzGraphPreview> Preview;
+		UE::Widget::EWidgetMode WidgetMode = UE::Widget::WM_Translate;
+		bool bDraggingGizmo = false;
 	};
 }
 

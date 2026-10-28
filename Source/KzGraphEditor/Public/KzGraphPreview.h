@@ -7,6 +7,7 @@
 class FAdvancedPreviewScene;
 class FCanvas;
 class FPrimitiveDrawInterface;
+struct HHitProxy;
 class FSceneView;
 class FViewport;
 class SWidget;
@@ -38,4 +39,17 @@ public:
 
 	/** A panel under the viewport, such as a timeline. */
 	virtual TSharedPtr<SWidget> MakeBottomPanel() { return nullptr; }
+
+	/** A left click in the viewport, on the hit proxy drawn there, if any. True when the preview took it. */
+	virtual bool HandleClick(HHitProxy* HitProxy) { return false; }
+
+	/** Where the transform gizmo shows, on what the preview has selected to move; unset hides it. */
+	virtual TOptional<FTransform> GetGizmoTransform() const { return {}; }
+
+	/** The gizmo was dragged by Drag and turned by Rotation, both in world space. */
+	virtual void MoveGizmo(const FVector& Drag, const FRotator& Rotation) {}
+
+	/** A drag of the gizmo starts or ends, for one undoable change per drag. */
+	virtual void BeginGizmoDrag() {}
+	virtual void EndGizmoDrag() {}
 };
