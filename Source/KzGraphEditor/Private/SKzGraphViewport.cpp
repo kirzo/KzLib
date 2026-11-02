@@ -4,6 +4,7 @@
 #include "AdvancedPreviewScene.h"
 #include "AdvancedPreviewSceneMenus.h"
 #include "EditorViewportClient.h"
+#include "EditorViewportCommands.h"
 #include "GameFramework/WorldSettings.h"
 #include "KzGraphPreview.h"
 #include "ToolMenus.h"
@@ -156,6 +157,14 @@ void SKzGraphViewport::Frame()
 	{
 		Client->FocusViewportOnBox(Bounds);
 	}
+}
+
+void SKzGraphViewport::BindCommands()
+{
+	SEditorViewport::BindCommands();
+
+	// Space belongs to the editor's play and pause, not to cycling the gizmo.
+	CommandList->UnmapAction(FEditorViewportCommands::Get().CycleTransformGizmos);
 }
 
 TSharedRef<FEditorViewportClient> SKzGraphViewport::MakeEditorViewportClient()

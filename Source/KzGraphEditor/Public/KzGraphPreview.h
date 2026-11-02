@@ -55,4 +55,8 @@ public:
 	/** A drag of the gizmo starts or ends, for one undoable change per drag. */
 	virtual void BeginGizmoDrag() {}
 	virtual void EndGizmoDrag() {}
+
+	/** Space in the editor plays or pauses what the preview runs, for previews that run something. */
+	virtual bool CanTogglePlay() const { return false; }
+	virtual void TogglePlay() {}
 };

@@ -31,6 +31,7 @@ public:
 	TSharedPtr<FUICommandInfo> Compile;
 	TSharedPtr<FUICommandInfo> AutoCompile;
 	TSharedPtr<FUICommandInfo> Find;
+	TSharedPtr<FUICommandInfo> TogglePlay;
 };
 
 /**

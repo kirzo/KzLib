@@ -88,6 +88,7 @@ void FKzGraphEditorCommands::RegisterCommands()
 	UI_COMMAND(Compile, "Compile", "Rebuilds the nodes from their code and compiles the graph, listing the problems found.", EUserInterfaceActionType::Button, FInputChord(EKeys::F7));
 	UI_COMMAND(AutoCompile, "Auto Compile", "Compiles after every edit, once the mouse is let go. Applies to every graph, for you only.", EUserInterfaceActionType::ToggleButton, FInputChord());
 	UI_COMMAND(Find, "Find", "Searches the graph's nodes, pins and comments.", EUserInterfaceActionType::Button, FInputChord(EModifierKey::Control, EKeys::F));
+	UI_COMMAND(TogglePlay, "Play/Pause", "Plays or pauses the preview.", EUserInterfaceActionType::Button, FInputChord(EKeys::SpaceBar));
 }
 
 void FKzGraphEditor::CreateEditor(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& Host, const TArray<UObject*>& Objects)
@@ -256,6 +257,7 @@ void FKzGraphEditor::BindCommands()
 	Commands->MapAction(KzCommands.Compile, FExecuteAction::CreateSP(this, &FKzGraphEditor::Compile));
 	Commands->MapAction(KzCommands.AutoCompile, FExecuteAction::CreateSP(this, &FKzGraphEditor::ToggleAutoCompile), FCanExecuteAction(), FIsActionChecked::CreateSP(this, &FKzGraphEditor::IsAutoCompile));
 	Commands->MapAction(KzCommands.Find, FExecuteAction::CreateSP(this, &FKzGraphEditor::FindInGraph));
+	Commands->MapAction(KzCommands.TogglePlay, FExecuteAction::CreateSPLambda(this, [this]() { Preview->TogglePlay(); }), FCanExecuteAction::CreateSPLambda(this, [this]() { return Preview && Preview->CanTogglePlay(); }));
 }
 
 void FKzGraphEditor::FillToolbar(FToolBarBuilder& ToolbarBuilder)

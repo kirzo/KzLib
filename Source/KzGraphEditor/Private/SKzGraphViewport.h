@@ -21,6 +21,7 @@ public:
 	void Frame();
 
 protected:
+	virtual void BindCommands() override;
 	virtual TSharedRef<FEditorViewportClient> MakeEditorViewportClient() override;
 	virtual TSharedPtr<SWidget> BuildViewportToolbar() override;
 	virtual void OnFocusViewportToSelection() override;
