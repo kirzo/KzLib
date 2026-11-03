@@ -128,7 +128,11 @@ void KzGraphEditor::RegisterNodeBody(const UScriptStruct* Struct, FKzOnMakeGraph
 
 void KzGraphEditor::UnregisterNodeBody(const UScriptStruct* Struct)
 {
-	GetNodeBodies().Remove(Struct);
+	// Modules can shut down after UObjects, when even looking up a weak pointer asserts
+	if (UObjectInitialized())
+	{
+		GetNodeBodies().Remove(Struct);
+	}
 }
 
 TSharedPtr<SWidget> KzGraphEditor::MakeNodeBody(const UKzEdGraphNode& Node)
@@ -144,7 +148,10 @@ void KzGraphEditor::RegisterNodeDoubleClick(const UScriptStruct* Struct, FKzOnGr
 
 void KzGraphEditor::UnregisterNodeDoubleClick(const UScriptStruct* Struct)
 {
-	GetNodeDoubleClicks().Remove(Struct);
+	if (UObjectInitialized())
+	{
+		GetNodeDoubleClicks().Remove(Struct);
+	}
 }
 
 void KzGraphEditor::DoubleClickNode(const UKzEdGraphNode& Node)
