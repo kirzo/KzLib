@@ -21,7 +21,7 @@ enum class EKzDatabaseMatch : uint8
 
 /**
  * What the asker wants and what is true about it. An item is a candidate when it passes RequireTags, IgnoreTags and TagQuery, and each of its own
- * tags is asked for or true of the asker, so variants for other states never apply. The candidate with the most tags wins; on a tie, the first.
+ * tags is asked for or true of the asker, so variants for other states never apply. The candidate with the most tags wins, then the one with the more specific tags; on a tie, the first.
  */
 USTRUCT(BlueprintType)
 struct KZLIB_API FKzDatabaseQuery
@@ -50,7 +50,7 @@ struct KZLIB_API FKzDatabaseQuery
 	/** Whether an item with these tags is a candidate, or the first rule it breaks; for an uncovered tag, which one. */
 	EKzDatabaseMatch Evaluate(const FGameplayTagContainer& Tags, FGameplayTag* OutUncoveredTag = nullptr) const;
 
-	/** How specific a candidate is: its tag count, all of them covered. */
+	/** How specific a candidate is: its tag count, all of them covered, and between equal counts how deep its tags go. */
 	int32 CalculateScore(const FGameplayTagContainer& Tags) const;
 
 	/** Returns true if the query has no constraints */

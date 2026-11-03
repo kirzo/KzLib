@@ -36,7 +36,13 @@ EKzDatabaseMatch FKzDatabaseQuery::Evaluate(const FGameplayTagContainer& Tags, F
 
 int32 FKzDatabaseQuery::CalculateScore(const FGameplayTagContainer& Tags) const
 {
-	return Tags.Num();
+	// Between items with as many tags, the more specific wins: Reaction.Block over Reaction
+	int32 Depth = 0;
+	for (const FGameplayTag& Tag : Tags)
+	{
+		Depth += Tag.GetGameplayTagParents().Num();
+	}
+	return Tags.Num() * 100 + Depth;
 }
 
 bool FKzDatabaseQuery::IsEmpty() const
