@@ -248,6 +248,50 @@ bool UKzGeomLibrary::CylinderIntersectsPoint(const FVector Center, float Radius,
 	return Kz::Geom::CylinderIntersectsPoint(Center, Rotation.Quaternion(), Radius, HalfHeight, Point);
 }
 
+// === Cone ===
+
+FKzShapeInstance UKzGeomLibrary::MakeCone(const float Length, const float HalfAngle, const float TipRadius, const bool bSphericalCap)
+{
+	return FKzShapeInstance::Make<FKzCone>(Length, HalfAngle, TipRadius, bSphericalCap);
+}
+
+FBox UKzGeomLibrary::GetConeBounds(const FVector Origin, float Length, float HalfAngle, float TipRadius, bool bSphericalCap, const FRotator Rotation)
+{
+	return Kz::Geom::ConeBounds(Origin, Rotation.Quaternion(), Length, HalfAngle, TipRadius, bSphericalCap);
+}
+
+FVector UKzGeomLibrary::ClosestPointOnCone(const FVector Origin, float Length, float HalfAngle, float TipRadius, bool bSphericalCap, const FRotator Rotation, const FVector Point)
+{
+	return Kz::Geom::ClosestPointOnCone(Origin, Rotation.Quaternion(), Length, HalfAngle, TipRadius, bSphericalCap, Point);
+}
+
+bool UKzGeomLibrary::ConeIntersectsPoint(const FVector Origin, float Length, float HalfAngle, float TipRadius, bool bSphericalCap, const FRotator Rotation, const FVector Point)
+{
+	return Kz::Geom::ConeIntersectsPoint(Origin, Rotation.Quaternion(), Length, HalfAngle, TipRadius, bSphericalCap, Point);
+}
+
+// === Wedge ===
+
+FKzShapeInstance UKzGeomLibrary::MakeWedge(const float Radius, const float HalfAngle, const float HalfHeight)
+{
+	return FKzShapeInstance::Make<FKzWedge>(Radius, HalfAngle, HalfHeight);
+}
+
+FBox UKzGeomLibrary::GetWedgeBounds(const FVector Origin, float Radius, float HalfAngle, float HalfHeight, const FRotator Rotation)
+{
+	return Kz::Geom::WedgeBounds(Origin, Rotation.Quaternion(), Radius, HalfAngle, HalfHeight);
+}
+
+FVector UKzGeomLibrary::ClosestPointOnWedge(const FVector Origin, float Radius, float HalfAngle, float HalfHeight, const FRotator Rotation, const FVector Point)
+{
+	return Kz::Geom::ClosestPointOnWedge(Origin, Rotation.Quaternion(), Radius, HalfAngle, HalfHeight, Point);
+}
+
+bool UKzGeomLibrary::WedgeIntersectsPoint(const FVector Origin, float Radius, float HalfAngle, float HalfHeight, const FRotator Rotation, const FVector Point)
+{
+	return Kz::Geom::WedgeIntersectsPoint(Origin, Rotation.Quaternion(), Radius, HalfAngle, HalfHeight, Point);
+}
+
 // === Geometry ===
 
 TArray<FVector> UKzGeomLibrary::GetFibonacciSpherePoints(int32 NumSamples, float Radius, const FTransform& Transform)

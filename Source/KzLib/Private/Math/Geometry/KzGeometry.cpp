@@ -4,6 +4,189 @@
 #include "Math/Box.h"
 #include "Math/Vector.h"
 #include "Math/Quat.h"
+#include "Math/Vector2D.h"
+
+namespace
+{
+	/** Exact world bounds of a convex shape from its local support function. */
+	template<typename TSupport>
+	FBox BoundsFromSupport(const FVector& Origin, const FQuat& Rotation, TSupport&& Support)
+	{
+		FVector Min, Max;
+		for (int32 Axis = 0; Axis < 3; ++Axis)
+		{
+			FVector WorldAxis = FVector::ZeroVector;
+			WorldAxis[Axis] = 1.0;
+			const FVector LocalAxis = Rotation.UnrotateVector(WorldAxis);
+			Max[Axis] = Rotation.RotateVector(Support(LocalAxis))[Axis];
+			Min[Axis] = Rotation.RotateVector(Support(-LocalAxis))[Axis];
+		}
+		return FBox(Origin + Min, Origin + Max);
+	}
+
+	/** Puts a point of a shape of revolution around X back in 3D, on the side of the axis that Radial points to. */
+	FVector FromAxialPlane(const FVector2D& Point, const FVector& Radial)
+	{
+		const double RadialSize = Radial.Size();
+		return FVector(Point.X, 0.0, 0.0) + (RadialSize > UE_KINDA_SMALL_NUMBER ? Radial * (Point.Y / RadialSize) : FVector::ZeroVector);
+	}
+
+	/** A cone in its axial half plane: X along the axis, Y away from it. */
+	struct FConeSection
+	{
+		double Length;
+		double TipRadius;
+		double Angle;
+		double Tan;
+		bool bSphericalCap;
+
+		/** The spherical cap is centered on the apex the side would reach behind the tip. */
+		double CapCenter = 0.0;
+		double CapRadius = 0.0;
+
+		/** Where the side meets the cap. */
+		FVector2D Rim;
+
+		FConeSection(float InLength, float HalfAngle, float InTipRadius, bool bInSphericalCap)
+			: Length(FMath::Max(0.0f, InLength))
+			, TipRadius(FMath::Max(0.0f, InTipRadius))
+			, Angle(FMath::DegreesToRadians(FMath::Clamp(HalfAngle, 0.0f, Kz::Geom::MaxConeHalfAngle)))
+		{
+			Tan = FMath::Tan(Angle);
+
+			// With no angle there is no apex to center a sphere on, so the cap stays flat.
+			bSphericalCap = bInSphericalCap && Tan > UE_KINDA_SMALL_NUMBER;
+			if (bSphericalCap)
+			{
+				CapCenter = -TipRadius / Tan;
+				CapRadius = Length - CapCenter;
+				Rim = OnCap(Angle);
+			}
+			else
+			{
+				Rim = FVector2D(Length, TipRadius + Length * Tan);
+			}
+		}
+
+		/** Point of the spherical cap at an angle from the axis, clamped to the cap. */
+		FVector2D OnCap(double ArcAngle) const
+		{
+			const double Clamped = FMath::Clamp(ArcAngle, 0.0, Angle);
+			return FVector2D(CapCenter, 0.0) + CapRadius * FVector2D(FMath::Cos(Clamped), FMath::Sin(Clamped));
+		}
+
+		bool Contains(const FVector2D& P) const
+		{
+			if (P.X < 0.0 || P.Y > TipRadius + P.X * Tan)
+			{
+				return false;
+			}
+			return bSphericalCap ? FVector2D::DistSquared(P, FVector2D(CapCenter, 0.0)) <= FMath::Square(CapRadius) : P.X <= Length;
+		}
+
+		/** Direction.Y must not be negative, as the radial part of a 3D direction. */
+		FVector2D Support(const FVector2D& Direction) const
+		{
+			const FVector2D TipRim(0.0, TipRadius);
+			const FVector2D Far = bSphericalCap ? OnCap(FMath::Atan2(Direction.Y, Direction.X)) : Rim;
+			return (TipRim | Direction) > (Far | Direction) ? TipRim : Far;
+		}
+
+		/** P.Y must not be negative. The axis is not a boundary: a point off it is always closer to the outline. */
+		FVector2D Closest(const FVector2D& P) const
+		{
+			if (Contains(P))
+			{
+				return P;
+			}
+
+			const FVector2D TipRim(0.0, TipRadius);
+			FVector2D Best = FMath::ClosestPointOnSegment2D(P, FVector2D::ZeroVector, TipRim);
+			auto Consider = [&P, &Best](const FVector2D& Candidate)
+			{
+				if (FVector2D::DistSquared(Candidate, P) < FVector2D::DistSquared(Best, P))
+				{
+					Best = Candidate;
+				}
+			};
+
+			Consider(FMath::ClosestPointOnSegment2D(P, TipRim, Rim));
+			Consider(bSphericalCap ? OnCap(FMath::Atan2(P.Y, P.X - CapCenter)) : FMath::ClosestPointOnSegment2D(P, Rim, FVector2D(Length, 0.0)));
+			return Best;
+		}
+
+		FVector Support(const FVector& Direction) const
+		{
+			const FVector Radial(0.0, Direction.Y, Direction.Z);
+			return FromAxialPlane(Support(FVector2D(Direction.X, Radial.Size())), Radial);
+		}
+	};
+
+	/** A wedge in its horizontal plane: a circular sector opening along +X. */
+	struct FWedgeSection
+	{
+		double Radius;
+		double Angle;
+		double Cos;
+
+		/** End of the +Y side on the arc; the -Y side is its mirror. */
+		FVector2D Edge;
+
+		FWedgeSection(float InRadius, float HalfAngle)
+			: Radius(FMath::Max(0.0f, InRadius))
+			, Angle(FMath::DegreesToRadians(FMath::Clamp(HalfAngle, 0.0f, 90.0f)))
+		{
+			Cos = FMath::Cos(Angle);
+			Edge = Radius * FVector2D(Cos, FMath::Sin(Angle));
+		}
+
+		bool Contains(const FVector2D& P) const
+		{
+			return P.SizeSquared() <= FMath::Square(Radius) && P.X >= P.Size() * Cos;
+		}
+
+		bool FacesArc(const FVector2D& Direction) const
+		{
+			return FMath::Abs(FMath::Atan2(Direction.Y, Direction.X)) <= Angle;
+		}
+
+		FVector2D Support(const FVector2D& Direction) const
+		{
+			if (FacesArc(Direction))
+			{
+				return Direction.GetSafeNormal() * Radius;
+			}
+
+			const FVector2D Mirror(Edge.X, -Edge.Y);
+			const FVector2D Best = (Edge | Direction) >= (Mirror | Direction) ? Edge : Mirror;
+			return (Best | Direction) > 0.0 ? Best : FVector2D::ZeroVector;
+		}
+
+		FVector2D Closest(const FVector2D& P) const
+		{
+			if (Contains(P))
+			{
+				return P;
+			}
+
+			FVector2D Best = FMath::ClosestPointOnSegment2D(P, FVector2D::ZeroVector, Edge);
+			auto Consider = [&P, &Best](const FVector2D& Candidate)
+			{
+				if (FVector2D::DistSquared(Candidate, P) < FVector2D::DistSquared(Best, P))
+				{
+					Best = Candidate;
+				}
+			};
+
+			Consider(FMath::ClosestPointOnSegment2D(P, FVector2D::ZeroVector, FVector2D(Edge.X, -Edge.Y)));
+			if (FacesArc(P))
+			{
+				Consider(P.GetSafeNormal() * Radius);
+			}
+			return Best;
+		}
+	};
+}
 
 namespace Kz::Geom
 {
@@ -230,5 +413,92 @@ namespace Kz::Geom
 	{
 		const FVector LocalPoint = Rotation.UnrotateVector(Point - Center);
 		return FMath::Abs(LocalPoint.Z) <= HalfHeight && LocalPoint.SizeSquared2D() <= FMath::Square(Radius);
+	}
+
+
+	// === Cone ===
+
+	FVector ConeSupportPoint(float Length, float HalfAngle, float TipRadius, bool bSphericalCap, const FVector& Direction)
+	{
+		return FConeSection(Length, HalfAngle, TipRadius, bSphericalCap).Support(Direction);
+	}
+
+	FBox ConeBounds(const FVector& Origin, const FQuat& Rotation, float Length, float HalfAngle, float TipRadius, bool bSphericalCap)
+	{
+		const FConeSection Section(Length, HalfAngle, TipRadius, bSphericalCap);
+		return BoundsFromSupport(Origin, Rotation, [&Section](const FVector& Direction) { return Section.Support(Direction); });
+	}
+
+	FVector ClosestPointOnCone(const FVector& Origin, const FQuat& Rotation, float Length, float HalfAngle, float TipRadius, bool bSphericalCap, const FVector& Point)
+	{
+		const FVector LocalPoint = Rotation.UnrotateVector(Point - Origin);
+		const FVector Radial(0.0, LocalPoint.Y, LocalPoint.Z);
+		const FVector2D Closest = FConeSection(Length, HalfAngle, TipRadius, bSphericalCap).Closest(FVector2D(LocalPoint.X, Radial.Size()));
+		return Origin + Rotation.RotateVector(FromAxialPlane(Closest, Radial));
+	}
+
+	bool ConeIntersectsPoint(const FVector& Origin, const FQuat& Rotation, float Length, float HalfAngle, float TipRadius, bool bSphericalCap, const FVector& Point)
+	{
+		const FVector LocalPoint = Rotation.UnrotateVector(Point - Origin);
+		return FConeSection(Length, HalfAngle, TipRadius, bSphericalCap).Contains(FVector2D(LocalPoint.X, FMath::Sqrt(FMath::Square(LocalPoint.Y) + FMath::Square(LocalPoint.Z))));
+	}
+
+	FVector2D ConeRim(float Length, float HalfAngle, float TipRadius, bool bSphericalCap)
+	{
+		return FConeSection(Length, HalfAngle, TipRadius, bSphericalCap).Rim;
+	}
+
+	void ConeOutline(float Length, float HalfAngle, float TipRadius, bool bSphericalCap, int32 CapSegments, TArray<FVector2D>& OutOutline)
+	{
+		const FConeSection Section(Length, HalfAngle, TipRadius, bSphericalCap);
+
+		OutOutline.Reset();
+		OutOutline.Add(FVector2D::ZeroVector);
+		if (Section.TipRadius > 0.0)
+		{
+			OutOutline.Add(FVector2D(0.0, Section.TipRadius));
+		}
+		OutOutline.Add(Section.Rim);
+		if (Section.bSphericalCap)
+		{
+			const int32 Segments = FMath::Max(1, CapSegments);
+			for (int32 Index = Segments - 1; Index > 0; --Index)
+			{
+				OutOutline.Add(Section.OnCap(Section.Angle * Index / Segments));
+			}
+		}
+		OutOutline.Add(FVector2D(Section.Length, 0.0));
+	}
+
+
+	// === Wedge ===
+
+	FVector WedgeSupportPoint(float Radius, float HalfAngle, float HalfHeight, const FVector& Direction)
+	{
+		const FVector2D Planar = FWedgeSection(Radius, HalfAngle).Support(FVector2D(Direction.X, Direction.Y));
+		return FVector(Planar.X, Planar.Y, FMath::Sign(Direction.Z) * HalfHeight);
+	}
+
+	FBox WedgeBounds(const FVector& Origin, const FQuat& Rotation, float Radius, float HalfAngle, float HalfHeight)
+	{
+		const FWedgeSection Section(Radius, HalfAngle);
+		return BoundsFromSupport(Origin, Rotation, [&Section, HalfHeight](const FVector& Direction)
+		{
+			const FVector2D Planar = Section.Support(FVector2D(Direction.X, Direction.Y));
+			return FVector(Planar.X, Planar.Y, FMath::Sign(Direction.Z) * HalfHeight);
+		});
+	}
+
+	FVector ClosestPointOnWedge(const FVector& Origin, const FQuat& Rotation, float Radius, float HalfAngle, float HalfHeight, const FVector& Point)
+	{
+		const FVector LocalPoint = Rotation.UnrotateVector(Point - Origin);
+		const FVector2D Planar = FWedgeSection(Radius, HalfAngle).Closest(FVector2D(LocalPoint.X, LocalPoint.Y));
+		return Origin + Rotation.RotateVector(FVector(Planar.X, Planar.Y, FMath::Clamp(LocalPoint.Z, -HalfHeight, HalfHeight)));
+	}
+
+	bool WedgeIntersectsPoint(const FVector& Origin, const FQuat& Rotation, float Radius, float HalfAngle, float HalfHeight, const FVector& Point)
+	{
+		const FVector LocalPoint = Rotation.UnrotateVector(Point - Origin);
+		return FMath::Abs(LocalPoint.Z) <= HalfHeight && FWedgeSection(Radius, HalfAngle).Contains(FVector2D(LocalPoint.X, LocalPoint.Y));
 	}
 }

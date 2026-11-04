@@ -41,4 +41,31 @@ namespace Kz::Geom
 	KZLIB_API FBox CylinderBounds(const FVector& Center, const FQuat& Rotation, float Radius, float HalfHeight);
 	KZLIB_API FVector ClosestPointOnCylinder(const FVector& Center, const FQuat& Rotation, float Radius, float HalfHeight, const FVector& Point);
 	KZLIB_API bool CylinderIntersectsPoint(const FVector& Center, const FQuat& Rotation, float Radius, float HalfHeight, const FVector& Point);
+
+
+	// === Cone ===
+	// Tip at Origin, opening along local +X. Angles in degrees.
+
+	/** Widest half angle a cone takes: past it the flat cap is unbounded. */
+	inline constexpr float MaxConeHalfAngle = 89.0f;
+
+	KZLIB_API FVector ConeSupportPoint(float Length, float HalfAngle, float TipRadius, bool bSphericalCap, const FVector& Direction);
+	KZLIB_API FBox ConeBounds(const FVector& Origin, const FQuat& Rotation, float Length, float HalfAngle, float TipRadius, bool bSphericalCap);
+	KZLIB_API FVector ClosestPointOnCone(const FVector& Origin, const FQuat& Rotation, float Length, float HalfAngle, float TipRadius, bool bSphericalCap, const FVector& Point);
+	KZLIB_API bool ConeIntersectsPoint(const FVector& Origin, const FQuat& Rotation, float Length, float HalfAngle, float TipRadius, bool bSphericalCap, const FVector& Point);
+
+	/** Where the side of a cone meets its cap, as (distance along the axis, distance from it). */
+	KZLIB_API FVector2D ConeRim(float Length, float HalfAngle, float TipRadius, bool bSphericalCap);
+
+	/** Outline of a cone in its axial half plane, (along the axis, from it), from the tip's center to the far end of the axis. */
+	KZLIB_API void ConeOutline(float Length, float HalfAngle, float TipRadius, bool bSphericalCap, int32 CapSegments, TArray<FVector2D>& OutOutline);
+
+
+	// === Wedge ===
+	// Sector of a cylinder around the local Z axis through Origin, opening along +X. Angles in degrees.
+
+	KZLIB_API FVector WedgeSupportPoint(float Radius, float HalfAngle, float HalfHeight, const FVector& Direction);
+	KZLIB_API FBox WedgeBounds(const FVector& Origin, const FQuat& Rotation, float Radius, float HalfAngle, float HalfHeight);
+	KZLIB_API FVector ClosestPointOnWedge(const FVector& Origin, const FQuat& Rotation, float Radius, float HalfAngle, float HalfHeight, const FVector& Point);
+	KZLIB_API bool WedgeIntersectsPoint(const FVector& Origin, const FQuat& Rotation, float Radius, float HalfAngle, float HalfHeight, const FVector& Point);
 }

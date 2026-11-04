@@ -277,6 +277,97 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "KzLib|Geometry", meta = (DisplayName = "Cylinder Intersects Point"))
 	static bool CylinderIntersectsPoint(const FVector Center, float Radius, float HalfHeight, const FRotator Rotation, FVector Point);
 
+	// === Cone ===
+
+	/** Static utility function to make a cone */
+	UFUNCTION(BlueprintPure, Category = "KzLib|Geometry")
+	static FKzShapeInstance MakeCone(const float Length, const float HalfAngle, const float TipRadius = 0.0f, const bool bSphericalCap = true);
+
+	/**
+	 * Returns the bounds of an oriented cone in world space.
+	 * @param Origin			Tip of the cone in world space.
+	 * @param Length			How far the cone reaches along its axis.
+	 * @param HalfAngle		Angle between the axis and the side, in degrees.
+	 * @param TipRadius		Radius of the tip; above zero the cone is truncated.
+	 * @param bSphericalCap	Whether the far cap is a sphere around the apex or flat.
+	 * @param Rotation		Rotation of the cone (it opens along its local +X axis).
+	 * @return FBox representing the world-space bounds.
+	 */
+	UFUNCTION(BlueprintPure, Category = "KzLib|Geometry", meta = (DisplayName = "Get Cone Bounds"))
+	static FBox GetConeBounds(const FVector Origin, float Length, float HalfAngle, float TipRadius, bool bSphericalCap, const FRotator Rotation);
+
+	/**
+	 * Returns the closest point on (or inside) an oriented cone to a given world-space point.
+	 * @param Origin			Tip of the cone in world space.
+	 * @param Length			How far the cone reaches along its axis.
+	 * @param HalfAngle		Angle between the axis and the side, in degrees.
+	 * @param TipRadius		Radius of the tip; above zero the cone is truncated.
+	 * @param bSphericalCap	Whether the far cap is a sphere around the apex or flat.
+	 * @param Rotation		Rotation of the cone (it opens along its local +X axis).
+	 * @param Point				World-space point to test.
+	 * @return The closest point on or inside the cone, in world space.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "KzLib|Geometry", meta = (DisplayName = "Closest Point on Cone"))
+	static FVector ClosestPointOnCone(const FVector Origin, float Length, float HalfAngle, float TipRadius, bool bSphericalCap, const FRotator Rotation, const FVector Point);
+
+	/**
+	 * Checks whether a world-space point lies inside (or on the surface of) an oriented cone.
+	 * @param Origin			Tip of the cone in world space.
+	 * @param Length			How far the cone reaches along its axis.
+	 * @param HalfAngle		Angle between the axis and the side, in degrees.
+	 * @param TipRadius		Radius of the tip; above zero the cone is truncated.
+	 * @param bSphericalCap	Whether the far cap is a sphere around the apex or flat.
+	 * @param Rotation		Rotation of the cone (it opens along its local +X axis).
+	 * @param Point				World-space point to test.
+	 * @return True if the point lies inside or on the cone; false otherwise.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "KzLib|Geometry", meta = (DisplayName = "Cone Intersects Point"))
+	static bool ConeIntersectsPoint(const FVector Origin, float Length, float HalfAngle, float TipRadius, bool bSphericalCap, const FRotator Rotation, const FVector Point);
+
+	// === Wedge ===
+
+	/** Static utility function to make a wedge */
+	UFUNCTION(BlueprintPure, Category = "KzLib|Geometry")
+	static FKzShapeInstance MakeWedge(const float Radius, const float HalfAngle, const float HalfHeight);
+
+	/**
+	 * Returns the bounds of an oriented wedge in world space.
+	 * @param Origin			Point on the wedge's axis, halfway up, in world space.
+	 * @param Radius			Radius of the wedge.
+	 * @param HalfAngle		Angle from the wedge's middle to each side, in degrees.
+	 * @param HalfHeight	Distance from the origin to the top.
+	 * @param Rotation		Rotation of the wedge (it opens along its local +X axis, around its local +Z axis).
+	 * @return FBox representing the world-space bounds.
+	 */
+	UFUNCTION(BlueprintPure, Category = "KzLib|Geometry", meta = (DisplayName = "Get Wedge Bounds"))
+	static FBox GetWedgeBounds(const FVector Origin, float Radius, float HalfAngle, float HalfHeight, const FRotator Rotation);
+
+	/**
+	 * Returns the closest point on (or inside) an oriented wedge to a given world-space point.
+	 * @param Origin			Point on the wedge's axis, halfway up, in world space.
+	 * @param Radius			Radius of the wedge.
+	 * @param HalfAngle		Angle from the wedge's middle to each side, in degrees.
+	 * @param HalfHeight	Distance from the origin to the top.
+	 * @param Rotation		Rotation of the wedge (it opens along its local +X axis, around its local +Z axis).
+	 * @param Point				World-space point to test.
+	 * @return The closest point on or inside the wedge, in world space.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "KzLib|Geometry", meta = (DisplayName = "Closest Point on Wedge"))
+	static FVector ClosestPointOnWedge(const FVector Origin, float Radius, float HalfAngle, float HalfHeight, const FRotator Rotation, const FVector Point);
+
+	/**
+	 * Checks whether a world-space point lies inside (or on the surface of) an oriented wedge.
+	 * @param Origin			Point on the wedge's axis, halfway up, in world space.
+	 * @param Radius			Radius of the wedge.
+	 * @param HalfAngle		Angle from the wedge's middle to each side, in degrees.
+	 * @param HalfHeight	Distance from the origin to the top.
+	 * @param Rotation		Rotation of the wedge (it opens along its local +X axis, around its local +Z axis).
+	 * @param Point				World-space point to test.
+	 * @return True if the point lies inside or on the wedge; false otherwise.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "KzLib|Geometry", meta = (DisplayName = "Wedge Intersects Point"))
+	static bool WedgeIntersectsPoint(const FVector Origin, float Radius, float HalfAngle, float HalfHeight, const FRotator Rotation, const FVector Point);
+
 	// === Geometry ===
 
 	/**
