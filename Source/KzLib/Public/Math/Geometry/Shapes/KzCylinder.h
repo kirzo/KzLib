@@ -110,7 +110,7 @@ struct KZLIB_API FKzCylinder : public FKzShape
 
 	virtual void Scale(const FVector& Scale) override
 	{
-		Radius *= FMath::Max(FMath::Abs(Scale.X), FMath::Abs(Scale.Y));
+		Radius *= FMath::Min(FMath::Abs(Scale.X), FMath::Abs(Scale.Y));
 		HalfHeight *= FMath::Abs(Scale.Z);
 	}
 
