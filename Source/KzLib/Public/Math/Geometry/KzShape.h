@@ -12,6 +12,9 @@ class FMeshElementCollector;
 /**
  * Base structure for all geometric shape types.
  * This struct is not intended to be instantiated directly.
+ *
+ * Every shape must be convex: spatial queries test shapes against each other with GJK through GetSupportPoint.
+ * In local space, symmetric shapes are centered on the origin with their axis along Z, and directional shapes start at the origin and open along +X.
  */
 USTRUCT(BlueprintType, meta = (Hidden))
 struct FKzShape
