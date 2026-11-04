@@ -8,6 +8,7 @@
 #include "DrawDebugHelpers.h"
 #include "PrimitiveDrawingUtils.h"
 #include "Materials/MaterialRenderProxy.h"
+#include "MeshElementCollector.h"
 
 FBox FKzBox::GetBoundingBox(const FVector& Center, const FQuat& Rotation) const
 {
@@ -46,7 +47,7 @@ void FKzBox::DrawSceneProxy(FPrimitiveDrawInterface* PDI, const FMatrix& LocalTo
 	if (bDrawSolid)
 	{
 		const FLinearColor SolidColor = FLinearColor(Color.R, Color.G, Color.B, 0.2f);
-		FMaterialRenderProxy* const MaterialRenderProxy = new FColoredMaterialRenderProxy(GEngine->DebugMeshMaterial->GetRenderProxy(), SolidColor);
-		GetBoxMesh(LocalToWorld.GetMatrixWithoutScale(), HalfSize, MaterialRenderProxy, SDPG_World, ViewIndex, Collector);
+		const FColoredMaterialRenderProxy& MaterialRenderProxy = Collector.AllocateOneFrameResource<FColoredMaterialRenderProxy>(GEngine->DebugMeshMaterial->GetRenderProxy(), SolidColor);
+		GetBoxMesh(LocalToWorld.GetMatrixWithoutScale(), HalfSize, &MaterialRenderProxy, SDPG_World, ViewIndex, Collector);
 	}
 }

@@ -8,6 +8,7 @@
 #include "DrawDebugHelpers.h"
 #include "PrimitiveDrawingUtils.h"
 #include "Materials/MaterialRenderProxy.h"
+#include "MeshElementCollector.h"
 
 FBox FKzCylinder::GetBoundingBox(const FVector& Center, const FQuat& Rotation) const
 {
@@ -54,7 +55,7 @@ void FKzCylinder::DrawSceneProxy(FPrimitiveDrawInterface* PDI, const FMatrix& Lo
 		const int32 CylinderSides = FMath::Clamp<int32>(Radius / 50, 16, 64);
 		const FLinearColor SolidColor = FLinearColor(Color.R, Color.G, Color.B, 0.2f);
 
-		FMaterialRenderProxy* const MaterialRenderProxy = new FColoredMaterialRenderProxy(GEngine->DebugMeshMaterial->GetRenderProxy(), SolidColor);
-		GetCylinderMesh(FMatrix::Identity, Origin, UnitX, UnitY, UnitZ, Radius, HalfHeight, CylinderSides, MaterialRenderProxy, SDPG_World, ViewIndex, Collector);
+		const FColoredMaterialRenderProxy& MaterialRenderProxy = Collector.AllocateOneFrameResource<FColoredMaterialRenderProxy>(GEngine->DebugMeshMaterial->GetRenderProxy(), SolidColor);
+		GetCylinderMesh(FMatrix::Identity, Origin, UnitX, UnitY, UnitZ, Radius, HalfHeight, CylinderSides, &MaterialRenderProxy, SDPG_World, ViewIndex, Collector);
 	}
 }

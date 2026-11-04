@@ -8,6 +8,7 @@
 #include "DrawDebugHelpers.h"
 #include "PrimitiveDrawingUtils.h"
 #include "Materials/MaterialRenderProxy.h"
+#include "MeshElementCollector.h"
 
 FBox FKzCapsule::GetBoundingBox(const FVector& Center, const FQuat& Rotation) const
 {
@@ -53,7 +54,7 @@ void FKzCapsule::DrawSceneProxy(FPrimitiveDrawInterface* PDI, const FMatrix& Loc
 		const int32 CapsuleSides = FMath::Clamp<int32>(Radius / 4.f, 16, 64);
 
 		const FLinearColor SolidColor = FLinearColor(Color.R, Color.G, Color.B, 0.2f);
-		FMaterialRenderProxy* const MaterialRenderProxy = new FColoredMaterialRenderProxy(GEngine->DebugMeshMaterial->GetRenderProxy(), SolidColor);
-		GetCapsuleMesh(Bottom, UnitX, UnitY, UnitZ, SolidColor, Radius, HalfHeight, CapsuleSides, MaterialRenderProxy, SDPG_World, false, ViewIndex, Collector);
+		const FColoredMaterialRenderProxy& MaterialRenderProxy = Collector.AllocateOneFrameResource<FColoredMaterialRenderProxy>(GEngine->DebugMeshMaterial->GetRenderProxy(), SolidColor);
+		GetCapsuleMesh(Bottom, UnitX, UnitY, UnitZ, SolidColor, Radius, HalfHeight, CapsuleSides, &MaterialRenderProxy, SDPG_World, false, ViewIndex, Collector);
 	}
 }
