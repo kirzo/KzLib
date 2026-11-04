@@ -71,7 +71,7 @@ float AKzAlphaVolume::GetAlpha(const FVector& Location) const
 	FVector Direction;
 	double Min = 0.0;
 	double Max = 0.0;
-	if (!bProgressive || !GetAxisExtent(Direction, Min, Max))
+	if (!UsesAxis() || !GetAxisExtent(Direction, Min, Max))
 	{
 		return bInside ? 1.0f : 0.0f;
 	}
@@ -82,6 +82,11 @@ float AKzAlphaVolume::GetAlpha(const FVector& Location) const
 	if (!bInside && !(Position > Max && Shape.IntersectsPoint(Center, Rotation, Location - Direction * Position)))
 	{
 		return 0.0f;
+	}
+
+	if (!bProgressive)
+	{
+		return 1.0f;
 	}
 
 	const float T = Max > Min ? static_cast<float>(FMath::Clamp((Position - Min) / (Max - Min), 0.0, 1.0)) : 1.0f;
@@ -119,7 +124,7 @@ void AKzAlphaVolume::OnConstruction(const FTransform& Transform)
 		FVector Direction;
 		double Min = 0.0;
 		double Max = 0.0;
-		const bool bShowArrow = bProgressive && GetAxisExtent(Direction, Min, Max);
+		const bool bShowArrow = UsesAxis() && GetAxisExtent(Direction, Min, Max);
 
 		AxisArrow->SetVisibility(bShowArrow);
 		if (bShowArrow)
