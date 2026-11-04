@@ -16,7 +16,7 @@ class FMeshElementCollector;
  * Every shape must be convex: spatial queries test shapes against each other with GJK through GetSupportPoint.
  * In local space, symmetric shapes are centered on the origin with their axis along Z, and directional shapes start at the origin and open along +X.
  */
-USTRUCT(BlueprintType, meta = (Hidden))
+USTRUCT(BlueprintType, meta = (Hidden, ShowIcon = "true"))
 struct FKzShape
 {
 	GENERATED_BODY()

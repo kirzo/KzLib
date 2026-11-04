@@ -24,6 +24,16 @@ FKzLibEditorStyle::FKzLibEditorStyle()
 	SetThumbnail("KzDatabaseAsset", TEXT("DatabaseColor"));
 	SetIcon("KzDatabaseComponent", TEXT("Database"));
 	SetIcon("KzShapeComponent", TEXT("Shape"));
+
+	// Shape structs, for the instanced struct picker
+	SetIcon("KzShape", TEXT("Shape"));
+	SetIcon("KzSphere", TEXT("Sphere"));
+	SetIcon("KzBox", TEXT("Box"));
+	SetIcon("KzCapsule", TEXT("Capsule"));
+	SetIcon("KzCylinder", TEXT("Cylinder"));
+	SetIcon("KzCone", TEXT("Cone"));
+	SetIcon("KzWedge", TEXT("Wedge"));
+
 	SetIcon("KzSplineActor", TEXT("Spline"));
 	SetThumbnail("KzSplineActor", TEXT("SplineColor"));
 	SetIcon("KzSplineFollowerComponent", TEXT("SplineFollower"));
