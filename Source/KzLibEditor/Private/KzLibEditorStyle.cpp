@@ -37,6 +37,12 @@ FKzLibEditorStyle::FKzLibEditorStyle()
 	SetIcon("KzSplineActor", TEXT("Spline"));
 	SetThumbnail("KzSplineActor", TEXT("SplineColor"));
 	SetIcon("KzSplineFollowerComponent", TEXT("SplineFollower"));
+	SetIcon("KzSplineMarker", TEXT("SplineMarker"));
+	SetThumbnail("KzSplineMarker", TEXT("SplineMarkerColor"));
+	SetIcon("KzSplineLimit", TEXT("SplineLimit"));
+	SetThumbnail("KzSplineLimit", TEXT("SplineLimitColor"));
+	SetIcon("KzAlphaVolume", TEXT("AlphaVolume"));
+	SetThumbnail("KzAlphaVolume", TEXT("AlphaVolumeColor"));
 	SetIcon("KzAreaNetwork", TEXT("SplineArea"));
 	SetThumbnail("KzAreaNetwork", TEXT("SplineAreaColor"));
 	SetIcon("KzSplineAreaComponent", TEXT("SplineArea"));
