@@ -37,7 +37,7 @@ public:
 	/** Checks whether a world-space point lies inside (or on the surface of) this shape. */
 	virtual bool IntersectsPoint(const FVector& Position, const FQuat& Orientation, const FVector& Point) const PURE_VIRTUAL(FKzShape::IntersectsPoint, return false;);
 
-	/** Returns an engine-level FCollisionShape representing this Kz shape. */
+	/** Returns the engine FCollisionShape for this shape. A shape the engine lacks, such as the cylinder, returns an enclosing one, so engine sweeps with it are approximate. */
 	virtual FCollisionShape ToCollisionShape(float Inflation = 0.0f) const PURE_VIRTUAL(FKzShape::ToCollisionShape, return {};);
 
 	/** Uniformly inflates the shape by the specified amount. */
