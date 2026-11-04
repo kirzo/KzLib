@@ -1,6 +1,4 @@
-// Copyright 2025 kirzo
-
-#pragma once
+// Copyright 2026 kirzo
 
 #include "Math/Geometry/KzShapeInstance.h"
 #include "Math/Geometry/Shapes/KzBox.h"

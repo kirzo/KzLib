@@ -1,4 +1,4 @@
-// Copyright 2025 kirzo
+// Copyright 2026 kirzo
 
 #pragma once
 

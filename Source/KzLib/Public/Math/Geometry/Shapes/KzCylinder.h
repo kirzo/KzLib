@@ -1,4 +1,4 @@
-// Copyright 2025 kirzo
+// Copyright 2026 kirzo
 
 #pragma once
 
@@ -153,5 +153,3 @@ FORCEINLINE FKzCylinder operator*(const FVector& Scale, const FKzCylinder& Shape
 {
 	return Shape.operator*(Scale);
 }
-
-#undef SHAPE_OPERATORS
