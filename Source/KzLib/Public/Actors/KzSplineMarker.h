@@ -35,9 +35,15 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Spline Marker")
 	float GetDistance() const { return Distance; }
 
-	/** Projects the marker onto its spline again. Followers do it every frame in the editor, so spline edits show up. */
+	/**
+	 * Projects the marker onto its spline, leaving out IgnoredAxes (EKzAxis3D flags) as the followers on it do.
+	 * Followers do it the first time they meet the marker, and every frame in the editor so spline edits show up.
+	 */
 	UFUNCTION(BlueprintCallable, Category = "Spline Marker")
-	void UpdateProjection();
+	void UpdateProjection(UPARAM(meta = (Bitmask, BitmaskEnum = "/Script/KzLib.EKzAxis3D")) int32 IgnoredAxes = 0);
+
+	/** The axes the last projection left out. */
+	int32 GetProjectionAxes() const { return ProjectionAxes; }
 
 	/** Called by a follower that crossed the marker. Teleport means it jumped past (start, respawn, SetDistance) rather than moved past. */
 	virtual void NotifyCrossed(UKzSplineFollowerComponent* Follower, bool bForward, bool bTeleport);
@@ -63,6 +69,7 @@ protected:
 
 private:
 	float Distance = 0.0f;
+	int32 ProjectionAxes = 0;
 
 	void RegisterInRegistry();
 

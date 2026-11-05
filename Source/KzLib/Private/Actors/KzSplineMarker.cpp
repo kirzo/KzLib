@@ -45,8 +45,10 @@ USplineComponent* AKzSplineMarker::GetSpline() const
 	return Spline.GetComponent<USplineComponent>(this);
 }
 
-void AKzSplineMarker::UpdateProjection()
+void AKzSplineMarker::UpdateProjection(int32 IgnoredAxes)
 {
+	ProjectionAxes = IgnoredAxes;
+
 	const USplineComponent* SplineComponent = GetSpline();
 	if (!SplineComponent)
 	{
@@ -55,13 +57,12 @@ void AKzSplineMarker::UpdateProjection()
 	}
 
 	const FVector Location = GetActorLocation();
-	const float Key = SplineComponent->FindInputKeyClosestToWorldLocation(Location);
-	Distance = SplineComponent->GetDistanceAlongSplineAtSplineInputKey(Key);
+	Distance = UKzSplineFollowerComponent::FindClosestDistance(SplineComponent, Location, IgnoredAxes);
 
 #if WITH_EDITORONLY_DATA
 	if (ProjectionArrow)
 	{
-		const FVector ToProjection = SplineComponent->GetLocationAtSplineInputKey(Key, ESplineCoordinateSpace::World) - Location;
+		const FVector ToProjection = SplineComponent->GetLocationAtDistanceAlongSpline(Distance, ESplineCoordinateSpace::World) - Location;
 		ProjectionArrow->SetWorldRotation(ToProjection.IsNearlyZero() ? GetActorRotation() : ToProjection.Rotation());
 		ProjectionArrow->SetArrowLength(ToProjection.Size());
 	}
@@ -106,7 +107,7 @@ void AKzSplineMarker::OnConstruction(const FTransform& Transform)
 	}
 #endif
 
-	UpdateProjection();
+	UpdateProjection(ProjectionAxes);
 
 	// The edit that rebuilt the marker may have changed its spline.
 	RegisterInRegistry();
@@ -115,7 +116,7 @@ void AKzSplineMarker::OnConstruction(const FTransform& Transform)
 void AKzSplineMarker::BeginPlay()
 {
 	Super::BeginPlay();
-	UpdateProjection();
+	UpdateProjection(ProjectionAxes);
 }
 
 void AKzSplineMarker::RegisterInRegistry()

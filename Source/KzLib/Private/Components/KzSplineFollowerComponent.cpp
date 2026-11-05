@@ -5,6 +5,7 @@
 #include "Actors/KzSplineMarker.h"
 #include "Components/SplineComponent.h"
 #include "Core/KzRegistrySubsystem.h"
+#include "Core/KzTypes.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "Net/UnrealNetwork.h"
@@ -211,11 +212,18 @@ bool UKzSplineFollowerComponent::BeginMove(bool bTeleport)
 	bTeleported = bPendingTeleport || bTeleport;
 	bPendingTeleport = false;
 
-	// In the editor the spline and its markers may have just been edited.
+	// Markers project the way this follower does: once in game, every move in the editor, where the spline and markers may have just been edited.
 	UKzRegistrySubsystem* Registry = UKzRegistrySubsystem::Get(this);
-	if (Registry && !GetWorld()->IsGameWorld())
+	if (Registry)
 	{
-		Registry->ForEach<AKzSplineMarker>(SplineComponent.Get(), [](AKzSplineMarker* Marker) { Marker->UpdateProjection(); });
+		const bool bEditorWorld = !GetWorld()->IsGameWorld();
+		Registry->ForEach<AKzSplineMarker>(SplineComponent.Get(), [this, bEditorWorld](AKzSplineMarker* Marker)
+		{
+			if (bEditorWorld || Marker->GetProjectionAxes() != IgnoredAxes)
+			{
+				Marker->UpdateProjection(IgnoredAxes);
+			}
+		});
 	}
 
 	// A sticky limit holds the follower until it is disabled; a teleport releases it.
@@ -249,43 +257,107 @@ void UKzSplineFollowerComponent::ProjectTo(const FVector& Location, bool bTelepo
 
 float UKzSplineFollowerComponent::ProjectLocation(const FVector& Location) const
 {
-	const int32 NumSegments = SplineComponent->GetNumberOfSplineSegments();
-	if (NumSegments <= 0) return CurrentDistance;
+	return FindClosestDistance(SplineComponent, Location, IgnoredAxes, bTeleported ? -1.0f : CurrentDistance);
+}
 
-	float Key = 0.0f;
-	if (bTeleported)
+namespace
+{
+	/** Squared distance from the spline at Key to Location, leaving out the ignored world axes. */
+	double MaskedDistSquared(const USplineComponent* Spline, float Key, const FVector& Location, int32 IgnoredAxes)
 	{
-		Key = SplineComponent->FindInputKeyClosestToWorldLocation(Location);
+		FVector Delta = Spline->GetLocationAtSplineInputKey(Key, ESplineCoordinateSpace::World) - Location;
+		if (IgnoredAxes & static_cast<int32>(EKzAxis3D::X)) Delta.X = 0.0;
+		if (IgnoredAxes & static_cast<int32>(EKzAxis3D::Y)) Delta.Y = 0.0;
+		if (IgnoredAxes & static_cast<int32>(EKzAxis3D::Z)) Delta.Z = 0.0;
+		return Delta.SizeSquared();
 	}
-	else
+
+	/** The engine only measures in 3D: sample the segment, then narrow down around the best sample. */
+	float FindKeyOnSegment(const USplineComponent* Spline, const FVector& Location, int32 Segment, int32 IgnoredAxes)
 	{
-		// Only the current segment and its neighbours, so a spline that doubles back can't steal the projection.
-		const int32 Segment = FMath::FloorToInt(SplineComponent->GetInputKeyValueAtDistanceAlongSpline(CurrentDistance));
-		float BestDistSq = TNumericLimits<float>::Max();
-
-		for (int32 Offset = -1; Offset <= 1; ++Offset)
+		if (IgnoredAxes == 0)
 		{
-			int32 Index = Segment + Offset;
-			if (SplineComponent->IsClosedLoop())
-			{
-				Index = (Index % NumSegments + NumSegments) % NumSegments;
-			}
-			else if (Index < 0 || Index >= NumSegments)
-			{
-				continue;
-			}
+			return Spline->FindInputKeyOnSegmentClosestToWorldLocation(Location, Segment);
+		}
 
-			const float CandidateKey = SplineComponent->FindInputKeyOnSegmentClosestToWorldLocation(Location, Index);
-			const float DistSq = FVector::DistSquared(SplineComponent->GetLocationAtSplineInputKey(CandidateKey, ESplineCoordinateSpace::World), Location);
+		constexpr int32 Samples = 8;
+		float BestT = 0.0f;
+		double BestDistSq = TNumericLimits<double>::Max();
+		for (int32 Sample = 0; Sample <= Samples; ++Sample)
+		{
+			const float T = static_cast<float>(Sample) / Samples;
+			const double DistSq = MaskedDistSquared(Spline, Segment + T, Location, IgnoredAxes);
 			if (DistSq < BestDistSq)
 			{
 				BestDistSq = DistSq;
-				Key = CandidateKey;
+				BestT = T;
 			}
+		}
+
+		float Low = FMath::Max(BestT - 1.0f / Samples, 0.0f);
+		float High = FMath::Min(BestT + 1.0f / Samples, 1.0f);
+		for (int32 Iteration = 0; Iteration < 12; ++Iteration)
+		{
+			const float A = Low + (High - Low) / 3.0f;
+			const float B = High - (High - Low) / 3.0f;
+			if (MaskedDistSquared(Spline, Segment + A, Location, IgnoredAxes) < MaskedDistSquared(Spline, Segment + B, Location, IgnoredAxes))
+			{
+				High = B;
+			}
+			else
+			{
+				Low = A;
+			}
+		}
+
+		return Segment + (Low + High) * 0.5f;
+	}
+}
+
+float UKzSplineFollowerComponent::FindClosestDistance(const USplineComponent* Spline, const FVector& Location, int32 IgnoredAxes, float NearDistance)
+{
+	const int32 NumSegments = Spline ? Spline->GetNumberOfSplineSegments() : 0;
+	if (NumSegments <= 0) return 0.0f;
+
+	if (NearDistance < 0.0f && IgnoredAxes == 0)
+	{
+		return Spline->GetDistanceAlongSplineAtSplineInputKey(Spline->FindInputKeyClosestToWorldLocation(Location));
+	}
+
+	// Near a distance, only its segment and the neighbours, so a spline that doubles back can't steal the projection.
+	int32 First = 0;
+	int32 Last = NumSegments - 1;
+	if (NearDistance >= 0.0f)
+	{
+		const int32 Segment = FMath::FloorToInt(Spline->GetInputKeyValueAtDistanceAlongSpline(NearDistance));
+		First = Segment - 1;
+		Last = Segment + 1;
+	}
+
+	float BestKey = 0.0f;
+	double BestDistSq = TNumericLimits<double>::Max();
+	for (int32 Candidate = First; Candidate <= Last; ++Candidate)
+	{
+		int32 Segment = Candidate;
+		if (Spline->IsClosedLoop())
+		{
+			Segment = (Segment % NumSegments + NumSegments) % NumSegments;
+		}
+		else if (Segment < 0 || Segment >= NumSegments)
+		{
+			continue;
+		}
+
+		const float Key = FindKeyOnSegment(Spline, Location, Segment, IgnoredAxes);
+		const double DistSq = MaskedDistSquared(Spline, Key, Location, IgnoredAxes);
+		if (DistSq < BestDistSq)
+		{
+			BestDistSq = DistSq;
+			BestKey = Key;
 		}
 	}
 
-	return SplineComponent->GetDistanceAlongSplineAtSplineInputKey(Key);
+	return Spline->GetDistanceAlongSplineAtSplineInputKey(BestKey);
 }
 
 void UKzSplineFollowerComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)

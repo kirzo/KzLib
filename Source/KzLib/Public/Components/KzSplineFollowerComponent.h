@@ -70,6 +70,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SplineFollower", meta = (ClampMin = "0", Units = "Centimeters", EditCondition = "Mode == EKzSplineFollowMode::Projection", EditConditionHides))
 	float TeleportDistance = 1000.0f;
 
+	/**
+	 * World axes left out when looking for the closest point of the spline: Z so height doesn't count on a spline that climbs, Y and Z to match the position along X.
+	 * The markers on the spline project the same way, so this follower crosses them where they appear to be.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SplineFollower", meta = (Bitmask, BitmaskEnum = "/Script/KzLib.EKzAxis3D", EditCondition = "Mode != EKzSplineFollowMode::Speed", EditConditionHides))
+	int32 IgnoredAxes = 0;
+
 	/** Should the target component rotate to match the spline's rotation at the current distance? */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SplineFollower")
 	bool bMatchRotation = true;
@@ -181,6 +188,12 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "SplineFollower")
 	void ProjectTo(const FVector& Location, bool bTeleport, float DeltaTime);
+
+	/**
+	 * Distance along Spline of its point closest to Location, leaving out the IgnoredAxes (EKzAxis3D flags).
+	 * With a NearDistance of 0 or more, only its segment and the neighbours are searched.
+	 */
+	static float FindClosestDistance(const USplineComponent* Spline, const FVector& Location, int32 IgnoredAxes = 0, float NearDistance = -1.0f);
 
 private:
 	bool bTeleported = false;
