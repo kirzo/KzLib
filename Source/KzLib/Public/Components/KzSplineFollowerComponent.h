@@ -21,7 +21,10 @@ enum class EKzSplineFollowMode : uint8
 	Speed,
 
 	/** Stays at the point of the spline closest to a target actor. */
-	Projection
+	Projection,
+
+	/** Doesn't tick: whoever owns it moves it with ProjectTo, such as a camera rig with its focus. */
+	Driven
 };
 
 /** Component that automatically moves a specified SceneComponent along a SplineComponent, telling the spline's markers when it crosses them. */
@@ -172,6 +175,13 @@ public:
 	UFUNCTION(BlueprintPure, Category = "SplineFollower")
 	AActor* GetProjectedActor() const;
 
+	/**
+	 * Moves to the point of the spline closest to Location, with the limits and markers of a normal move.
+	 * Searched near the current distance unless it teleports. Meant for Driven mode.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "SplineFollower")
+	void ProjectTo(const FVector& Location, bool bTeleport, float DeltaTime);
+
 private:
 	bool bTeleported = false;
 	bool bPendingTeleport = true;
@@ -196,8 +206,16 @@ private:
 	/** Notifies the markers whose side changed since last frame, in the order the follower meets them. */
 	void UpdateMarkers();
 
-	/** Distance of the spline point closest to the projected actor, searched near PrevDistance unless the actor teleported. */
-	float ProjectTarget(float PrevDistance);
+	bool CanMove() const;
+
+	/** Starts a move: settles the teleport, refreshes the markers in the editor. Returns whether a sticky limit holds the follower. */
+	bool BeginMove(bool bTeleport);
+
+	/** Distance of the spline point closest to Location, searched near the current distance unless teleported. */
+	float ProjectLocation(const FVector& Location) const;
+
+	/** Applies the limits, commits the distance and moves the component. Returns whether a limit stopped it. */
+	bool FinishMove(float NewDistance, float DeltaTime, bool bStuck);
 
 	/** Moves the target component to Distance. A zero DeltaTime is a teleport: no induced velocity. */
 	void MoveToDistance(float Distance, float DeltaTime);

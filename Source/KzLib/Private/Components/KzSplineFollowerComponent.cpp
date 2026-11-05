@@ -198,20 +198,59 @@ AActor* UKzSplineFollowerComponent::GetProjectedActor() const
 	return ProjectionTarget;
 }
 
-float UKzSplineFollowerComponent::ProjectTarget(float PrevDistance)
+bool UKzSplineFollowerComponent::CanMove() const
 {
-	const AActor* Target = GetProjectedActor();
-	const int32 NumSegments = SplineComponent->GetNumberOfSplineSegments();
-	if (!Target || NumSegments <= 0) return PrevDistance;
+	if (!SplineComponent || !UpdatedComponent || SplineLength <= 0.0f) return false;
 
-	const FVector Location = Target->GetActorLocation();
-	if (Target != LastProjectedActor.Get() || (TeleportDistance > 0.0f && FVector::DistSquared(Location, LastProjectedLocation) > FMath::Square(TeleportDistance)))
+	const AActor* Owner = GetOwner();
+	return !Owner || Owner->HasAuthority();
+}
+
+bool UKzSplineFollowerComponent::BeginMove(bool bTeleport)
+{
+	bTeleported = bPendingTeleport || bTeleport;
+	bPendingTeleport = false;
+
+	// In the editor the spline and its markers may have just been edited.
+	UKzRegistrySubsystem* Registry = UKzRegistrySubsystem::Get(this);
+	if (Registry && !GetWorld()->IsGameWorld())
 	{
-		bTeleported = true;
+		Registry->ForEach<AKzSplineMarker>(SplineComponent.Get(), [](AKzSplineMarker* Marker) { Marker->UpdateProjection(); });
 	}
 
-	LastProjectedActor = Target;
-	LastProjectedLocation = Location;
+	// A sticky limit holds the follower until it is disabled; a teleport releases it.
+	const AKzSplineLimit* Stuck = StuckLimit.Get();
+	const bool bStuck = Stuck && Stuck->bEnabled && !bTeleported;
+	if (!bStuck)
+	{
+		StuckLimit.Reset();
+	}
+	return bStuck;
+}
+
+bool UKzSplineFollowerComponent::FinishMove(float NewDistance, float DeltaTime, bool bStuck)
+{
+	const float LimitedDistance = bStuck ? CurrentDistance : ApplyLimits(CurrentDistance, NewDistance);
+
+	CurrentDistance = LimitedDistance;
+	MoveToDistance(CurrentDistance, bTeleported ? 0.0f : DeltaTime);
+
+	return LimitedDistance != NewDistance;
+}
+
+void UKzSplineFollowerComponent::ProjectTo(const FVector& Location, bool bTeleport, float DeltaTime)
+{
+	if (!CanMove()) return;
+
+	const bool bStuck = BeginMove(bTeleport);
+	FinishMove(bStuck ? CurrentDistance : ProjectLocation(Location), FMath::Min(DeltaTime, MaxTickTime), bStuck);
+	UpdateMarkers();
+}
+
+float UKzSplineFollowerComponent::ProjectLocation(const FVector& Location) const
+{
+	const int32 NumSegments = SplineComponent->GetNumberOfSplineSegments();
+	if (NumSegments <= 0) return CurrentDistance;
 
 	float Key = 0.0f;
 	if (bTeleported)
@@ -221,7 +260,7 @@ float UKzSplineFollowerComponent::ProjectTarget(float PrevDistance)
 	else
 	{
 		// Only the current segment and its neighbours, so a spline that doubles back can't steal the projection.
-		const int32 Segment = FMath::FloorToInt(SplineComponent->GetInputKeyValueAtDistanceAlongSpline(PrevDistance));
+		const int32 Segment = FMath::FloorToInt(SplineComponent->GetInputKeyValueAtDistanceAlongSpline(CurrentDistance));
 		float BestDistSq = TNumericLimits<float>::Max();
 
 		for (int32 Offset = -1; Offset <= 1; ++Offset)
@@ -253,37 +292,29 @@ void UKzSplineFollowerComponent::TickComponent(float DeltaTime, ELevelTick TickT
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	if (!SplineComponent || !UpdatedComponent || SplineLength <= 0.0f) return;
-
-	const AActor* Owner = GetOwner();
-	if (Owner && !Owner->HasAuthority()) return;
+	if (Mode == EKzSplineFollowMode::Driven || !CanMove()) return;
 
 	// Clamp DeltaTime to avoid massive skips during hitches
 	const float SafeDeltaTime = FMath::Min(DeltaTime, MaxTickTime);
 	const float PrevDistance = CurrentDistance;
 
-	bTeleported = bPendingTeleport;
-	bPendingTeleport = false;
-
-	// In the editor the spline and its markers may have just been edited.
-	UKzRegistrySubsystem* Registry = UKzRegistrySubsystem::Get(this);
-	if (Registry && !GetWorld()->IsGameWorld())
+	// A projected actor that changes or jumps too far teleports the follower.
+	const AActor* Target = Mode == EKzSplineFollowMode::Projection ? GetProjectedActor() : nullptr;
+	bool bTargetTeleported = false;
+	if (Target)
 	{
-		Registry->ForEach<AKzSplineMarker>(SplineComponent.Get(), [](AKzSplineMarker* Marker) { Marker->UpdateProjection(); });
+		const FVector Location = Target->GetActorLocation();
+		bTargetTeleported = Target != LastProjectedActor.Get() || (TeleportDistance > 0.0f && FVector::DistSquared(Location, LastProjectedLocation) > FMath::Square(TeleportDistance));
+		LastProjectedActor = Target;
+		LastProjectedLocation = Location;
 	}
+
+	const bool bStuck = BeginMove(bTargetTeleported);
 
 	float NewDistance = PrevDistance;
 	bool bLooped = false;
 	bool bBounced = false;
 	bool bReachedEnd = false;
-
-	// A sticky limit holds the follower until it is disabled; a teleport releases it.
-	const AKzSplineLimit* Stuck = StuckLimit.Get();
-	const bool bStuck = Stuck && Stuck->bEnabled && !bTeleported;
-	if (!bStuck)
-	{
-		StuckLimit.Reset();
-	}
 
 	if (bStuck)
 	{
@@ -291,7 +322,10 @@ void UKzSplineFollowerComponent::TickComponent(float DeltaTime, ELevelTick TickT
 	}
 	else if (Mode == EKzSplineFollowMode::Projection)
 	{
-		NewDistance = ProjectTarget(PrevDistance);
+		if (Target)
+		{
+			NewDistance = ProjectLocation(Target->GetActorLocation());
+		}
 	}
 	else
 	{
@@ -340,18 +374,10 @@ void UKzSplineFollowerComponent::TickComponent(float DeltaTime, ELevelTick TickT
 		}
 	}
 
-	if (!bStuck)
+	if (FinishMove(NewDistance, SafeDeltaTime, bStuck))
 	{
-		const float LimitedDistance = ApplyLimits(PrevDistance, NewDistance);
-		if (LimitedDistance != NewDistance)
-		{
-			bReachedEnd = false;
-			NewDistance = LimitedDistance;
-		}
+		bReachedEnd = false;
 	}
-
-	CurrentDistance = NewDistance;
-	MoveToDistance(CurrentDistance, bTeleported ? 0.0f : SafeDeltaTime);
 
 	// Broadcast after committing, so handlers reading GetCurrentDistance() see where the follower actually is.
 	if (bLooped)
