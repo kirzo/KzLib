@@ -7,6 +7,7 @@
 #include "GameFramework/Actor.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/Controller.h"
+#include "GameplayTagContainer.h"
 #include "KzSystemLibrary.generated.h"
 
 struct FKzHitResult;
@@ -187,6 +188,16 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "KzLib|Components", meta = (DefaultToSelf = "Target", DeterminesOutputType = "ComponentClass"))
 	static UActorComponent* FindComponentInControllerOrPawn(AController* Target, TSubclassOf<UActorComponent> ComponentClass);
+
+	/** The first component of the class on the actor whose gameplay tags have Tag, such as the sensor tagged for a role. Only components with IGameplayTagAssetInterface have them. */
+	UFUNCTION(BlueprintCallable, Category = "KzLib|Components", meta = (DefaultToSelf = "Target", DeterminesOutputType = "ComponentClass"))
+	static UActorComponent* FindComponentByGameplayTag(AActor* Target, TSubclassOf<UActorComponent> ComponentClass, FGameplayTag Tag);
+
+	template <typename T>
+	static T* FindComponentByGameplayTag(AActor* Target, FGameplayTag Tag)
+	{
+		return Cast<T>(FindComponentByGameplayTag(Target, T::StaticClass(), Tag));
+	}
 
 	/**
 	 * Templated version for C++ usage.

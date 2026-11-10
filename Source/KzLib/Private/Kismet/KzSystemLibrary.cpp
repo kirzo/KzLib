@@ -6,6 +6,7 @@
 
 #include "GameFramework/Pawn.h"
 #include "GameFramework/Controller.h"
+#include "GameplayTagAssetInterface.h"
 
 void UKzSystemLibrary::BreakHitResult(const FKzHitResult& Hit, bool& bBlockingHit, bool& bInitialOverlap, float& Time, float& Distance, FVector& Location, FVector& Normal, FVector& TraceStart, FVector& TraceEnd)
 {
@@ -170,6 +171,26 @@ UActorComponent* UKzSystemLibrary::FindComponentInControllerOrPawn(AController* 
 	if (APawn* Pawn = Target->GetPawn())
 	{
 		return Pawn->FindComponentByClass(ComponentClass);
+	}
+
+	return nullptr;
+}
+
+UActorComponent* UKzSystemLibrary::FindComponentByGameplayTag(AActor* Target, TSubclassOf<UActorComponent> ComponentClass, FGameplayTag Tag)
+{
+	if (!Target || !ComponentClass)
+	{
+		return nullptr;
+	}
+
+	TInlineComponentArray<UActorComponent*> Components(Target);
+	for (UActorComponent* Component : Components)
+	{
+		const IGameplayTagAssetInterface* Tags = Cast<IGameplayTagAssetInterface>(Component);
+		if (Tags && Component->IsA(ComponentClass) && Tags->HasMatchingGameplayTag(Tag))
+		{
+			return Component;
+		}
 	}
 
 	return nullptr;
