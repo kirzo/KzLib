@@ -262,20 +262,28 @@ float UKzSplineFollowerComponent::ProjectLocation(const FVector& Location) const
 
 namespace
 {
-	/** Squared distance from the spline at Key to Location, leaving out the ignored world axes. */
-	double MaskedDistSquared(const USplineComponent* Spline, float Key, const FVector& Location, int32 IgnoredAxes)
+	/** 1 on the axes that count, 0 on the ignored ones. */
+	FVector KeptAxes(int32 IgnoredAxes)
 	{
-		FVector Delta = Spline->GetLocationAtSplineInputKey(Key, ESplineCoordinateSpace::World) - Location;
-		if (IgnoredAxes & static_cast<int32>(EKzAxis3D::X)) Delta.X = 0.0;
-		if (IgnoredAxes & static_cast<int32>(EKzAxis3D::Y)) Delta.Y = 0.0;
-		if (IgnoredAxes & static_cast<int32>(EKzAxis3D::Z)) Delta.Z = 0.0;
-		return Delta.SizeSquared();
+		return FVector(
+			IgnoredAxes & static_cast<int32>(EKzAxis3D::X) ? 0.0 : 1.0,
+			IgnoredAxes & static_cast<int32>(EKzAxis3D::Y) ? 0.0 : 1.0,
+			IgnoredAxes & static_cast<int32>(EKzAxis3D::Z) ? 0.0 : 1.0);
 	}
 
-	/** The engine only measures in 3D: sample the segment, then narrow down around the best sample. */
-	float FindKeyOnSegment(const USplineComponent* Spline, const FVector& Location, int32 Segment, int32 IgnoredAxes)
+	/** Squared distance from the spline at Key to Location, on the kept axes only. */
+	double MaskedDistSquared(const USplineComponent* Spline, float Key, const FVector& Location, const FVector& Kept)
 	{
-		if (IgnoredAxes == 0)
+		return ((Spline->GetLocationAtSplineInputKey(Key, ESplineCoordinateSpace::World) - Location) * Kept).SizeSquared();
+	}
+
+	/**
+	 * The engine only measures in 3D: pick the best of a few samples, then refine it with Newton steps on the masked distance.
+	 * The steps land on the exact point whatever the segment's length, so a slowly moving target gives a smoothly moving result.
+	 */
+	float FindKeyOnSegment(const USplineComponent* Spline, const FVector& Location, int32 Segment, const FVector& Kept)
+	{
+		if (Kept == FVector::OneVector)
 		{
 			return Spline->FindInputKeyOnSegmentClosestToWorldLocation(Location, Segment);
 		}
@@ -286,7 +294,7 @@ namespace
 		for (int32 Sample = 0; Sample <= Samples; ++Sample)
 		{
 			const float T = static_cast<float>(Sample) / Samples;
-			const double DistSq = MaskedDistSquared(Spline, Segment + T, Location, IgnoredAxes);
+			const double DistSq = MaskedDistSquared(Spline, Segment + T, Location, Kept);
 			if (DistSq < BestDistSq)
 			{
 				BestDistSq = DistSq;
@@ -294,23 +302,26 @@ namespace
 			}
 		}
 
-		float Low = FMath::Max(BestT - 1.0f / Samples, 0.0f);
-		float High = FMath::Min(BestT + 1.0f / Samples, 1.0f);
-		for (int32 Iteration = 0; Iteration < 12; ++Iteration)
+		// Kept within the best sample's neighbourhood, so a step can't jump to another dip of the curve.
+		const float Low = FMath::Max(BestT - 1.0f / Samples, 0.0f);
+		const float High = FMath::Min(BestT + 1.0f / Samples, 1.0f);
+
+		float T = BestT;
+		for (int32 Iteration = 0; Iteration < 10; ++Iteration)
 		{
-			const float A = Low + (High - Low) / 3.0f;
-			const float B = High - (High - Low) / 3.0f;
-			if (MaskedDistSquared(Spline, Segment + A, Location, IgnoredAxes) < MaskedDistSquared(Spline, Segment + B, Location, IgnoredAxes))
-			{
-				High = B;
-			}
-			else
-			{
-				Low = A;
-			}
+			const float Key = Segment + T;
+			const FVector Delta = (Spline->GetLocationAtSplineInputKey(Key, ESplineCoordinateSpace::World) - Location) * Kept;
+			const FVector Tangent = Spline->GetTangentAtSplineInputKey(Key, ESplineCoordinateSpace::World) * Kept;
+
+			const double TangentSq = Tangent.SizeSquared();
+			if (TangentSq < UE_SMALL_NUMBER) break;
+
+			const float Step = static_cast<float>(FVector::DotProduct(Delta, Tangent) / TangentSq);
+			T = FMath::Clamp(T - Step, Low, High);
+			if (FMath::Abs(Step) < 1e-6f) break;
 		}
 
-		return Segment + (Low + High) * 0.5f;
+		return Segment + T;
 	}
 }
 
@@ -334,6 +345,7 @@ float UKzSplineFollowerComponent::FindClosestDistance(const USplineComponent* Sp
 		Last = Segment + 1;
 	}
 
+	const FVector Kept = KeptAxes(IgnoredAxes);
 	float BestKey = 0.0f;
 	double BestDistSq = TNumericLimits<double>::Max();
 	for (int32 Candidate = First; Candidate <= Last; ++Candidate)
@@ -348,8 +360,8 @@ float UKzSplineFollowerComponent::FindClosestDistance(const USplineComponent* Sp
 			continue;
 		}
 
-		const float Key = FindKeyOnSegment(Spline, Location, Segment, IgnoredAxes);
-		const double DistSq = MaskedDistSquared(Spline, Key, Location, IgnoredAxes);
+		const float Key = FindKeyOnSegment(Spline, Location, Segment, Kept);
+		const double DistSq = MaskedDistSquared(Spline, Key, Location, Kept);
 		if (DistSq < BestDistSq)
 		{
 			BestDistSq = DistSq;
