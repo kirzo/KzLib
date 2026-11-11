@@ -3,6 +3,7 @@
 #include "KzEdGraph.h"
 #include "Containers/Ticker.h"
 #include "GraphEditAction.h"
+#include "KzEdGraphNode.h"
 #include "KzEdGraphSchema.h"
 #include "KzGraph.h"
 #include "KzGraphCompiler.h"
@@ -15,6 +16,7 @@ UKzEdGraph* UKzEdGraph::CreateFor(UKzGraph& Graph)
 	Graph.Modify();
 	Graph.EdGraph = EdGraph;
 	EdGraph->GetSchema()->CreateDefaultNodesForGraph(*EdGraph);
+	EdGraph->SyncRequiredEntries();
 	EdGraph->Compile();
 	return EdGraph;
 }
@@ -119,4 +121,97 @@ void UKzEdGraph::ReconstructNodes()
 
 	// The panel's pin widgets still point at the pins just thrown away.
 	NotifyGraphChanged();
+}
+
+bool UKzEdGraph::SyncRequiredEntries()
+{
+	const UKzGraph* Asset = GetGraphAsset();
+	const UScriptStruct* EntryStruct = Asset ? Asset->GetRequiredEntryStruct() : nullptr;
+	TArray<FName> Required;
+	if (!EntryStruct || !Asset->GetRequiredEntries(Required))
+	{
+		return false;
+	}
+
+	// The nodes already serving a required entry, and the rest of their struct, free to take a missing one.
+	TMap<FName, UKzEdGraphNode*> Serving;
+	TArray<UKzEdGraphNode*> Spare;
+	const bool bHorizontal = Asset->GetFlow() == EKzGraphFlow::Horizontal;
+	FVector2f Next = FVector2f::ZeroVector;
+	bool bPlaced = false;
+	for (UEdGraphNode* Each : Nodes)
+	{
+		UKzEdGraphNode* Node = Cast<UKzEdGraphNode>(Each);
+		if (!Node || Node->Node.GetScriptStruct() != EntryStruct)
+		{
+			continue;
+		}
+
+		const FName Name = Node->Node.Get().GetEntryName();
+		if (Required.Contains(Name) && !Serving.Contains(Name))
+		{
+			Serving.Add(Name, Node);
+		}
+		else
+		{
+			Spare.Add(Node);
+		}
+
+		// New entries go after the last one, across the flow.
+		const FVector2f Position(Node->NodePosX, Node->NodePosY);
+		if (!bPlaced || (bHorizontal ? Position.Y > Next.Y : Position.X > Next.X))
+		{
+			Next = Position;
+			bPlaced = true;
+		}
+	}
+
+	constexpr float Spacing = 150.0f;
+	if (bPlaced)
+	{
+		(bHorizontal ? Next.Y : Next.X) += Spacing;
+	}
+
+	bool bChanged = false;
+	for (const FName Name : Required)
+	{
+		if (Serving.Contains(Name))
+		{
+			continue;
+		}
+
+		Modify();
+		UKzEdGraphNode* Node = nullptr;
+		if (!Spare.IsEmpty())
+		{
+			Node = Spare[0];
+			Spare.RemoveAt(0);
+			Node->Modify();
+		}
+		else
+		{
+			Node = UKzEdGraphSchema::CreateNode(*this, EntryStruct, Next, false);
+			(bHorizontal ? Next.Y : Next.X) += Spacing;
+		}
+
+		Asset->SetRequiredEntry(FStructView(Node->Node.GetScriptStruct(), Node->Node.GetMutableMemory()), Name);
+		Node->ReconstructNode();
+		Serving.Add(Name, Node);
+		bChanged = true;
+	}
+
+	for (UKzEdGraphNode* Node : Spare)
+	{
+		Modify();
+		Node->Modify();
+		RemoveNode(Node);
+		bChanged = true;
+	}
+
+	if (bChanged)
+	{
+		MarkChanged();
+		NotifyGraphChanged();
+	}
+	return bChanged;
 }

@@ -42,6 +42,9 @@ public:
 	/** Recreates every node's pins from its struct, and their widgets; links follow by pin name. */
 	void ReconstructNodes();
 
+	/** Adds and removes entry nodes to match the asset's required entries. True if it changed any. */
+	bool SyncRequiredEntries();
+
 private:
 	bool bNeedsCompile = false;
 	bool bNotifyPending = false;

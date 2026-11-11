@@ -121,6 +121,12 @@ void FKzGraphEditor::Initialize(const EToolkitMode::Type Mode, const TSharedPtr<
 	}
 	UKzEdGraph* EdGraph = GetEdGraph();
 
+	// A graph saved before an entry became required gets it now, and its data with it.
+	if (EdGraph->SyncRequiredEntries())
+	{
+		EdGraph->Compile();
+	}
+
 	FDetailsViewArgs DetailsArgs;
 	DetailsArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
 	DetailsArgs.bHideSelectionTip = true;

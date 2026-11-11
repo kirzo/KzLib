@@ -154,6 +154,18 @@ public:
 	/** Nodes a new graph starts with, such as its entry. */
 	virtual void GetDefaultNodes(TArray<const UScriptStruct*>& OutNodes) const {}
 
+	/**
+	 * Entries the editor keeps one node each for, adding and removing nodes to match, such as one per input of a combo; false leaves the
+	 * entries to the user. A node no longer required is reused for a missing entry before a new one is made, keeping what links it can.
+	 */
+	virtual bool GetRequiredEntries(TArray<FName>& OutEntries) const { return false; }
+
+	/** The struct of the required entry nodes. */
+	virtual const UScriptStruct* GetRequiredEntryStruct() const { return nullptr; }
+
+	/** Makes a node of that struct the one for an entry. */
+	virtual void SetRequiredEntry(FStructView Node, FName Entry) const {}
+
 	/** Checks of the graph as a whole, after each compile. */
 	virtual void ValidateGraph(const FKzGraphData& InData, TArray<FKzValidationIssue>& OutIssues) const {}
 

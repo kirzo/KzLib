@@ -115,13 +115,14 @@ private:
 		}
 	}
 
-	/** Node pins can follow the asset's settings, so editing them rebuilds the nodes. */
+	/** Node pins and required entries can follow the asset's settings, so editing them rebuilds the nodes. */
 	void OnObjectPropertyChanged(UObject* Object, FPropertyChangedEvent& Event)
 	{
 		const UKzGraph* Asset = Cast<UKzGraph>(Object);
 		UKzEdGraph* EdGraph = Asset ? Cast<UKzEdGraph>(Asset->EdGraph) : nullptr;
 		if (EdGraph)
 		{
+			EdGraph->SyncRequiredEntries();
 			EdGraph->ReconstructNodes();
 		}
 	}
