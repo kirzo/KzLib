@@ -5,6 +5,7 @@
 #include "EdGraphUtilities.h"
 #include "IDetailCustomization.h"
 #include "InstancedStructDetails.h"
+#include "IPropertyUtilities.h"
 #include "KzEdGraph.h"
 #include "KzEdGraphNode.h"
 #include "KzGraph.h"
@@ -41,9 +42,32 @@ namespace
 			}
 
 			DetailBuilder.EditCategory(TEXT("Node"), First->GetTitle()).AddCustomBuilder(MakeShared<FInstancedStructDataDetails>(NodeHandle));
+
+			// The engine's instanced struct rows, such as a shape's, take whether they can be edited as they are built: one an edit condition turns on stays greyed out until rebuilt.
+			const TWeakPtr<IPropertyUtilities> Utilities = DetailBuilder.GetPropertyUtilities();
+			NodeHandle->SetOnChildPropertyValueChangedWithData(TDelegate<void(const FPropertyChangedEvent&)>::CreateLambda([Utilities, Struct](const FPropertyChangedEvent& Event)
+			{
+				const TSharedPtr<IPropertyUtilities> Pinned = Utilities.Pin();
+				if (Pinned && Event.Property && Event.ChangeType != EPropertyChangeType::Interactive && IsEditCondition(*Struct, Event.Property->GetName()))
+				{
+					Pinned->RequestForceRefresh();
+				}
+			}));
 		}
 
 	private:
+		static bool IsEditCondition(const UScriptStruct& Struct, const FString& Name)
+		{
+			for (TFieldIterator<FProperty> It(&Struct); It; ++It)
+			{
+				if (It->GetMetaData(TEXT("EditCondition")).Contains(Name))
+				{
+					return true;
+				}
+			}
+			return false;
+		}
+
 		static bool HasEditableProperties(const UScriptStruct& Struct)
 		{
 			for (TFieldIterator<FProperty> It(&Struct); It; ++It)
@@ -115,12 +139,12 @@ private:
 		}
 	}
 
-	/** Node pins and required entries can follow the asset's settings, so editing them rebuilds the nodes. */
+	/** Node pins and required entries can follow the asset's settings, so editing them rebuilds the nodes, once a dragged value is let go. */
 	void OnObjectPropertyChanged(UObject* Object, FPropertyChangedEvent& Event)
 	{
 		const UKzGraph* Asset = Cast<UKzGraph>(Object);
 		UKzEdGraph* EdGraph = Asset ? Cast<UKzEdGraph>(Asset->EdGraph) : nullptr;
-		if (EdGraph)
+		if (EdGraph && Event.ChangeType != EPropertyChangeType::Interactive)
 		{
 			EdGraph->SyncRequiredEntries();
 			EdGraph->ReconstructNodes();

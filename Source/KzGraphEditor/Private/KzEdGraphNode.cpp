@@ -18,7 +18,12 @@ void UKzEdGraphNodeBase::PostEditChangeProperty(FPropertyChangedEvent& Event)
 {
 	Super::PostEditChangeProperty(Event);
 	MarkGraphChanged();
-	NotifyGraphChanged();
+
+	// A dragged value changes on every mouse move, and the graph's widgets rebuild on each notify: once let go is enough.
+	if (Event.ChangeType != EPropertyChangeType::Interactive)
+	{
+		NotifyGraphChanged();
+	}
 }
 
 void UKzEdGraphNodeBase::PostEditUndo()
@@ -191,7 +196,10 @@ void UKzEdGraphNode::PostEditChangeProperty(FPropertyChangedEvent& Event)
 	}
 
 	// Pins can follow the node's properties, such as one output per option.
-	ReconstructNode();
+	if (Event.ChangeType != EPropertyChangeType::Interactive)
+	{
+		ReconstructNode();
+	}
 	Super::PostEditChangeProperty(Event);
 }
 
