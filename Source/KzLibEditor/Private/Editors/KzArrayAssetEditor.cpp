@@ -251,9 +251,9 @@ void FKzArrayAssetEditor::InitArrayAssetEditor(
 		TabRuntimes.Add(MoveTemp(Runtime));
 
 		// Notify customizers of the host editor.
-		if (Runtime.Customizer.IsValid())
+		if (Tabs[i].RowCustomizer.IsValid())
 		{
-			Runtime.Customizer->OnRegister(this);
+			Tabs[i].RowCustomizer->OnRegister(this);
 		}
 	}
 
