@@ -38,6 +38,9 @@ public:
 	//~ Begin USceneComponent Interface
 	virtual FBoxSphereBounds CalcBounds(const FTransform& LocalToWorld) const override;
 	virtual void CalcBoundingCylinder(float& CylinderRadius, float& CylinderHalfHeight) const override;
+
+	/** Shapes reach out, such as a sensor's, rather than make the actor's body: dropping the actor in a level ignores them unless asked. */
+	virtual bool ShouldCollideWhenPlacing() const override { return bShouldCollideWhenPlacing; }
 	//~ End USceneComponent Interface
 
 	//~ Begin UShapeComponent Interface
