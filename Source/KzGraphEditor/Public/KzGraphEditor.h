@@ -84,6 +84,7 @@ private:
 	TSharedRef<SDockTab> SpawnCompileResultsTab(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnFindTab(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnViewportTab(const FSpawnTabArgs& Args);
+	TSharedRef<SDockTab> SpawnBottomPanelTab(const FSpawnTabArgs& Args);
 
 	void OnSelectionChanged(const TSet<UObject*>& Selection);
 	void OnNodeDoubleClicked(UEdGraphNode* Node);
@@ -139,8 +140,9 @@ private:
 	TSharedPtr<SKzGraphFindResults> FindResults;
 	TSharedPtr<FKzGraphPreview> Preview;
 
-	/** The viewport with the preview's panel under it, made once so reopening its tab keeps the scene. */
-	TSharedPtr<SWidget> PreviewPanel;
+	/** Made once, so reopening their tabs keeps the scene and the panel's state. */
+	TSharedPtr<SWidget> Viewport;
+	TSharedPtr<SWidget> BottomPanel;
 	FDelegateHandle GraphChangedHandle;
 	FTSTicker::FDelegateHandle AutoCompileTicker;
 

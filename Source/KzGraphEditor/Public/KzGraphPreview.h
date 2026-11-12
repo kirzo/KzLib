@@ -40,7 +40,7 @@ public:
 	/** Which way the camera looks when the viewport opens; unset keeps the editor's default. */
 	virtual TOptional<FRotator> GetViewRotation() const { return {}; }
 
-	/** A panel under the viewport, such as a timeline. */
+	/** A panel along the bottom of the editor, under the viewport and the graph, such as a timeline. */
 	virtual TSharedPtr<SWidget> MakeBottomPanel() { return nullptr; }
 
 	/** A left click in the viewport, on the hit proxy drawn there, if any. True when the preview took it. */
