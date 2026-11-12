@@ -45,6 +45,8 @@ public:
 	TInstancedStruct<FKzGraphNode> Node;
 
 	virtual void AllocateDefaultPins() override;
+
+	/** The title alone, in every form: SKzGraphNode draws the subtitle under it, a grid cell high, where the engine's multi-line titles miss the grid by a pixel. */
 	virtual FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
 	virtual FText GetTooltipText() const override;
 	virtual FLinearColor GetNodeTitleColor() const override;
@@ -61,6 +63,7 @@ public:
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& Event) override;
 
 	FText GetTitle() const;
+	FText GetSubtitle() const;
 };
 
 /** Bends a wire and passes it on untouched, drawn as a dot. Compiles to nothing. */

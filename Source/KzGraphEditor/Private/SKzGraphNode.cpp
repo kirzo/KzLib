@@ -271,6 +271,42 @@ void SKzGraphNode::CreateBelowPinControls(TSharedPtr<SVerticalBox> MainBox)
 	];
 }
 
+TSharedRef<SWidget> SKzGraphNode::CreateTitleWidget(TSharedPtr<SNodeTitle> InNodeTitle)
+{
+	const float Cell = SNodePanel::GetSnapGridSize();
+	const TSharedRef<SVerticalBox> Lines = SNew(SVerticalBox)
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		[
+			SNew(SBox)
+			.MinDesiredHeight(Cell)
+			.VAlign(VAlign_Center)
+			[
+				SGraphNode::CreateTitleWidget(InNodeTitle)
+			]
+		];
+
+	const UKzEdGraphNode* Node = Cast<UKzEdGraphNode>(GraphNode);
+	const FText Subtitle = Node ? Node->GetSubtitle() : FText::GetEmpty();
+	if (!Subtitle.IsEmpty())
+	{
+		Lines->AddSlot()
+		.AutoHeight()
+		.HAlign(IsVertical() ? HAlign_Center : HAlign_Left)
+		[
+			SNew(SBox)
+			.HeightOverride(Cell)
+			.VAlign(VAlign_Center)
+			[
+				SNew(STextBlock)
+				.TextStyle(FAppStyle::Get(), "Graph.Node.NodeTitleExtraLines")
+				.Text(Subtitle)
+			]
+		];
+	}
+	return Lines;
+}
+
 TSharedRef<SWidget> SKzGraphNode::MakeBody() const
 {
 	const UKzEdGraphNode* Node = Cast<UKzEdGraphNode>(GraphNode);

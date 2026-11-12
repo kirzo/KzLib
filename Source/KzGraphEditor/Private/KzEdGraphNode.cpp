@@ -140,15 +140,14 @@ FText UKzEdGraphNode::GetTitle() const
 	return Title.IsEmpty() ? Node.GetScriptStruct()->GetDisplayNameText() : Title;
 }
 
+FText UKzEdGraphNode::GetSubtitle() const
+{
+	return Node.IsValid() ? Node.Get().GetSubtitle() : FText::GetEmpty();
+}
+
 FText UKzEdGraphNode::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
-	const FText Title = GetTitle();
-	const FText Subtitle = Node.IsValid() ? Node.Get().GetSubtitle() : FText::GetEmpty();
-	if (TitleType != ENodeTitleType::FullTitle || Subtitle.IsEmpty())
-	{
-		return Title;
-	}
-	return FText::Format(LOCTEXT("TitleWithSubtitle", "{0}\n{1}"), Title, Subtitle);
+	return GetTitle();
 }
 
 FText UKzEdGraphNode::GetTooltipText() const

@@ -27,6 +27,10 @@ namespace
 		const UKzEdGraphNode* KzNode = Cast<UKzEdGraphNode>(&Node);
 		if (KzNode && KzNode->Node.IsValid())
 		{
+			if (const FText Subtitle = KzNode->GetSubtitle(); !Subtitle.IsEmpty())
+			{
+				OutTexts.Add(Subtitle);
+			}
 			KzNode->Node.Get().GetSearchTexts(OutTexts);
 		}
 

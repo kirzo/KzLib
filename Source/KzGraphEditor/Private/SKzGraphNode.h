@@ -38,6 +38,9 @@ public:
 protected:
 	virtual void CreateBelowPinControls(TSharedPtr<SVerticalBox> MainBox) override;
 
+	/** The title and subtitle, each at least a grid cell high, so a node with a subtitle is a cell taller and its pins line up with the others' one cell lower. */
+	virtual TSharedRef<SWidget> CreateTitleWidget(TSharedPtr<SNodeTitle> InNodeTitle) override;
+
 private:
 	/** The domain's body for this node, or an empty widget. */
 	TSharedRef<SWidget> MakeBody() const;
