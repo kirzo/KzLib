@@ -24,6 +24,9 @@
 #include "Widgets/Text/STextBlock.h"
 #include "UObject/StructOnScope.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "GameplayTagContainer.h"
+#include "GameplayTagsManager.h"
+#include "SGameplayTagCombo.h"
 
 const FName FKzArrayAssetEditor::AssetDetailsTabId(TEXT("KzArrayEditor_AssetDetails"));
 const FName FKzArrayAssetEditor::ValidationTabId(TEXT("KzArrayEditor_Validation"));
@@ -81,6 +84,23 @@ public:
 private:
 	FKzArrayAssetEditor* Editor;
 };
+
+/**
+ * Editor for the key of a map entry. It writes through the key's own handle, which is what keeps the map hashed and
+ * refuses a key another entry already has. A gameplay tag gets its picker, filtered as the map's Categories ask.
+ */
+static TSharedRef<SWidget> MakeMapKeyWidget(const TSharedPtr<IPropertyHandle>& KeyHandle)
+{
+	const FStructProperty* StructKey = CastField<FStructProperty>(KeyHandle->GetProperty());
+	if (StructKey && StructKey->Struct == FGameplayTag::StaticStruct())
+	{
+		return SNew(SGameplayTagCombo)
+			.Filter(UGameplayTagsManager::Get().GetCategoriesMetaFromPropertyHandle(KeyHandle))
+			.PropertyHandle(KeyHandle);
+	}
+
+	return KeyHandle->CreatePropertyValueWidget();
+}
 
 // =======================================================================================
 // Multi-handle struct provider (unchanged from previous version).
@@ -656,6 +676,9 @@ void FKzArrayAssetEditor::OnElementsSelected(const TArray<TSharedPtr<IPropertyHa
 			}
 		}
 
+		// A map entry shows its key beside its name. Only one at a time: keys are what tells entries apart.
+		const TSharedPtr<IPropertyHandle> KeyHandle = CompatibleHandles.Num() == 1 ? CompatibleHandles[0]->GetKeyHandle() : nullptr;
+
 		// Drop the previous customization (if any) so layouts don't stack across selections.
 		ElementDetailsView->UnregisterInstancedCustomPropertyLayout(UKzExternalStructHost::StaticClass());
 
@@ -664,17 +687,19 @@ void FKzArrayAssetEditor::OnElementsSelected(const TArray<TSharedPtr<IPropertyHa
 		// IPropertyTypeCustomization to children, including externals.
 		ElementDetailsView->RegisterInstancedCustomPropertyLayout(
 			UKzExternalStructHost::StaticClass(),
-			FOnGetDetailCustomizationInstance::CreateLambda([StructDataArray, HeaderLabel]()
+			FOnGetDetailCustomizationInstance::CreateLambda([StructDataArray, HeaderLabel, KeyHandle]()
 				{
 					class FKzExternalStructProxy : public IDetailCustomization
 					{
 					public:
 						TArray<TSharedPtr<FStructOnScope>> InnerStructs;
 						FText HeaderLabel;
+						TSharedPtr<IPropertyHandle> KeyHandle;
 
-						FKzExternalStructProxy(const TArray<TSharedPtr<FStructOnScope>>& InData, const FText& InHeaderLabel)
+						FKzExternalStructProxy(const TArray<TSharedPtr<FStructOnScope>>& InData, const FText& InHeaderLabel, const TSharedPtr<IPropertyHandle>& InKeyHandle)
 							: InnerStructs(InData)
-							, HeaderLabel(InHeaderLabel) {
+							, HeaderLabel(InHeaderLabel)
+							, KeyHandle(InKeyHandle) {
 						}
 
 						virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override
@@ -708,13 +733,21 @@ void FKzArrayAssetEditor::OnElementsSelected(const TArray<TSharedPtr<IPropertyHa
 									TSharedPtr<SWidget> UnusedNameWidget, UnusedValueWidget;
 									Row->GetDefaultWidgets(UnusedNameWidget, UnusedValueWidget);
 
-									Row->CustomWidget(/*bShowChildren=*/true)
-										.NameContent()
+									FDetailWidgetRow& Header = Row->CustomWidget(/*bShowChildren=*/true);
+									Header.NameContent()
 										[
 											SNew(STextBlock)
 												.Font(IDetailLayoutBuilder::GetDetailFontBold())
 												.Text(HeaderLabel)
 										];
+
+									if (KeyHandle.IsValid() && KeyHandle->IsValidHandle())
+									{
+										Header.ValueContent()
+											[
+												MakeMapKeyWidget(KeyHandle)
+											];
+									}
 								}
 								return;
 							}
@@ -727,7 +760,7 @@ void FKzArrayAssetEditor::OnElementsSelected(const TArray<TSharedPtr<IPropertyHa
 						}
 					};
 
-					return MakeShared<FKzExternalStructProxy>(StructDataArray, HeaderLabel);
+					return MakeShared<FKzExternalStructProxy>(StructDataArray, HeaderLabel, KeyHandle);
 				}));
 
 		// Unbind any previous change subscription before adding a fresh one for the new selection.

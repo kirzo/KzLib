@@ -10,6 +10,7 @@
 
 class IPropertyHandle;
 class IPropertyHandleArray;
+class IPropertyHandleMap;
 class FTextFilterExpressionEvaluator;
 class SSearchBox;
 class FUICommandList;
@@ -105,7 +106,7 @@ public:
 	/** Sets (or clears) the provider of injected read-only rows and refreshes. */
 	void SetImmutableRowsProvider(FKzImmutableRowsProvider InProvider);
 
-	/** Rebuilds all rows (e.g. after the asset's inheritance source changed). */
+	/** Rebuilds all rows (e.g. after the asset's inheritance source changed), keeping the selection. */
 	void RefreshRows();
 
 	/** Returns all selected EDITABLE handles in their current list order. */
@@ -139,7 +140,18 @@ public:
 
 private:
 	TSharedPtr<IPropertyHandle> RootHandle;
+
+	/**
+	 * The stack sits on an array or on a map, one row per element or entry. A map entry is named by its key and has no
+	 * place of its own, so reordering, duplicating and pasting stay with the array.
+	 */
 	TSharedPtr<IPropertyHandleArray> ArrayHandle;
+	TSharedPtr<IPropertyHandleMap> MapHandle;
+
+	bool HasContainer() const { return ArrayHandle.IsValid() || MapHandle.IsValid(); }
+	uint32 GetNumElements() const;
+	TSharedPtr<IPropertyHandle> GetElement(int32 Index) const;
+	void DeleteElement(int32 Index);
 
 	bool bAllowDuplicates = false;
 	FText ItemName;

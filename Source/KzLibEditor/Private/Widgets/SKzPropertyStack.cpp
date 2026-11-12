@@ -195,15 +195,11 @@ void SKzPropertyStack::RefreshStack()
 {
 	AllRows.Empty();
 
-	// 1. Editable rows: one per array element, in array order (first).
-	if (ArrayHandle.IsValid())
+	// 1. Editable rows: one per element, in container order (first).
+	const uint32 NumElements = GetNumElements();
+	for (uint32 i = 0; i < NumElements; ++i)
 	{
-		uint32 NumElements = 0;
-		ArrayHandle->GetNumElements(NumElements);
-		for (uint32 i = 0; i < NumElements; ++i)
-		{
-			AllRows.Add(MakeShared<FKzStackRow>(ArrayHandle->GetElement(i)));
-		}
+		AllRows.Add(MakeShared<FKzStackRow>(GetElement(i)));
 	}
 
 	// 2. Injected read-only rows (e.g. inherited parent entries), appended after.
@@ -283,6 +279,19 @@ FString SKzPropertyStack::GetHandleDisplayName(TSharedPtr<IPropertyHandle> Handl
 		}
 	}
 
+	if (const TSharedPtr<IPropertyHandle> KeyHandle = Handle->GetKeyHandle())
+	{
+		// A gameplay tag exports as a struct; its name is what reads
+		FString KeyValue;
+		const TSharedPtr<IPropertyHandle> TagNameHandle = KeyHandle->GetChildHandle(FName("TagName"));
+		const TSharedPtr<IPropertyHandle>& NamedHandle = TagNameHandle.IsValid() ? TagNameHandle : KeyHandle;
+		if (NamedHandle->GetValueAsDisplayString(KeyValue) == FPropertyAccess::Success && !KeyValue.IsEmpty() && KeyValue != TEXT("None"))
+		{
+			return KeyValue;
+		}
+		return FString::Printf(TEXT("(%s not set)"), *ItemName.ToString());
+	}
+
 	if (bIsObjectArray)
 	{
 		UObject* ObjectValue = nullptr;
@@ -331,10 +340,7 @@ FText SKzPropertyStack::GetSearchText() const
 
 FReply SKzPropertyStack::OnClearAllClicked()
 {
-	if (!ArrayHandle.IsValid()) { return FReply::Handled(); }
-
-	uint32 NumElements = 0;
-	ArrayHandle->GetNumElements(NumElements);
+	const uint32 NumElements = GetNumElements();
 	if (NumElements == 0) { return FReply::Handled(); }
 
 	const FText PluralName = ItemNamePlural.IsEmpty() ? FText::Format(INVTEXT("{0}s"), ItemName) : ItemNamePlural;
@@ -350,17 +356,21 @@ FReply SKzPropertyStack::OnClearAllClicked()
 	}
 
 	const FScopedTransaction Transaction(FText::Format(NSLOCTEXT("KzPropertyStack", "ClearAllTrans", "Clear all {0}"), PluralName));
-	ArrayHandle->EmptyArray();
+	if (ArrayHandle.IsValid())
+	{
+		ArrayHandle->EmptyArray();
+	}
+	else
+	{
+		MapHandle->Empty();
+	}
 
 	return FReply::Handled();
 }
 
 bool SKzPropertyStack::CanClearAll() const
 {
-	if (!ArrayHandle.IsValid()) { return false; }
-	uint32 NumElements = 0;
-	ArrayHandle->GetNumElements(NumElements);
-	return NumElements > 0 && CanRemoveRows(GetAllHandles());
+	return GetNumElements() > 0 && CanRemoveRows(GetAllHandles());
 }
 
 FText SKzPropertyStack::GetClearAllToolTip() const
@@ -372,15 +382,51 @@ FText SKzPropertyStack::GetClearAllToolTip() const
 TArray<TSharedPtr<IPropertyHandle>> SKzPropertyStack::GetAllHandles() const
 {
 	TArray<TSharedPtr<IPropertyHandle>> Handles;
-	uint32 NumElements = 0;
-	if (ArrayHandle.IsValid() && ArrayHandle->GetNumElements(NumElements) == FPropertyAccess::Success)
+	const uint32 NumElements = GetNumElements();
+	for (uint32 Index = 0; Index < NumElements; ++Index)
 	{
-		for (uint32 Index = 0; Index < NumElements; ++Index)
-		{
-			Handles.Add(ArrayHandle->GetElement(Index));
-		}
+		Handles.Add(GetElement(Index));
 	}
 	return Handles;
+}
+
+uint32 SKzPropertyStack::GetNumElements() const
+{
+	uint32 NumElements = 0;
+	if (ArrayHandle.IsValid())
+	{
+		ArrayHandle->GetNumElements(NumElements);
+	}
+	else if (MapHandle.IsValid())
+	{
+		MapHandle->GetNumElements(NumElements);
+	}
+	return NumElements;
+}
+
+TSharedPtr<IPropertyHandle> SKzPropertyStack::GetElement(int32 Index) const
+{
+	if (ArrayHandle.IsValid())
+	{
+		return ArrayHandle->GetElement(Index);
+	}
+	if (MapHandle.IsValid())
+	{
+		return MapHandle->GetElement(Index);
+	}
+	return nullptr;
+}
+
+void SKzPropertyStack::DeleteElement(int32 Index)
+{
+	if (ArrayHandle.IsValid())
+	{
+		ArrayHandle->DeleteItem(Index);
+	}
+	else if (MapHandle.IsValid())
+	{
+		MapHandle->DeleteItem(Index);
+	}
 }
 
 bool SKzPropertyStack::CanRemoveRows(const TArray<TSharedPtr<IPropertyHandle>>& Handles, FText* OutReason) const
@@ -412,6 +458,7 @@ void SKzPropertyStack::SetPropertyHandle(TSharedPtr<IPropertyHandle> InPropertyH
 {
 	RootHandle = InPropertyHandle;
 	ArrayHandle = RootHandle.IsValid() ? RootHandle->AsArray() : nullptr;
+	MapHandle = RootHandle.IsValid() ? RootHandle->AsMap() : nullptr;
 
 	bIsObjectArray = false;
 	BaseObjectClass = nullptr;
@@ -478,6 +525,10 @@ void SKzPropertyStack::SetPropertyHandle(TSharedPtr<IPropertyHandle> InPropertyH
 	{
 		ArrayHandle->SetOnNumElementsChanged(FSimpleDelegate::CreateSP(this, &SKzPropertyStack::RefreshStack));
 	}
+	else if (MapHandle.IsValid())
+	{
+		MapHandle->SetOnNumElementsChanged(FSimpleDelegate::CreateSP(this, &SKzPropertyStack::RefreshStack));
+	}
 
 	RefreshStack();
 }
@@ -490,7 +541,18 @@ void SKzPropertyStack::SetImmutableRowsProvider(FKzImmutableRowsProvider InProvi
 
 void SKzPropertyStack::RefreshRows()
 {
+	// Read from the list rather than SelectedIndices, which only follows what the user clicked
+	TArray<int32> Indices;
+	for (const TSharedPtr<IPropertyHandle>& Handle : GetSelectedHandles())
+	{
+		Indices.Add(Handle->GetIndexInArray());
+	}
+
 	RefreshStack();
+	if (Indices.Num() > 0)
+	{
+		RestoreSelectionByIndices(Indices);
+	}
 }
 
 // =======================================================================================
@@ -630,15 +692,15 @@ TSharedRef<ITableRow> SKzPropertyStack::OnGenerateRow(TSharedPtr<FKzStackRow> It
 	// --- Card content ---
 	TSharedRef<SHorizontalBox> RowBox = SNew(SHorizontalBox);
 
-	// Drag handle (editable only).
-	if (bEditable)
+	// Drag handle (editable array elements only: a map entry has no place to be dragged to).
+	if (bEditable && ArrayHandle.IsValid())
 	{
 		RowBox->AddSlot().MaxWidth(18).AutoWidth().HAlign(HAlign_Left).VAlign(VAlign_Center).Padding(Margin)
 			[
 				SNew(SImage).Image(FAppStyle::GetBrush("VerticalBoxDragIndicatorShort"))
 			];
 	}
-	else
+	else if (!bEditable)
 	{
 		// Lock glyph marks the row as inherited / read-only.
 		RowBox->AddSlot().MaxWidth(18).AutoWidth().HAlign(HAlign_Left).VAlign(VAlign_Center).Padding(Margin)
@@ -808,23 +870,29 @@ TSet<UClass*> SKzPropertyStack::GetDisallowedClasses() const
 
 FReply SKzPropertyStack::OnAddElementClicked()
 {
-	if (!ArrayHandle.IsValid()) { return FReply::Handled(); }
+	if (!HasContainer()) { return FReply::Handled(); }
 
 	const FScopedTransaction Transaction(FText::Format(INVTEXT("Add {0}"), ItemName));
-	ArrayHandle->AddItem();
+
+	// An array appends. A map says where the new entry landed, and adds none while another still has its key unset.
+	int32 NewIndex = INDEX_NONE;
+	if (ArrayHandle.IsValid())
+	{
+		ArrayHandle->AddItem();
+		NewIndex = (int32)GetNumElements() - 1;
+	}
+	else
+	{
+		NewIndex = MapHandle->AddItem().GetIndex();
+	}
 	RefreshStack();
 
-	if (AllRows.Num() > 0 && ListViewWidget.IsValid())
+	if (ListViewWidget.IsValid() && AllRows.IsValidIndex(NewIndex) && AllRows[NewIndex]->IsEditable())
 	{
-		uint32 NumElements = 0;
-		ArrayHandle->GetNumElements(NumElements);
-		if (NumElements > 0 && AllRows.IsValidIndex((int32)NumElements - 1))
-		{
-			TSharedPtr<FKzStackRow> NewRow = AllRows[(int32)NumElements - 1];
-			ListViewWidget->ClearSelection();
-			ListViewWidget->SetSelection(NewRow);
-			OnSelectionChangedDelegate.ExecuteIfBound({ NewRow->Handle });
-		}
+		TSharedPtr<FKzStackRow> NewRow = AllRows[NewIndex];
+		ListViewWidget->ClearSelection();
+		ListViewWidget->SetSelection(NewRow);
+		OnSelectionChangedDelegate.ExecuteIfBound({ NewRow->Handle });
 	}
 	return FReply::Handled();
 }
@@ -883,10 +951,10 @@ void SKzPropertyStack::OnAddObjectClassSelected(UClass* ObjectClass)
 
 FReply SKzPropertyStack::OnDeleteElementClicked(TSharedPtr<FKzStackRow> ItemToDelete)
 {
-	if (ArrayHandle.IsValid() && ItemToDelete.IsValid() && ItemToDelete->IsEditable() && CanRemoveRows({ ItemToDelete->Handle }))
+	if (HasContainer() && ItemToDelete.IsValid() && ItemToDelete->IsEditable() && CanRemoveRows({ ItemToDelete->Handle }))
 	{
 		const FScopedTransaction Transaction(FText::Format(INVTEXT("Delete {0}"), ItemName));
-		ArrayHandle->DeleteItem(ItemToDelete->Handle->GetIndexInArray());
+		DeleteElement(ItemToDelete->Handle->GetIndexInArray());
 		RefreshStack();
 		OnSelectionChangedDelegate.ExecuteIfBound({});
 	}
@@ -900,7 +968,7 @@ FReply SKzPropertyStack::OnDeleteElementClicked(TSharedPtr<FKzStackRow> ItemToDe
 FReply SKzPropertyStack::OnRowDragDetected(const FGeometry& /*MyGeometry*/, const FPointerEvent& MouseEvent, TSharedPtr<FKzStackRow> DraggedItem)
 {
 	if (!MouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton)) { return FReply::Unhandled(); }
-	if (!DraggedItem.IsValid() || !DraggedItem->IsEditable()) { return FReply::Unhandled(); }
+	if (!ArrayHandle.IsValid() || !DraggedItem.IsValid() || !DraggedItem->IsEditable()) { return FReply::Unhandled(); }
 
 	// If the dragged item is part of the current selection, drag the whole selection.
 	// Otherwise drag just that one (and switch the selection to it).
@@ -1042,9 +1110,9 @@ bool SKzPropertyStack::CanCopyElements() const
 	return GetSelectedRows().Num() > 0;
 }
 
-bool SKzPropertyStack::CanCutElements() const { return GetSelectedHandles().Num() > 0; }
+bool SKzPropertyStack::CanCutElements() const { return ArrayHandle.IsValid() && GetSelectedHandles().Num() > 0; }
 bool SKzPropertyStack::CanDeleteElements() const { return GetSelectedHandles().Num() > 0; }
-bool SKzPropertyStack::CanDuplicateElements() const { return GetSelectedHandles().Num() > 0; }
+bool SKzPropertyStack::CanDuplicateElements() const { return ArrayHandle.IsValid() && GetSelectedHandles().Num() > 0; }
 bool SKzPropertyStack::CanPasteElement() const { return ArrayHandle.IsValid(); }
 
 void SKzPropertyStack::CopySelectedElements()
@@ -1283,7 +1351,7 @@ void SKzPropertyStack::CutSelectedElements()
 
 void SKzPropertyStack::DeleteSelectedElements()
 {
-	if (!ArrayHandle.IsValid()) { return; }
+	if (!HasContainer()) { return; }
 	const TArray<TSharedPtr<IPropertyHandle>> Selected = GetSelectedHandles();
 	if (Selected.Num() == 0) { return; }
 
@@ -1315,7 +1383,7 @@ void SKzPropertyStack::DeleteSelectedElements()
 	const FScopedTransaction Transaction(FText::Format(INVTEXT("Delete {0}"), ItemName));
 	for (int32 Idx : Indices)
 	{
-		ArrayHandle->DeleteItem(Idx);
+		DeleteElement(Idx);
 	}
 
 	RefreshStack();

@@ -39,6 +39,9 @@ struct KZLIBEDITOR_API FKzCustomEditorTabConfig
  *
  * The array may live directly on the asset (PropertyPath = { "MyArray" }) or
  * nested inside a struct (PropertyPath = { "Database", "Items" }).
+ *
+ * The property may also be a map: each entry is a row named by its key, which is edited
+ * beside the entry's name in Element Details. Map rows cannot be reordered, duplicated or pasted.
  */
 struct KZLIBEDITOR_API FKzArrayEditorTabConfig
 {
