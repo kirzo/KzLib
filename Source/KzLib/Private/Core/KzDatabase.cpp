@@ -126,6 +126,7 @@ const FKzDatabaseItem* FKzDatabase::FindBestMatch(const FKzDatabaseQuery& Query,
 {
 	const FKzDatabaseItem* BestItem = nullptr;
 	int32 BestScore = -1;
+	int32 Ties = 0;
 
 	for (const FKzDatabaseItem& Item : Items)
 	{
@@ -135,6 +136,12 @@ const FKzDatabaseItem* FKzDatabase::FindBestMatch(const FKzDatabaseQuery& Query,
 			if (Score > BestScore)
 			{
 				BestScore = Score;
+				BestItem = &Item;
+				Ties = 1;
+			}
+			// Each of the tied keeps it with the same chance, without listing them
+			else if (Query.bRandomTies && Score == BestScore && FMath::RandHelper(++Ties) == 0)
+			{
 				BestItem = &Item;
 			}
 		}

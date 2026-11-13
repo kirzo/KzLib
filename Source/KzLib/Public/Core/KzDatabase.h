@@ -21,7 +21,8 @@ enum class EKzDatabaseMatch : uint8
 
 /**
  * What the asker wants and what is true about it. An item is a candidate when it passes RequireTags, IgnoreTags and TagQuery, and each of its own
- * tags is asked for or true of the asker, so variants for other states never apply. The candidate with the most tags wins, then the one with the more specific tags; on a tie, the first.
+ * tags is asked for or true of the asker, so variants for other states never apply. The candidate with the most tags wins, then the one with the more specific tags; on a tie, the first,
+ * or one at random with Random Ties.
  */
 USTRUCT(BlueprintType)
 struct KZLIB_API FKzDatabaseQuery
@@ -43,6 +44,10 @@ struct KZLIB_API FKzDatabaseQuery
 	/** Advanced logic (A OR B AND C), checked after RequireTags and IgnoreTags. Its tags count as asked for. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Query")
 	FGameplayTagQuery TagQuery;
+
+	/** Of a table's equally good candidates, one at random instead of the first, such as one of several taunts. Between tables, the first still wins. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Query")
+	bool bRandomTies = false;
 
 	/** Whether an item with these tags is a candidate. */
 	bool Matches(const FGameplayTagContainer& Tags) const { return Evaluate(Tags) == EKzDatabaseMatch::Candidate; }
@@ -194,7 +199,7 @@ struct KZLIB_API FKzDatabase
 	int32 QueryItems(const FKzDatabaseQuery& Query, TArray<const FKzDatabaseItem*>& OutItems) const;
 
 	/**
-	 * Finds the single best match for the query (highest score, ties in list order), and its score if asked.
+	 * Finds the single best match for the query (highest score, ties in list order or at random with bRandomTies), and its score if asked.
 	 * O(N) complexity and 0 heap allocations. Faster than QueryItems for single lookups.
 	 */
 	const FKzDatabaseItem* FindBestMatch(const FKzDatabaseQuery& Query, int32* OutScore = nullptr) const;
