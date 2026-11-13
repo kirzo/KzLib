@@ -20,6 +20,9 @@
 #include "Core/KzDatabase.h"
 #include "Customizations/KzDatabaseCustomization.h"
 
+#include "Containers/KzShuffleBag.h"
+#include "Customizations/KzShuffleBagCustomization.h"
+
 #include "Core/KzDatabaseAsset.h"
 #include "Widgets/SKzDatabaseQueryTester.h"
 #include "Framework/Application/SlateApplication.h"
@@ -48,6 +51,8 @@ void FKzLibEditorModule::OnStartupModule()
 	RegisterPropertyLayout<FKzParamDef, FKzParamDefCustomization>();
 	RegisterPropertyLayout<FKzDatabase, FKzDatabaseCustomization>();
 	RegisterPropertyLayout<FKzDatabaseItem, FKzDatabaseItemCustomization>();
+	RegisterPropertyLayout<FKzShuffleBag, FKzShuffleBagCustomization>();
+	RegisterPropertyLayout<FKzShuffleBagEntry, FKzShuffleBagEntryCustomization>();
 	RegisterPropertyLayout<FKzComponentReference, FKzComponentReferenceCustomization>();
 	RegisterPropertyLayout<FKzComponentSocketReference, FKzComponentReferenceCustomization>();
 
