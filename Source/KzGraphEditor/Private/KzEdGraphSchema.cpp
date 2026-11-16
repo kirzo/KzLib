@@ -295,6 +295,19 @@ void UKzEdGraphSchema::GetGraphContextActions(FGraphContextMenuBuilder& ContextM
 		ContextMenuBuilder.AddAction(GetCreateCommentAction());
 	}
 	ContextMenuBuilder.AddAction(MakeShared<FKzGraphSchemaAction_Reroute>(FText::GetEmpty(), LOCTEXT("AddReroute", "Add Reroute Node"), LOCTEXT("AddRerouteTooltip", "Adds a dot to bend wires through. Double-clicking a wire adds one there."), 0));
+
+	const FText FlowCategory = LOCTEXT("FlowControlCategory", "Flow Control");
+	const FText GoToKeywords = LOCTEXT("GoToKeywords", "jump wireless portal teleport anchor");
+	if (!FromPin || FromPin->Direction == EGPD_Output)
+	{
+		ContextMenuBuilder.AddAction(MakeShared<FKzGraphSchemaAction_GoTo>(FlowCategory, LOCTEXT("AddGoTo", "Go To"), LOCTEXT("AddGoToTooltip", "Leads on to a Label or an Entry, with no wire across the graph."), 0, GoToKeywords));
+	}
+	if (!FromPin || FromPin->Direction == EGPD_Input)
+	{
+		const TSharedRef<FKzGraphSchemaAction_GoTo> Action = MakeShared<FKzGraphSchemaAction_GoTo>(FlowCategory, LOCTEXT("AddLabel", "Label"), LOCTEXT("AddLabelTooltip", "A place Go To nodes lead to: its output takes the flow on. F2 renames it."), 0, GoToKeywords);
+		Action->bLabel = true;
+		ContextMenuBuilder.AddAction(Action);
+	}
 }
 
 void UKzEdGraphSchema::GetContextMenuActions(UToolMenu* Menu, UGraphNodeContextMenuContext* Context) const
@@ -379,8 +392,10 @@ const FPinConnectionResponse UKzEdGraphSchema::CanCreateConnection(const UEdGrap
 		return FPinConnectionResponse(CONNECT_RESPONSE_DISALLOW, Reason);
 	}
 
-	const int32 MaxPerOutput = IsReroute(Output) ? 0 : Asset->GetMaxLinksPerOutput();
-	const int32 MaxPerInput = IsReroute(Input) ? 0 : Asset->GetMaxLinksPerInput();
+	// Links pass through reroutes, Go To and Label nodes, so the compile counts them on the nodes at their ends.
+	auto PassesThrough = [](const UEdGraphPin* Pin) { return IsReroute(Pin) || Pin->GetOwningNode()->IsA<UKzEdGraphNode_GoTo>() || Pin->GetOwningNode()->IsA<UKzEdGraphNode_Label>(); };
+	const int32 MaxPerOutput = PassesThrough(Output) ? 0 : Asset->GetMaxLinksPerOutput();
+	const int32 MaxPerInput = PassesThrough(Input) ? 0 : Asset->GetMaxLinksPerInput();
 	const bool bOutputFull = MaxPerOutput > 0 && Output->LinkedTo.Num() >= MaxPerOutput;
 	const bool bInputFull = MaxPerInput > 0 && Input->LinkedTo.Num() >= MaxPerInput;
 
@@ -600,6 +615,57 @@ UEdGraphNode* FKzGraphSchemaAction_Reroute::PerformAction(UEdGraph* ParentGraph,
 	Reroute->AutowireNewNode(FromPin);
 	ParentGraph->NotifyGraphChanged();
 	return Reroute;
+}
+
+namespace
+{
+	template<typename TNode>
+	TNode* CreateGoToNode(UEdGraph& Graph, const FVector2f& Location, bool bSelect)
+	{
+		FGraphNodeCreator<TNode> Creator(Graph);
+		TNode* Node = Creator.CreateNode(bSelect);
+		Node->NodePosX = static_cast<int32>(Location.X);
+		Node->NodePosY = static_cast<int32>(Location.Y);
+		Creator.Finalize();
+		return Node;
+	}
+}
+
+UEdGraphNode* FKzGraphSchemaAction_GoTo::PerformAction(UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2f& Location, bool bSelectNewNode)
+{
+	const FScopedTransaction Transaction(bLabel ? LOCTEXT("AddLabelTransaction", "Add Label") : LOCTEXT("AddGoToTransaction", "Add Go To"));
+	ParentGraph->Modify();
+	if (FromPin)
+	{
+		FromPin->Modify();
+	}
+
+	UKzEdGraphNodeBase* Node = nullptr;
+	if (bLabel)
+	{
+		// A name nothing else answers to, Label or Entry.
+		FName Name(TEXT("Label"));
+		for (int32 Number = 2; !UKzEdGraphNode_Label::FindAll(*ParentGraph, Name).IsEmpty() || UKzEdGraphNode_GoTo::FindTarget(*ParentGraph, Name); ++Number)
+		{
+			Name = FName(*FString::Printf(TEXT("Label %d"), Number));
+		}
+		UKzEdGraphNode_Label* Label = CreateGoToNode<UKzEdGraphNode_Label>(*ParentGraph, Location, bSelectNewNode);
+		Label->LabelName = Name;
+		Node = Label;
+	}
+	else
+	{
+		TArray<UKzEdGraphNode_Label*> Labels;
+		TArray<UKzEdGraphNode*> Entries;
+		UKzEdGraphNode_GoTo::GetTargets(*ParentGraph, Labels, Entries);
+		UKzEdGraphNode_GoTo* GoTo = CreateGoToNode<UKzEdGraphNode_GoTo>(*ParentGraph, Location, bSelectNewNode);
+		GoTo->Target = !Labels.IsEmpty() ? Labels[0]->LabelName : !Entries.IsEmpty() ? UKzEdGraphNode_GoTo::GetTargetName(*Entries[0]) : NAME_None;
+		Node = GoTo;
+	}
+
+	Node->AutowireNewNode(FromPin);
+	ParentGraph->NotifyGraphChanged();
+	return Node;
 }
 
 #undef LOCTEXT_NAMESPACE

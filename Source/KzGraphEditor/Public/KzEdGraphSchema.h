@@ -90,3 +90,13 @@ struct KZGRAPHEDITOR_API FKzGraphSchemaAction_Reroute : public FEdGraphSchemaAct
 
 	virtual UEdGraphNode* PerformAction(UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2f& Location, bool bSelectNewNode = true) override;
 };
+
+/** Adds a Go To, leading to the graph's first Label, else its first Entry, or a Label with a name of its own, wired to the pin dragged from. */
+struct KZGRAPHEDITOR_API FKzGraphSchemaAction_GoTo : public FEdGraphSchemaAction
+{
+	using FEdGraphSchemaAction::FEdGraphSchemaAction;
+
+	virtual UEdGraphNode* PerformAction(UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2f& Location, bool bSelectNewNode = true) override;
+
+	bool bLabel = false;
+};

@@ -4,8 +4,11 @@
 #include "KzEdGraphNode.h"
 #include "KzGraph.h"
 #include "KzGraphEditorUtils.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "ScopedTransaction.h"
 #include "SGraphPin.h"
 #include "Styling/AppStyle.h"
+#include "Widgets/Input/SComboButton.h"
 #include "Rendering/DrawElements.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SBorder.h"
@@ -16,8 +19,106 @@
 #include "Widgets/SOverlay.h"
 #include "Widgets/Text/STextBlock.h"
 
+#define LOCTEXT_NAMESPACE "SKzGraphNode"
+
 namespace
 {
+	/** A Go To target's icon: a Label's bookmark, an Entry's own. */
+	FSlateIcon GetTargetIcon(const UEdGraphNode* Target)
+	{
+		FLinearColor Tint;
+		return Target ? Target->GetIconAndTint(Tint) : FSlateIcon();
+	}
+
+	/** A Go To's target, picked on the node among the graph's Labels and Entries, each kind under its heading. */
+	TSharedRef<SWidget> MakeGoToBody(UKzEdGraphNode_GoTo& GoTo)
+	{
+		const TWeakObjectPtr<UKzEdGraphNode_GoTo> Weak(&GoTo);
+		auto SetTarget = [Weak](FName Name)
+		{
+			if (UKzEdGraphNode_GoTo* Node = Weak.Get())
+			{
+				const FScopedTransaction Transaction(LOCTEXT("SetGoToTarget", "Set Go To Target"));
+				Node->Modify();
+				Node->Target = Name;
+				Node->PostEditChange();
+			}
+		};
+
+		return SNew(SBox)
+			.Padding(FMargin(6.0f, 2.0f, 6.0f, 4.0f))
+			[
+				SNew(SComboButton)
+				.ContentPadding(FMargin(4.0f, 1.0f))
+				.OnGetMenuContent_Lambda([Weak, SetTarget]()
+				{
+					FMenuBuilder Menu(true, nullptr);
+					const UKzEdGraphNode_GoTo* Node = Weak.Get();
+					const UEdGraph* Graph = Node ? Node->GetGraph() : nullptr;
+					TArray<UKzEdGraphNode_Label*> Labels;
+					TArray<UKzEdGraphNode*> Entries;
+					if (Graph)
+					{
+						UKzEdGraphNode_GoTo::GetTargets(*Graph, Labels, Entries);
+					}
+
+					auto AddTargets = [&Menu, &Weak, &SetTarget](FName Section, const FText& Heading, const auto& Targets)
+					{
+						Menu.BeginSection(Section, Heading);
+						for (const UEdGraphNode* Target : Targets)
+						{
+							const FName Name = UKzEdGraphNode_GoTo::GetTargetName(*Target);
+							if (Name.IsNone())
+							{
+								continue;
+							}
+							Menu.AddMenuEntry(FText::FromName(Name), FText::GetEmpty(), GetTargetIcon(Target), FUIAction(
+								FExecuteAction::CreateLambda([SetTarget, Name]() { SetTarget(Name); }),
+								FCanExecuteAction(),
+								FIsActionChecked::CreateLambda([Weak, Name]() { return Weak.IsValid() && Weak->Target == Name; })), NAME_None, EUserInterfaceActionType::RadioButton);
+						}
+						Menu.EndSection();
+					};
+					AddTargets(TEXT("Labels"), LOCTEXT("LabelsHeading", "Labels"), Labels);
+					AddTargets(TEXT("Entries"), LOCTEXT("EntriesHeading", "Entries"), Entries);
+					return Menu.MakeWidget();
+				})
+				.ButtonContent()
+				[
+					SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					.VAlign(VAlign_Center)
+					.Padding(0.0f, 0.0f, 4.0f, 0.0f)
+					[
+						SNew(SImage)
+						.DesiredSizeOverride(FVector2D(16.0, 16.0))
+						.Image_Lambda([Weak]()
+						{
+							const UEdGraphNode* Target = Weak.IsValid() ? Weak->FindTarget() : nullptr;
+							return Target ? GetTargetIcon(Target).GetIcon() : nullptr;
+						})
+					]
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					.VAlign(VAlign_Center)
+					[
+						SNew(STextBlock)
+						.Text_Lambda([Weak]()
+						{
+							const UKzEdGraphNode_GoTo* Node = Weak.Get();
+							return !Node || Node->Target.IsNone() ? LOCTEXT("NoTarget", "Pick a target") : FText::FromName(Node->Target);
+						})
+						.ColorAndOpacity_Lambda([Weak]()
+						{
+							const UKzEdGraphNode_GoTo* Node = Weak.Get();
+							return Node && !Node->Target.IsNone() && !Node->FindTarget() ? FSlateColor(FLinearColor(1.0f, 0.35f, 0.3f)) : FSlateColor::UseForeground();
+						})
+					]
+				]
+			];
+	}
+
 	/** Lightens toward white (positive) or darkens toward black (negative) in sRGB, as a designer picks shades. */
 	FLinearColor Shade(const FLinearColor& Color, float Amount)
 	{
@@ -123,7 +224,7 @@ FSlateColor SKzGraphPin::GetPinColor() const
 	return IsHovered() ? Color : Color * FLinearColor(0.9f, 0.9f, 0.9f, 1.0f);
 }
 
-void SKzGraphNode::Construct(const FArguments& InArgs, UKzEdGraphNode* InNode)
+void SKzGraphNode::Construct(const FArguments& InArgs, UKzEdGraphNodeBase* InNode)
 {
 	GraphNode = InNode;
 	SetCursor(EMouseCursor::CardinalCross);
@@ -286,7 +387,7 @@ TSharedRef<SWidget> SKzGraphNode::CreateTitleWidget(TSharedPtr<SNodeTitle> InNod
 			]
 		];
 
-	const UKzEdGraphNode* Node = Cast<UKzEdGraphNode>(GraphNode);
+	const UKzEdGraphNodeBase* Node = Cast<UKzEdGraphNodeBase>(GraphNode);
 	const FText Subtitle = Node ? Node->GetSubtitle() : FText::GetEmpty();
 	if (!Subtitle.IsEmpty())
 	{
@@ -309,6 +410,11 @@ TSharedRef<SWidget> SKzGraphNode::CreateTitleWidget(TSharedPtr<SNodeTitle> InNod
 
 TSharedRef<SWidget> SKzGraphNode::MakeBody() const
 {
+	if (UKzEdGraphNode_GoTo* GoTo = Cast<UKzEdGraphNode_GoTo>(GraphNode))
+	{
+		return MakeGoToBody(*GoTo);
+	}
+
 	const UKzEdGraphNode* Node = Cast<UKzEdGraphNode>(GraphNode);
 	const TSharedPtr<SWidget> Body = Node ? KzGraphEditor::MakeNodeBody(*Node) : nullptr;
 	return Body.IsValid() ? Body.ToSharedRef() : SNullWidget::NullWidget;
@@ -324,3 +430,5 @@ FSlateColor SKzGraphNode::GetBodyColor() const
 {
 	return GraphNode ? GraphNode->GetNodeTitleColor() : FLinearColor::Gray;
 }
+
+#undef LOCTEXT_NAMESPACE

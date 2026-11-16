@@ -7,7 +7,7 @@
 #include "SGraphNode.h"
 
 class SHorizontalBox;
-class UKzEdGraphNode;
+class UKzEdGraphNodeBase;
 
 /** Flow pin colored by its graph's category colors. */
 class SKzGraphPin : public SGraphPinExec
@@ -29,7 +29,7 @@ public:
 	SLATE_BEGIN_ARGS(SKzGraphNode) {}
 	SLATE_END_ARGS()
 
-	void Construct(const FArguments& InArgs, UKzEdGraphNode* InNode);
+	void Construct(const FArguments& InArgs, UKzEdGraphNodeBase* InNode);
 
 	virtual void UpdateGraphNode() override;
 	virtual void AddPin(const TSharedRef<SGraphPin>& PinToAdd) override;

@@ -104,8 +104,22 @@ namespace
 
 		for (UEdGraphPin* Pin : Linked)
 		{
+			// A reroute passes the wire on; a Go To, to what its Label's or Entry's outputs link to, or nowhere without one.
 			const UEdGraphNode* Node = Pin->GetOwningNode();
-			if (!Node->IsA<UKzEdGraphNode_Reroute>())
+			const UEdGraphNode* PassOn = nullptr;
+			if (Node->IsA<UKzEdGraphNode_Reroute>())
+			{
+				PassOn = Node;
+			}
+			else if (const UKzEdGraphNode_GoTo* GoTo = Cast<UKzEdGraphNode_GoTo>(Node))
+			{
+				PassOn = GoTo->FindTarget();
+				if (!PassOn)
+				{
+					continue;
+				}
+			}
+			else
 			{
 				OutTargets.Add(Pin);
 				continue;
@@ -113,9 +127,16 @@ namespace
 
 			bool bAlreadyVisited = false;
 			Visited.Add(Node, &bAlreadyVisited);
-			if (!bAlreadyVisited)
+			if (bAlreadyVisited)
 			{
-				GatherTargets(*Node->Pins[1], Flow, OutTargets, Visited);
+				continue;
+			}
+			for (const UEdGraphPin* NextOutput : PassOn->Pins)
+			{
+				if (NextOutput->Direction == EGPD_Output)
+				{
+					GatherTargets(*NextOutput, Flow, OutTargets, Visited);
+				}
 			}
 		}
 	}

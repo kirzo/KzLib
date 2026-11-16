@@ -34,6 +34,48 @@ void KzGraphCompiler::Compile(const UKzEdGraph& Graph, UObject& Outer, FKzGraphD
 		OutIssues.Add(FKzValidationIssue::WithContextId(Severity, Message, ValidatorId, Node.NodeGuid));
 	};
 
+	// Go To and Label nodes compile to nothing, links going through them: only a name that leads nowhere, or to two places, is a problem.
+	TArray<UKzEdGraphNode_Label*> Labels;
+	TArray<UKzEdGraphNode*> Entries;
+	UKzEdGraphNode_GoTo::GetTargets(Graph, Labels, Entries);
+	TMap<FName, int32> LabelCounts;
+	TSet<FName> EntryNames;
+	for (const UKzEdGraphNode_Label* Label : Labels)
+	{
+		++LabelCounts.FindOrAdd(Label->LabelName);
+	}
+	for (const UKzEdGraphNode* Entry : Entries)
+	{
+		EntryNames.Add(UKzEdGraphNode_GoTo::GetTargetName(*Entry));
+	}
+	for (const UKzEdGraphNode_Label* Label : Labels)
+	{
+		if (Label->LabelName.IsNone())
+		{
+			AddIssue(EKzValidationSeverity::Error, LOCTEXT("UnnamedLabel", "Name it, with F2, for Go To nodes to lead here."), *Label);
+		}
+		else if (LabelCounts[Label->LabelName] > 1)
+		{
+			AddIssue(EKzValidationSeverity::Error, FText::Format(LOCTEXT("DuplicateLabel", "Another Label is also called {0}: Go To nodes cannot tell them apart."), FText::FromName(Label->LabelName)), *Label);
+		}
+		else if (EntryNames.Contains(Label->LabelName))
+		{
+			AddIssue(EKzValidationSeverity::Error, FText::Format(LOCTEXT("LabelIsEntry", "An Entry is also called {0}: Go To nodes cannot tell them apart."), FText::FromName(Label->LabelName)), *Label);
+		}
+	}
+	for (const UEdGraphNode* GraphNode : Graph.Nodes)
+	{
+		const UKzEdGraphNode_GoTo* GoTo = Cast<UKzEdGraphNode_GoTo>(GraphNode);
+		if (GoTo && GoTo->Target.IsNone())
+		{
+			AddIssue(EKzValidationSeverity::Error, LOCTEXT("GoToNowhere", "Pick the Label or Entry it leads to."), *GoTo);
+		}
+		else if (GoTo && !LabelCounts.Contains(GoTo->Target) && !EntryNames.Contains(GoTo->Target))
+		{
+			AddIssue(EKzValidationSeverity::Error, FText::Format(LOCTEXT("GoToMissing", "No Label or Entry is called {0}."), FText::FromName(GoTo->Target)), *GoTo);
+		}
+	}
+
 	TArray<const UKzEdGraphNode*> Candidates;
 	TArray<const UKzEdGraphNode*> EntryNodes;
 	for (const UEdGraphNode* GraphNode : Graph.Nodes)

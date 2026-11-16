@@ -89,7 +89,7 @@ namespace
 			{
 				return SNew(SGraphNodeKnot, Reroute);
 			}
-			if (UKzEdGraphNode* KzNode = Cast<UKzEdGraphNode>(Node))
+			if (UKzEdGraphNodeBase* KzNode = Cast<UKzEdGraphNodeBase>(Node))
 			{
 				return SNew(SKzGraphNode, KzNode);
 			}

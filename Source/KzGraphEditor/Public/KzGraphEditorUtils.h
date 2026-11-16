@@ -44,7 +44,7 @@ namespace KzGraphEditor
 	/** Sorts linked pins the way the graph orders links: by where their nodes sit across the flow. */
 	KZGRAPHEDITOR_API void SortByFlow(TArray<UEdGraphPin*>& Pins, EKzGraphFlow Flow);
 
-	/** The node inputs an output reaches through any reroutes, in link order. */
+	/** The node inputs an output reaches through any reroutes and Go To nodes, in link order. */
 	KZGRAPHEDITOR_API void GatherTargets(const UEdGraphPin& Output, EKzGraphFlow Flow, TArray<UEdGraphPin*>& OutTargets);
 
 	/** Lines the links between the selected nodes up along the graph's flow; the engine's own straightening only knows a horizontal one. */

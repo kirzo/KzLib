@@ -436,6 +436,10 @@ void FKzGraphEditor::OnNodeDoubleClicked(UEdGraphNode* Node)
 	{
 		KzGraphEditor::DoubleClickNode(*KzNode);
 	}
+	else if (const UKzEdGraphNode_GoTo* GoTo = Cast<UKzEdGraphNode_GoTo>(Node))
+	{
+		JumpToNode(GoTo->FindTarget());
+	}
 }
 
 void FKzGraphEditor::OnNodeTitleCommitted(const FText& Text, ETextCommit::Type CommitType, UEdGraphNode* Node)

@@ -24,13 +24,15 @@ namespace
 			OutTexts.Add(FText::FromString(Node.NodeComment));
 		}
 
+		const UKzEdGraphNodeBase* BaseNode = Cast<UKzEdGraphNodeBase>(&Node);
+		if (const FText Subtitle = BaseNode ? BaseNode->GetSubtitle() : FText::GetEmpty(); !Subtitle.IsEmpty())
+		{
+			OutTexts.Add(Subtitle);
+		}
+
 		const UKzEdGraphNode* KzNode = Cast<UKzEdGraphNode>(&Node);
 		if (KzNode && KzNode->Node.IsValid())
 		{
-			if (const FText Subtitle = KzNode->GetSubtitle(); !Subtitle.IsEmpty())
-			{
-				OutTexts.Add(Subtitle);
-			}
 			KzNode->Node.Get().GetSearchTexts(OutTexts);
 		}
 
