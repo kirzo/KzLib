@@ -7,8 +7,12 @@
 #include "Math/Geometry/KzShapeInstance.h"
 #include "KzShapeComponent.generated.h"
 
-/** A component that defines a renderable geometric shape using the KzLib shape system. */
-UCLASS(ClassGroup = "Rendering", hidecategories = (Object, Collision, LOD, Lighting, TextureStreaming, Physics, Navigation, HLOD, PathTracing, Tags, Cooking, Mobile, RayTracing, AssetUserData), ShowCategories = (Activation), editinlinenew, meta = (BlueprintSpawnableComponent))
+/**
+ * A component that defines a renderable geometric shape using the KzLib shape system.
+ * Its Shape category goes first, also in subclasses that don't prioritize their own. An actor that owns one shows its own categories above it
+ * by declaring the component after its own properties: the component's categories are made where the details reach that property.
+ */
+UCLASS(ClassGroup = "Rendering", hidecategories = (Object, Collision, LOD, Lighting, TextureStreaming, Physics, Navigation, HLOD, PathTracing, Tags, Cooking, Mobile, RayTracing, AssetUserData), ShowCategories = (Activation), PrioritizeCategories = (Shape), editinlinenew, meta = (BlueprintSpawnableComponent))
 class KZLIB_API UKzShapeComponent : public UShapeComponent
 {
 	GENERATED_BODY()

@@ -24,9 +24,6 @@ class KZLIB_API AKzAlphaVolume : public AActor
 public:
 	AKzAlphaVolume();
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Alpha Volume")
-	TObjectPtr<UKzShapeComponent> ShapeComponent;
-
 	/** If false, the alpha is 1 anywhere inside. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Alpha Volume")
 	bool bProgressive = true;
@@ -42,6 +39,10 @@ public:
 	/** Remaps the progressive alpha. Empty means linear. */
 	UPROPERTY(EditAnywhere, Category = "Alpha Volume", meta = (EditCondition = "bProgressive", XAxisName = "Position", YAxisName = "Alpha"))
 	FRuntimeFloatCurve Curve;
+
+	/** After the settings, so they show above the shape's categories. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Alpha Volume")
+	TObjectPtr<UKzShapeComponent> ShapeComponent;
 
 	UFUNCTION(BlueprintPure, Category = "Alpha Volume")
 	float GetAlpha(const FVector& Location) const;
