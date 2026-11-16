@@ -16,6 +16,7 @@
 #include "KzGraph.h"
 #include "KzGraphEditorUtils.h"
 #include "ScopedTransaction.h"
+#include "SGraphPin.h"
 #include "SNodePanel.h"
 #include "AssetRegistry/AssetData.h"
 #include "StructUtils/InstancedStruct.h"
@@ -58,6 +59,16 @@ namespace
 				Params.WireColor = Asset->GetPinColor(Pin->PinType.PinCategory);
 			}
 			Params.WireThickness = 1.5f;
+
+			// Through a reroute that leads back against the flow, wires leave and enter facing the way they travel, as in Blueprints.
+			if (IsReroute(OutputPin) && IsReversed(*OutputPin->GetOwningNode()))
+			{
+				Params.StartDirection = EGPD_Input;
+			}
+			if (IsReroute(InputPin) && IsReversed(*InputPin->GetOwningNode()))
+			{
+				Params.EndDirection = EGPD_Output;
+			}
 
 			if (!HoveredPins.IsEmpty())
 			{
@@ -108,6 +119,70 @@ namespace
 			return Flow == EKzGraphFlow::Horizontal ? FVector2f(FGeometryHelper::VerticalMiddleLeftOf(Geometry)) : FVector2f(Geometry.GetAbsolutePositionAtCoordinates(FVector2f(0.5f, 0.0f)));
 		}
 
+		/** Whether a reroute leads back against the flow: what it leads to is behind what leads to it. */
+		bool IsReversed(const UEdGraphNode& Reroute)
+		{
+			if (const bool* Found = ReversedReroutes.Find(&Reroute))
+			{
+				return *Found;
+			}
+
+			auto Along = [this](const FVector2f& Point) { return Flow == EKzGraphFlow::Horizontal ? Point.X : Point.Y; };
+			FVector2f In, Out, Center;
+			const bool bIn = Reroute.Pins.IsValidIndex(0) && GetAverageLinkedCenter(*Reroute.Pins[0], In);
+			const bool bOut = Reroute.Pins.IsValidIndex(1) && GetAverageLinkedCenter(*Reroute.Pins[1], Out);
+			const bool bCenter = Reroute.Pins.IsValidIndex(1) && FindPinCenter(Reroute.Pins[1], Center);
+
+			bool bReversed = false;
+			if (bIn && bOut)
+			{
+				bReversed = Along(Out) < Along(In);
+			}
+			else if (bCenter && bIn)
+			{
+				bReversed = Along(Center) < Along(In);
+			}
+			else if (bCenter && bOut)
+			{
+				bReversed = Along(Out) < Along(Center);
+			}
+			ReversedReroutes.Add(&Reroute, bReversed);
+			return bReversed;
+		}
+
+		bool FindPinCenter(UEdGraphPin* Pin, FVector2f& OutCenter) const
+		{
+			const TSharedPtr<SGraphPin>* Widget = PinToPinWidgetMap.Find(Pin);
+			const FArrangedWidget* Arranged = Widget && Widget->IsValid() && PinGeometries ? PinGeometries->Find(Widget->ToSharedRef()) : nullptr;
+			if (!Arranged)
+			{
+				return false;
+			}
+			OutCenter = FVector2f(FGeometryHelper::CenterOf(Arranged->Geometry));
+			return true;
+		}
+
+		bool GetAverageLinkedCenter(const UEdGraphPin& Pin, FVector2f& OutCenter) const
+		{
+			FVector2f Sum = FVector2f::ZeroVector;
+			int32 Count = 0;
+			for (UEdGraphPin* Linked : Pin.LinkedTo)
+			{
+				FVector2f Center;
+				if (Linked && FindPinCenter(Linked, Center))
+				{
+					Sum += Center;
+					++Count;
+				}
+			}
+			if (Count == 0)
+			{
+				return false;
+			}
+			OutCenter = Sum / static_cast<float>(Count);
+			return true;
+		}
+
 		/** The place of the link among the links of its output, at the middle of the wire, where links of one output no longer overlap. */
 		void DrawOrder(const FVector2f& Start, const FVector2f& End, const FConnectionParams& Params)
 		{
@@ -127,13 +202,16 @@ namespace
 				return;
 			}
 
-			// Both ends share one tangent, so the spline's middle is the middle of its ends.
+			// The spline's middle, with the tangents its ends were drawn with: the middle of its ends unless a reversed reroute turned one around.
 			static const FSlateRoundedBoxBrush BadgeBrush(FLinearColor::White, 4.0f);
 			const FString Number = FString::FromInt(Order + 1);
 			const FSlateFontInfo Font = FCoreStyle::GetDefaultFontStyle("Bold", 8);
 			const FVector2f TextSize = FVector2f(FSlateApplication::Get().GetRenderer()->GetFontMeasureService()->Measure(Number, Font, ZoomFactor));
 			const FVector2f BadgeSize = TextSize + FVector2f(8.0f, 2.0f) * ZoomFactor;
-			const FVector2f Middle = (Start + End) * 0.5f;
+			const FVector2f Tangent = ComputeSplineTangent(Start, End);
+			const FVector2f StartTangent = Params.StartDirection == EGPD_Output ? Tangent : -Tangent;
+			const FVector2f EndTangent = Params.EndDirection == EGPD_Input ? Tangent : -Tangent;
+			const FVector2f Middle = (Start + End) * 0.5f + (StartTangent - EndTangent) * 0.125f;
 
 			FSlateDrawElement::MakeBox(DrawElementsList, WireLayerID + 1, FPaintGeometry(Middle - BadgeSize * 0.5f, BadgeSize, ZoomFactor), &BadgeBrush, ESlateDrawEffect::None, FLinearColor(0.02f, 0.02f, 0.02f, 0.9f));
 			FSlateDrawElement::MakeText(DrawElementsList, WireLayerID + 2, FPaintGeometry(Middle - TextSize * 0.5f, TextSize, ZoomFactor), Number, Font, ESlateDrawEffect::None, Params.WireColor);
@@ -141,6 +219,9 @@ namespace
 
 		const UKzGraph* Asset;
 		EKzGraphFlow Flow;
+
+		/** Worked out once per paint. */
+		TMap<const UEdGraphNode*, bool> ReversedReroutes;
 	};
 
 	/** True when a node of the struct has a pin facing the one dragged from. */
@@ -159,6 +240,13 @@ namespace
 		}
 		return !Pins.IsEmpty();
 	}
+}
+
+FLinearColor UKzEdGraphSchema::GetPinColor(const UEdGraphPin* InPin) const
+{
+	const UEdGraphNode* Node = InPin ? InPin->GetOwningNodeUnchecked() : nullptr;
+	const UKzGraph* Asset = Node ? KzGraphEditor::GetGraphAsset(Node->GetGraph()) : nullptr;
+	return Asset ? Asset->GetPinColor(InPin->PinType.PinCategory) : Super::GetPinColor(InPin);
 }
 
 void UKzEdGraphSchema::CreateDefaultNodesForGraph(UEdGraph& Graph) const
