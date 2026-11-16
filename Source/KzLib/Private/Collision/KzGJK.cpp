@@ -194,12 +194,13 @@ namespace Kz::GJK
 		int32 NumPoints = 0;
 	};
 
-	static FVector Support(const FKzShapeInstance& A, const FVector& pA, const FQuat& qA, const FKzShapeInstance& B, const FVector& pB, const FQuat& qB, const FVector& Dir)
+	/** Support of A - B, with A swept along SweepA: the farthest of its start and its end. */
+	static FVector Support(const FKzShapeInstance& A, const FVector& pA, const FQuat& qA, const FVector& SweepA, const FKzShapeInstance& B, const FVector& pB, const FQuat& qB, const FVector& Dir)
 	{
 		const FVector DirLocalA = qA.UnrotateVector(Dir);
 		const FVector DirLocalB = qB.UnrotateVector(-Dir);
 
-		const FVector sA = pA + qA.RotateVector(A.GetSupportPoint(DirLocalA));
+		const FVector sA = pA + qA.RotateVector(A.GetSupportPoint(DirLocalA)) + (FVector::DotProduct(Dir, SweepA) > 0.0 ? SweepA : FVector::ZeroVector);
 		const FVector sB = pB + qB.RotateVector(B.GetSupportPoint(DirLocalB));
 
 		return sA - sB;
@@ -284,18 +285,8 @@ namespace Kz::GJK
 		return false;
 	}
 
-	bool Intersect(const FKzShapeInstance& A, const FVector& pA, const FQuat& qA, const FKzShapeInstance& B, const FVector& pB, const FQuat& qB, int32 MaxIterations)
+	static bool Intersect(const FKzShapeInstance& A, const FVector& pA, const FQuat& qA, const FVector& SweepA, const FKzShapeInstance& B, const FVector& pB, const FQuat& qB, int32 MaxIterations)
 	{
-		// A point meets the other shape only by lying inside it: nothing left for GJK to find.
-		if (B.IsOfType<FKzPoint>())
-		{
-			return A.IntersectsPoint(pA, qA, pB);
-		}
-		if (A.IsOfType<FKzPoint>())
-		{
-			return B.IntersectsPoint(pB, qB, pA);
-		}
-
 		// Early exit: Check whether ShapeA origin is inside ShapeB and viceversa.
 		if (A.IntersectsPoint(pA, qA, pB) || B.IntersectsPoint(pB, qB, pA))
 		{
@@ -305,7 +296,7 @@ namespace Kz::GJK
 		// This direction could be random.
 		FVector Dir = FVector::OneVector;
 
-		FVector SupportPoint = Support(A, pA, qA, B, pB, qB, Dir);
+		FVector SupportPoint = Support(A, pA, qA, SweepA, B, pB, qB, Dir);
 
 		FSimplex Simplex;
 		Simplex.Add(SupportPoint);
@@ -314,7 +305,7 @@ namespace Kz::GJK
 
 		for (int32 i = MaxIterations; --i;)
 		{
-			SupportPoint = Support(A, pA, qA, B, pB, qB, Dir);
+			SupportPoint = Support(A, pA, qA, SweepA, B, pB, qB, Dir);
 
 			if (FVector::DotProduct(SupportPoint, Dir) < UE_KINDA_SMALL_NUMBER)
 			{
@@ -330,5 +321,24 @@ namespace Kz::GJK
 		}
 
 		return false;
+	}
+
+	bool Intersect(const FKzShapeInstance& A, const FVector& pA, const FQuat& qA, const FKzShapeInstance& B, const FVector& pB, const FQuat& qB, int32 MaxIterations)
+	{
+		// A point meets the other shape only by lying inside it: nothing left for GJK to find.
+		if (B.IsOfType<FKzPoint>())
+		{
+			return A.IntersectsPoint(pA, qA, pB);
+		}
+		if (A.IsOfType<FKzPoint>())
+		{
+			return B.IntersectsPoint(pB, qB, pA);
+		}
+		return Intersect(A, pA, qA, FVector::ZeroVector, B, pB, qB, MaxIterations);
+	}
+
+	bool SweepIntersect(const FKzShapeInstance& A, const FVector& StartA, const FVector& EndA, const FQuat& qA, const FKzShapeInstance& B, const FVector& pB, const FQuat& qB, int32 MaxIterations)
+	{
+		return Intersect(A, StartA, qA, EndA - StartA, B, pB, qB, MaxIterations);
 	}
 }
