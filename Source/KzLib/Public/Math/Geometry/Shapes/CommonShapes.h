@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "KzPoint.h"
 #include "KzSphere.h"
 #include "KzBox.h"
 #include "KzCapsule.h"

@@ -3,6 +3,7 @@
 #include "Collision/KzGJK.h"
 #include "Collision/KzHitResult.h"
 #include "Math/Geometry/KzShapeInstance.h"
+#include "Math/Geometry/Shapes/KzPoint.h"
 
 namespace Kz::GJK
 {
@@ -285,6 +286,16 @@ namespace Kz::GJK
 
 	bool Intersect(const FKzShapeInstance& A, const FVector& pA, const FQuat& qA, const FKzShapeInstance& B, const FVector& pB, const FQuat& qB, int32 MaxIterations)
 	{
+		// A point meets the other shape only by lying inside it: nothing left for GJK to find.
+		if (B.IsOfType<FKzPoint>())
+		{
+			return A.IntersectsPoint(pA, qA, pB);
+		}
+		if (A.IsOfType<FKzPoint>())
+		{
+			return B.IntersectsPoint(pB, qB, pA);
+		}
+
 		// Early exit: Check whether ShapeA origin is inside ShapeB and viceversa.
 		if (A.IntersectsPoint(pA, qA, pB) || B.IntersectsPoint(pB, qB, pA))
 		{
