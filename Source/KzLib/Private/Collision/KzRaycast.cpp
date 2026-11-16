@@ -3,6 +3,29 @@
 #include "Collision/KzRaycast.h"
 #include "Collision/KzHitResult.h"
 
+namespace
+{
+	/** Normal of the face a point on a box lies on: the axis it reaches furthest along, relative to the box's extent. Float error rules out matching the face exactly on big boxes. */
+	FVector GetBoxFaceNormal(const FVector& LocalPoint, const FVector& Extents)
+	{
+		int32 Axis = 0;
+		double Reach = -1.0;
+		for (int32 Index = 0; Index < 3; ++Index)
+		{
+			const double IndexReach = FMath::Abs(LocalPoint[Index]) / FMath::Max(Extents[Index], UE_SMALL_NUMBER);
+			if (IndexReach > Reach)
+			{
+				Reach = IndexReach;
+				Axis = Index;
+			}
+		}
+
+		FVector Normal = FVector::ZeroVector;
+		Normal[Axis] = LocalPoint[Axis] < 0.0 ? -1.0 : 1.0;
+		return Normal;
+	}
+}
+
 namespace Kz::Raycast
 {
 	bool Sphere(FKzHitResult& OutHit, const FVector& Center, float Radius, const FVector& RayStart, const FVector& RayDir, float MaxDistance)
@@ -141,15 +164,7 @@ namespace Kz::Raycast
 		OutHit.Time = t / MaxDistance;
 		OutHit.Location = RayStart + RayDir * t;
 
-		// Compute normal using hit point
-		const FVector P = OutHit.Location;
-
-		if (FMath::IsNearlyEqual(P.X, Min.X)) OutHit.Normal = FVector(-1, 0, 0);
-		else if (FMath::IsNearlyEqual(P.X, Max.X)) OutHit.Normal = FVector(1, 0, 0);
-		else if (FMath::IsNearlyEqual(P.Y, Min.Y)) OutHit.Normal = FVector(0, -1, 0);
-		else if (FMath::IsNearlyEqual(P.Y, Max.Y)) OutHit.Normal = FVector(0, 1, 0);
-		else if (FMath::IsNearlyEqual(P.Z, Min.Z)) OutHit.Normal = FVector(0, 0, -1);
-		else                                      OutHit.Normal = FVector(0, 0, 1);
+		OutHit.Normal = GetBoxFaceNormal(OutHit.Location - Center, Extents);
 
 		return true;
 	}
@@ -205,20 +220,7 @@ namespace Kz::Raycast
 		OutHit.Distance = t;
 		OutHit.bBlockingHit = true;
 
-		// Determine normal by examining local hit point
-		const FVector P = O + D * t;
-		const FVector E = Extents;
-		FVector LocalNormal(0, 0, 0);
-		const float bias = 1e-4f;
-
-		if (FMath::Abs(P.X - E.X) < bias)      LocalNormal = FVector(1, 0, 0);
-		else if (FMath::Abs(P.X + E.X) < bias) LocalNormal = FVector(-1, 0, 0);
-		else if (FMath::Abs(P.Y - E.Y) < bias) LocalNormal = FVector(0, 1, 0);
-		else if (FMath::Abs(P.Y + E.Y) < bias) LocalNormal = FVector(0, -1, 0);
-		else if (FMath::Abs(P.Z - E.Z) < bias) LocalNormal = FVector(0, 0, 1);
-		else                                   LocalNormal = FVector(0, 0, -1);
-
-		OutHit.Normal = Rotation.RotateVector(LocalNormal);
+		OutHit.Normal = Rotation.RotateVector(GetBoxFaceNormal(O + D * t, Extents));
 
 		return true;
 	}
