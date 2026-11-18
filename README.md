@@ -131,6 +131,10 @@ Both structures use a *Semantics* policy class that defines `GetBoundingBox`, `G
 - **`Kz::TPriorityStack<Entry, bKeepLastElement, Key, bCanContainDuplicates>`** — max-heap with **stable insertion** for equal priorities (LIFO via sequence counter). Find/remove by key, sorted retrieval, predicate filters, iterators.
 - **`CKzContainer` concept** — C++20 concept that the spatial structures use to accept any iterable + `Num()` + `IsEmpty()` + `Empty()` / `Reset()` container.
 
+### Struct Blending
+
+- **`Kz::LerpStruct(Struct, Out, B, Alpha)`** — blends any `USTRUCT` into another by reflection: numbers, vectors and linear colors interpolate, `FColor` in linear space, `FRotator` / `FQuat` through quaternions, everything else switches at 0.5. Honours `bOverride_<Name>` flags, as `FPostProcessSettings` uses them. Each struct's layout is flattened once and cached, so a blend is a plain loop over memory.
+
 ### Data-Driven Database
 
 A type-safe schema-validated database for tag-driven gameplay data, built on `FInstancedPropertyBag`:
@@ -309,7 +313,7 @@ KzLib/
 │   │   │   ├── Containers/         # THandleArray, TPriorityStack
 │   │   │   ├── Core/               # KzDatabase, KzDatabaseAsset, KzHandle, KzParamDef,
 │   │   │   │                       # KzPropertyBag, KzRegistrySubsystem, KzTypes,
-│   │   │   │                       # KzValidationTypes, KzMovementTypes
+│   │   │   │                       # KzValidationTypes, KzMovementTypes, KzStructLerp
 │   │   │   ├── Kismet/             # KzAppLibrary, KzDatabaseLibrary, KzGeomLibrary,
 │   │   │   │                       # KzMathLibrary (+ .inl), KzRenderingLibrary,
 │   │   │   │                       # KzSystemLibrary (+ .inl)
