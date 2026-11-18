@@ -129,6 +129,7 @@ Both structures use a *Semantics* policy class that defines `GetBoundingBox`, `G
   - Forward, const, reverse, and const-reverse iterators (range-for ready).
 - **`FKzHandle`** — default lightweight handle (`int32 Index, int32 Generation`) with `IsValid`, `GetTypeHash`, `ToString` and `operator bool`.
 - **`Kz::TPriorityStack<Entry, bKeepLastElement, Key, bCanContainDuplicates>`** — max-heap with **stable insertion** for equal priorities (LIFO via sequence counter). Find/remove by key, sorted retrieval, predicate filters, iterators.
+- **`Kz::TBlendLayers<Layer>`** — layers that sources (volumes, markers, Blueprint) push on top of a base, one per source: priority, alpha, time blend in and out, and layers that hide every layer activated before them. `GetOrdered()` returns them lowest first with their weights; layers whose source dies or that finish blending out are dropped.
 - **`CKzContainer` concept** — C++20 concept that the spatial structures use to accept any iterable + `Num()` + `IsEmpty()` + `Empty()` / `Reset()` container.
 
 ### Struct Blending
@@ -310,7 +311,7 @@ KzLib/
 │   │   │   ├── Collision/          # KzGJK, KzHitResult, KzRaycast
 │   │   │   ├── Components/         # ComponentReference, Database, Shape, SplineArea, SplineFollower
 │   │   │   ├── Concepts/           # KzContainer concept
-│   │   │   ├── Containers/         # THandleArray, TPriorityStack
+│   │   │   ├── Containers/         # THandleArray, TPriorityStack, TBlendLayers
 │   │   │   ├── Core/               # KzDatabase, KzDatabaseAsset, KzHandle, KzParamDef,
 │   │   │   │                       # KzPropertyBag, KzRegistrySubsystem, KzTypes,
 │   │   │   │                       # KzValidationTypes, KzMovementTypes, KzStructLerp
