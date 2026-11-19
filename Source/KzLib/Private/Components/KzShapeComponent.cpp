@@ -5,6 +5,7 @@
 #include "SceneView.h"
 #include "PrimitiveSceneProxy.h"
 #include "SceneManagement.h"
+#include "Engine/CollisionProfile.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 
@@ -18,6 +19,8 @@ UKzShapeComponent::UKzShapeComponent()
 	Shape.InitializeAs<FKzSphere>();
 	ShapeColor = FLinearColor(0.0f, 0.5f, 1.0f, 1.0f).ToFColor(true);
 
+	// A shape for logic, such as a sensor, which physics queries such as hitboxes must not find; one that should be hit is given a profile
+	SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
 	SetGenerateOverlapEvents(false);
 }
 
