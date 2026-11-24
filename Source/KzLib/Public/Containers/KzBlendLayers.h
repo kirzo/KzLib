@@ -15,6 +15,8 @@ namespace Kz
 	{
 		TWeakObjectPtr<UObject> Source;
 
+		int32 Priority = 0;
+
 		/** Scales the layer, as a volume does by where the target stands in it. */
 		float Alpha = 1.0f;
 
@@ -56,6 +58,7 @@ namespace Kz
 			}
 
 			Layer.Source = Source;
+			Layer.Priority = Priority;
 			Layer.BlendTime = BlendTime;
 			Layer.bClearPrevious = bClearPrevious;
 			Layer.bRemoving = false;
