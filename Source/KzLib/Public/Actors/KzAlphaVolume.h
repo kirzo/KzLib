@@ -15,7 +15,8 @@ class UKzShapeComponent;
  * A volume that gives an alpha for a location. Inside, it is 1, or when progressive, the position along Axis from the entry face (0) to the exit face (1).
  * Past the exit face, within the volume's extrusion along Axis, a progressive volume keeps 1, so what it brings in stays once crossed;
  * a non-progressive one only if it keeps past exit. Anywhere else outside, the alpha is 0.
- * A non-directional volume that keeps past exit has no exit face: whoever reads it keeps what it brought however it leaves (KeepsAfterLeaving).
+ * That is what a jump (start, respawn) reads. Whoever walks out through the exit face keeps what the volume brought while past it,
+ * wherever it goes from there, such as up a slope over the extrusion; a non-directional volume that keeps past exit keeps it however it is left (Keeps).
  */
 UCLASS(Blueprintable, HideCategories = (Input, Collision, Physics, LOD, Cooking, Replication, HLOD))
 class KZLIB_API AKzAlphaVolume : public AActor
@@ -52,8 +53,11 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Alpha Volume")
 	float GetAlpha(const FVector& Location) const;
 
-	/** Whoever was inside keeps what the volume brought after its alpha drops to 0, until a jump (start, respawn) re-reads it. */
-	bool KeepsAfterLeaving() const { return !bProgressive && bKeepPastExit && !bDirectional; }
+	/**
+	 * Whether whoever brought the volume in keeps it now that its alpha at Location is 0: past the exit plane along Axis, or anywhere for a
+	 * non-directional volume that keeps past exit. Only for walking out: after a jump, the alpha alone decides.
+	 */
+	bool Keeps(const FVector& Location) const;
 
 	virtual void PostRegisterAllComponents() override;
 	virtual void UnregisterAllComponents(bool bForReregister = false) override;

@@ -92,6 +92,17 @@ float AKzAlphaVolume::GetAlpha(const FVector& Location) const
 	return RichCurve && RichCurve->GetNumKeys() > 0 ? RichCurve->Eval(T) : T;
 }
 
+bool AKzAlphaVolume::Keeps(const FVector& Location) const
+{
+	if (!bProgressive && !bKeepPastExit) return false;
+	if (!UsesAxis()) return true;
+
+	FVector Direction;
+	double Min = 0.0;
+	double Max = 0.0;
+	return GetAxisExtent(Direction, Min, Max) && FVector::DotProduct(Location - ShapeComponent->GetComponentLocation(), Direction) > Max;
+}
+
 void AKzAlphaVolume::PostRegisterAllComponents()
 {
 	Super::PostRegisterAllComponents();
