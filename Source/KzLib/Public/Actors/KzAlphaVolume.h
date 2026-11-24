@@ -53,6 +53,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Alpha Volume")
 	float GetAlpha(const FVector& Location) const;
 
+	/** Whether Location is inside the shape, which is how a walking reader brings the volume in: reaching past the exit some other way doesn't. */
+	UFUNCTION(BlueprintPure, Category = "Alpha Volume")
+	bool Contains(const FVector& Location) const;
+
 	/**
 	 * Whether whoever brought the volume in keeps it now that its alpha at Location is 0: past the exit plane along Axis, or anywhere for a
 	 * non-directional volume that keeps past exit. Only for walking out: after a jump, the alpha alone decides.

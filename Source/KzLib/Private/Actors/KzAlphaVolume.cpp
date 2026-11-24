@@ -92,6 +92,14 @@ float AKzAlphaVolume::GetAlpha(const FVector& Location) const
 	return RichCurve && RichCurve->GetNumKeys() > 0 ? RichCurve->Eval(T) : T;
 }
 
+bool AKzAlphaVolume::Contains(const FVector& Location) const
+{
+	if (!ShapeComponent || !ShapeComponent->Shape.IsValid()) return false;
+
+	const FKzShapeInstance Shape = ShapeComponent->Shape * ShapeComponent->GetComponentScale();
+	return Shape.IntersectsPoint(ShapeComponent->GetComponentLocation(), ShapeComponent->GetComponentQuat(), Location);
+}
+
 bool AKzAlphaVolume::Keeps(const FVector& Location) const
 {
 	if (!bProgressive && !bKeepPastExit) return false;
