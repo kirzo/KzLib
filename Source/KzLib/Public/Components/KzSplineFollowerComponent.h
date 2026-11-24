@@ -82,11 +82,11 @@ public:
 	bool bMatchRotation = true;
 
 	/** Offset from the spline point, in the spline's frame. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SplineFollower", meta = (EditCondition = "bMatchRotation"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SplineFollower", meta = (EditCondition = "bMatchRotation", EditConditionHides))
 	FVector LocationOffset = FVector::ZeroVector;
 
 	/** Rotation added on top of the spline's. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SplineFollower", meta = (EditCondition = "bMatchRotation"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SplineFollower", meta = (EditCondition = "bMatchRotation", EditConditionHides))
 	FRotator RotationOffset = FRotator::ZeroRotator;
 
 	/** If true, moving the component won't generate physics velocity (useful for teleporting or kinematic platforms). */
