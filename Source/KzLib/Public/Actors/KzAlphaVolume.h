@@ -36,7 +36,7 @@ public:
 
 	/** Keeps the alpha at 1 after leaving, instead of dropping it: past the exit face if directional, however it is left if not. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Alpha Volume", meta = (EditCondition = "!bProgressive", EditConditionHides))
-	bool bKeepPastExit = true;
+	bool bKeepPastExit = false;
 
 	/** Leaving through the exit face along Axis keeps the alpha, and leaving where it came in drops it. Without it, any way out keeps it. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Alpha Volume", meta = (EditCondition = "!bProgressive && bKeepPastExit", EditConditionHides))
