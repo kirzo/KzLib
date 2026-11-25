@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Actors/KzSplineMarker.h"
+#include "Misc/KzToggleable.h"
 #include "KzSplineLimit.generated.h"
 
 /**
@@ -11,7 +12,7 @@
  * Teleports (start, respawn, SetDistance) ignore limits.
  */
 UCLASS(Blueprintable)
-class KZLIB_API AKzSplineLimit : public AKzSplineMarker
+class KZLIB_API AKzSplineLimit : public AKzSplineMarker, public IKzToggleable
 {
 	GENERATED_BODY()
 
@@ -25,6 +26,5 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Spline Limit")
 	bool bSticky = false;
 
-	UFUNCTION(BlueprintCallable, Category = "Spline Limit")
-	void SetEnabled(bool bNewEnabled) { bEnabled = bNewEnabled; }
+	virtual void SetEnabled_Implementation(bool bNewEnabled) override { bEnabled = bNewEnabled; }
 };
