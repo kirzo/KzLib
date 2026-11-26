@@ -31,6 +31,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stand-In", meta = (AllowedClasses = "/Script/Engine.SkeletalMesh,/Script/Engine.StaticMesh"))
 	TObjectPtr<UStreamableRenderAsset> Mesh;
 
+	/** Turns the mesh about its feet, for one that doesn't face the actor's forward: -90 for a character modelled facing Y. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stand-In", meta = (EditCondition = "Mesh != nullptr", EditConditionHides, UIMin = "-180", UIMax = "180", Units = "Degrees"))
+	float YawOffset = 0.0f;
+
 	/** The character's capsule height: whoever follows the stand-in follows the middle of it. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stand-In", meta = (ClampMin = "1", Units = "Centimeters"))
 	float Height = 180.0f;

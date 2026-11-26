@@ -97,6 +97,10 @@ void AKzStandIn::UpdateLook()
 	StaticMesh->SetStaticMesh(StaticAsset);
 	StaticMesh->SetVisibility(StaticAsset != nullptr);
 
+	const FRotator MeshRotation(0.0, YawOffset, 0.0);
+	SkeletalMesh->SetRelativeRotation(MeshRotation);
+	StaticMesh->SetRelativeRotation(MeshRotation);
+
 	// Without a mesh, the cylinder: standing on the actor's feet, at its size.
 	Cylinder->SetVisibility(Mesh == nullptr);
 	Cylinder->SetRelativeLocation(FVector(0.0, 0.0, Height * 0.5f));
