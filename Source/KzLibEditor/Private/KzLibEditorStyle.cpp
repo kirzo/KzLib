@@ -43,6 +43,8 @@ FKzLibEditorStyle::FKzLibEditorStyle()
 	SetThumbnail("KzSplineLimit", TEXT("SplineLimitColor"));
 	SetIcon("KzAlphaVolume", TEXT("AlphaVolume"));
 	SetThumbnail("KzAlphaVolume", TEXT("AlphaVolumeColor"));
+	SetIcon("KzStandIn", TEXT("StandIn"));
+	SetThumbnail("KzStandIn", TEXT("StandInColor"));
 	SetIcon("KzAreaNetwork", TEXT("SplineArea"));
 	SetThumbnail("KzAreaNetwork", TEXT("SplineAreaColor"));
 	SetIcon("KzSplineAreaComponent", TEXT("SplineArea"));
