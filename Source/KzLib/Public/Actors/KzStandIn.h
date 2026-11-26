@@ -12,8 +12,8 @@ class UStaticMeshComponent;
 
 /**
  * A character stand-in for previews in the editor: a cylinder of its size, or a skeletal mesh in its reference pose.
- * Moved in the editor, it settles on the ground. It shows in every editor view, the camera previews included, has no collision,
- * hides when the game starts and isn't cooked.
+ * Moved in the editor, it settles on the ground. It shows in every editor view, the camera previews included, has no collision
+ * and destroys itself when the game starts.
  */
 UCLASS(HideCategories = (Input, Collision, Physics, LOD, Cooking, Replication, HLOD, Rendering))
 class KZLIB_API AKzStandIn : public AActor

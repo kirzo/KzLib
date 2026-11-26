@@ -30,7 +30,6 @@ AKzStandIn::AKzStandIn()
 	PrimaryActorTick.bCanEverTick = false;
 	SetCanBeDamaged(false);
 	bReplicates = false;
-	bIsEditorOnlyActor = true;
 
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 
@@ -101,8 +100,8 @@ void AKzStandIn::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Not HiddenInGame, which the camera previews in the editor would also honour.
-	SetActorHiddenInGame(true);
+	// Gone in game, but neither HiddenInGame nor editor-only: the editor's game views, the camera previews among them, wouldn't draw it.
+	Destroy();
 }
 
 #if WITH_EDITOR
