@@ -8,13 +8,13 @@
 
 class UCameraComponent;
 class UMaterialInterface;
-class USkeletalMesh;
 class USkeletalMeshComponent;
 class UStaticMeshComponent;
+class UStreamableRenderAsset;
 struct FMinimalViewInfo;
 
 /**
- * A character stand-in for previews in the editor: a cylinder of its size, or a skeletal mesh in its reference pose.
+ * A character stand-in for previews in the editor: a cylinder of its size, or a mesh, skeletal in its reference pose or static.
  * Moved in the editor, it settles on the ground. It shows in every editor view, the camera previews included, has no collision
  * and destroys itself when the game starts. Its target location is half its height up, where a character's capsule centre is.
  * Selected, its preview shows whatever view is set on it, such as the camera that would show it.
@@ -27,9 +27,9 @@ class KZLIB_API AKzStandIn : public AActor
 public:
 	AKzStandIn();
 
-	/** Shown instead of the cylinder, in its reference pose. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stand-In")
-	TObjectPtr<USkeletalMesh> Mesh;
+	/** Shown instead of the cylinder: a skeletal mesh, in its reference pose, or a static mesh, such as a pose made with Make Static Mesh. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stand-In", meta = (AllowedClasses = "/Script/Engine.SkeletalMesh,/Script/Engine.StaticMesh"))
+	TObjectPtr<UStreamableRenderAsset> Mesh;
 
 	/** The character's capsule height: whoever follows the stand-in follows the middle of it. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stand-In", meta = (ClampMin = "1", Units = "Centimeters"))
@@ -80,6 +80,9 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<USkeletalMeshComponent> SkeletalMesh;
+
+	UPROPERTY()
+	TObjectPtr<UStaticMeshComponent> StaticMesh;
 
 	/** Gives the stand-in an editor preview, which shows the view set on it. */
 	UPROPERTY()

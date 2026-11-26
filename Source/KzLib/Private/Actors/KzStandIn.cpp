@@ -49,6 +49,12 @@ AKzStandIn::AKzStandIn()
 	SkeletalMesh->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
 	SkeletalMesh->SetCanEverAffectNavigation(false);
 
+	StaticMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("StaticMesh"));
+	StaticMesh->SetupAttachment(RootComponent);
+	StaticMesh->SetMobility(EComponentMobility::Movable);
+	StaticMesh->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
+	StaticMesh->SetCanEverAffectNavigation(false);
+
 	// Placed by the view set on it, wherever that is, and with nothing of its own to draw.
 	PreviewCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("PreviewCamera"));
 	PreviewCamera->SetupAttachment(RootComponent);
@@ -83,10 +89,15 @@ void AKzStandIn::OnConstruction(const FTransform& Transform)
 
 void AKzStandIn::UpdateLook()
 {
-	SkeletalMesh->SetSkeletalMeshAsset(Mesh);
-	SkeletalMesh->SetVisibility(Mesh != nullptr);
+	USkeletalMesh* SkeletalAsset = Cast<USkeletalMesh>(Mesh);
+	SkeletalMesh->SetSkeletalMeshAsset(SkeletalAsset);
+	SkeletalMesh->SetVisibility(SkeletalAsset != nullptr);
 
-	// Standing on the actor's feet, at its size.
+	UStaticMesh* StaticAsset = Cast<UStaticMesh>(Mesh);
+	StaticMesh->SetStaticMesh(StaticAsset);
+	StaticMesh->SetVisibility(StaticAsset != nullptr);
+
+	// Without a mesh, the cylinder: standing on the actor's feet, at its size.
 	Cylinder->SetVisibility(Mesh == nullptr);
 	Cylinder->SetRelativeLocation(FVector(0.0, 0.0, Height * 0.5f));
 	Cylinder->SetRelativeScale3D(FVector(Radius / CylinderRadius, Radius / CylinderRadius, Height / CylinderHeight));
