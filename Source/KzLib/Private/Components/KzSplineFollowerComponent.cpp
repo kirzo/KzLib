@@ -491,7 +491,7 @@ float UKzSplineFollowerComponent::ApplyLimits(float PrevDistance, float NewDista
 		return NewDistance;
 	}
 
-	// The nearest enabled limit on each side of where the follower was.
+	// The nearest enabled limit on each side of where the follower was that stops it going that way.
 	AKzSplineLimit* Below = nullptr;
 	AKzSplineLimit* Above = nullptr;
 
@@ -500,11 +500,11 @@ float UKzSplineFollowerComponent::ApplyLimits(float PrevDistance, float NewDista
 		if (!Limit->bEnabled) return;
 
 		const float LimitDistance = Limit->GetDistance();
-		if (LimitDistance >= PrevDistance && (!Above || LimitDistance < Above->GetDistance()))
+		if (Limit->BlockDirection != EKzSplineLimitDirection::Backward && LimitDistance >= PrevDistance && (!Above || LimitDistance < Above->GetDistance()))
 		{
 			Above = Limit;
 		}
-		if (LimitDistance <= PrevDistance && (!Below || LimitDistance > Below->GetDistance()))
+		if (Limit->BlockDirection != EKzSplineLimitDirection::Forward && LimitDistance <= PrevDistance && (!Below || LimitDistance > Below->GetDistance()))
 		{
 			Below = Limit;
 		}

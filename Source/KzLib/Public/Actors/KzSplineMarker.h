@@ -65,6 +65,9 @@ protected:
 	/** Points from the marker to its projection on the spline. */
 	UPROPERTY()
 	TObjectPtr<UArrowComponent> ProjectionArrow = nullptr;
+
+	/** Lays out its arrows on a new projection. */
+	virtual void UpdateArrows(const USplineComponent& SplineComponent);
 #endif
 
 private:

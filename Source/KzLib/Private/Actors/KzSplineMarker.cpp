@@ -56,18 +56,24 @@ void AKzSplineMarker::UpdateProjection(int32 IgnoredAxes)
 		return;
 	}
 
-	const FVector Location = GetActorLocation();
-	Distance = UKzSplineFollowerComponent::FindClosestDistance(SplineComponent, Location, IgnoredAxes);
+	Distance = UKzSplineFollowerComponent::FindClosestDistance(SplineComponent, GetActorLocation(), IgnoredAxes);
 
 #if WITH_EDITORONLY_DATA
+	UpdateArrows(*SplineComponent);
+#endif
+}
+
+#if WITH_EDITORONLY_DATA
+void AKzSplineMarker::UpdateArrows(const USplineComponent& SplineComponent)
+{
 	if (ProjectionArrow)
 	{
-		const FVector ToProjection = SplineComponent->GetLocationAtDistanceAlongSpline(Distance, ESplineCoordinateSpace::World) - Location;
+		const FVector ToProjection = SplineComponent.GetLocationAtDistanceAlongSpline(Distance, ESplineCoordinateSpace::World) - GetActorLocation();
 		ProjectionArrow->SetWorldRotation(ToProjection.IsNearlyZero() ? GetActorRotation() : ToProjection.Rotation());
 		ProjectionArrow->SetArrowLength(ToProjection.Size());
 	}
-#endif
 }
+#endif
 
 void AKzSplineMarker::NotifyCrossed(UKzSplineFollowerComponent* Follower, bool bForward, bool bTeleport)
 {
