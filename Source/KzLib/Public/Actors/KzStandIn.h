@@ -6,6 +6,7 @@
 #include "GameFramework/Actor.h"
 #include "KzStandIn.generated.h"
 
+class UMaterialInterface;
 class USkeletalMesh;
 class USkeletalMeshComponent;
 class UStaticMeshComponent;
@@ -70,6 +71,13 @@ private:
 
 	UPROPERTY(VisibleAnywhere, Category = "Stand-In")
 	TObjectPtr<USkeletalMeshComponent> SkeletalMesh;
+
+	/** What the cylinder's red instance is made from. */
+	UPROPERTY()
+	TObjectPtr<UMaterialInterface> CylinderMaterial;
+
+	/** The mesh or the cylinder, at the stand-in's size and in red. */
+	void UpdateLook();
 
 	/** Where its feet go on the ground within reach, nearest its current height. */
 	bool FindGround(FVector& OutLocation) const;

@@ -34,12 +34,12 @@ AKzStandIn::AKzStandIn()
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CylinderMesh(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
-	static ConstructorHelpers::FObjectFinder<UMaterialInterface> CylinderMaterial(TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> ShapeMaterial(TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
+	CylinderMaterial = ShapeMaterial.Object;
 
 	Cylinder = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Cylinder"));
 	Cylinder->SetupAttachment(RootComponent);
 	Cylinder->SetStaticMesh(CylinderMesh.Object);
-	Cylinder->SetMaterial(0, CylinderMaterial.Object);
 	Cylinder->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
 	Cylinder->SetCanEverAffectNavigation(false);
 
@@ -52,7 +52,11 @@ AKzStandIn::AKzStandIn()
 void AKzStandIn::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
+	UpdateLook();
+}
 
+void AKzStandIn::UpdateLook()
+{
 	SkeletalMesh->SetSkeletalMeshAsset(Mesh);
 	SkeletalMesh->SetVisibility(Mesh != nullptr);
 
@@ -61,24 +65,21 @@ void AKzStandIn::OnConstruction(const FTransform& Transform)
 	Cylinder->SetRelativeLocation(FVector(0.0, 0.0, Height * 0.5f));
 	Cylinder->SetRelativeScale3D(FVector(Radius / CylinderRadius, Radius / CylinderRadius, Height / CylinderHeight));
 
+	// The red instance isn't saved, so it is made again from the shape material after every load.
 	UMaterialInstanceDynamic* Material = Cast<UMaterialInstanceDynamic>(Cylinder->GetMaterial(0));
-	if (!Material)
+	if (!Material && CylinderMaterial)
 	{
-		Material = Cylinder->CreateAndSetMaterialInstanceDynamic(0);
-		if (Material)
-		{
-			Material->SetFlags(RF_Transient);
-		}
-	}
-	if (Material)
-	{
+		Material = UMaterialInstanceDynamic::Create(CylinderMaterial, this);
+		Material->SetFlags(RF_Transient);
 		Material->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.8f, 0.05f, 0.05f));
+		Cylinder->SetMaterial(0, Material);
 	}
 }
 
 void AKzStandIn::PostRegisterAllComponents()
 {
 	Super::PostRegisterAllComponents();
+	UpdateLook();
 
 	if (UKzRegistrySubsystem* Registry = UKzRegistrySubsystem::Get(this))
 	{
