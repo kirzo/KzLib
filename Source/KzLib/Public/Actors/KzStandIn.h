@@ -74,14 +74,15 @@ public:
 #endif
 
 private:
-	UPROPERTY(VisibleAnywhere, Category = "Stand-In")
+	// Not editable: the stand-in sets them from its own properties, which would undo any change made on them.
+	UPROPERTY()
 	TObjectPtr<UStaticMeshComponent> Cylinder;
 
-	UPROPERTY(VisibleAnywhere, Category = "Stand-In")
+	UPROPERTY()
 	TObjectPtr<USkeletalMeshComponent> SkeletalMesh;
 
 	/** Gives the stand-in an editor preview, which shows the view set on it. */
-	UPROPERTY(VisibleAnywhere, Category = "Stand-In")
+	UPROPERTY()
 	TObjectPtr<UCameraComponent> PreviewCamera;
 
 	/** What the cylinder's red instance is made from. */
