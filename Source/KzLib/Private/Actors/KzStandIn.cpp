@@ -1,6 +1,7 @@
 // Copyright 2026 kirzo
 
 #include "Actors/KzStandIn.h"
+#include "Camera/CameraComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Core/KzRegistrySubsystem.h"
@@ -47,6 +48,31 @@ AKzStandIn::AKzStandIn()
 	SkeletalMesh->SetupAttachment(RootComponent);
 	SkeletalMesh->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
 	SkeletalMesh->SetCanEverAffectNavigation(false);
+
+	// Placed by the view set on it, wherever that is, and with nothing of its own to draw.
+	PreviewCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("PreviewCamera"));
+	PreviewCamera->SetupAttachment(RootComponent);
+	PreviewCamera->SetUsingAbsoluteLocation(true);
+	PreviewCamera->SetUsingAbsoluteRotation(true);
+#if WITH_EDITORONLY_DATA
+	PreviewCamera->bDrawFrustumAllowed = false;
+	PreviewCamera->SetCameraMesh(nullptr);
+#endif
+}
+
+FVector AKzStandIn::GetTargetLocation(AActor* RequestedBy) const
+{
+	return GetActorLocation() + GetActorUpVector() * (Height * 0.5f);
+}
+
+void AKzStandIn::SetPreviewView(const FMinimalViewInfo& View)
+{
+	PreviewCamera->SetWorldLocationAndRotation(View.Location, View.Rotation);
+	PreviewCamera->SetFieldOfView(View.FOV);
+	PreviewCamera->SetAspectRatio(View.AspectRatio);
+	PreviewCamera->SetConstraintAspectRatio(View.bConstrainAspectRatio);
+	PreviewCamera->PostProcessSettings = View.PostProcessSettings;
+	PreviewCamera->SetPostProcessBlendWeight(View.PostProcessBlendWeight);
 }
 
 void AKzStandIn::OnConstruction(const FTransform& Transform)

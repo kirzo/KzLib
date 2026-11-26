@@ -6,15 +6,18 @@
 #include "GameFramework/Actor.h"
 #include "KzStandIn.generated.h"
 
+class UCameraComponent;
 class UMaterialInterface;
 class USkeletalMesh;
 class USkeletalMeshComponent;
 class UStaticMeshComponent;
+struct FMinimalViewInfo;
 
 /**
  * A character stand-in for previews in the editor: a cylinder of its size, or a skeletal mesh in its reference pose.
  * Moved in the editor, it settles on the ground. It shows in every editor view, the camera previews included, has no collision
- * and destroys itself when the game starts.
+ * and destroys itself when the game starts. Its target location is half its height up, where a character's capsule centre is.
+ * Selected, its preview shows whatever view is set on it, such as the camera that would show it.
  */
 UCLASS(HideCategories = (Input, Collision, Physics, LOD, Cooking, Replication, HLOD, Rendering))
 class KZLIB_API AKzStandIn : public AActor
@@ -28,6 +31,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stand-In")
 	TObjectPtr<USkeletalMesh> Mesh;
 
+	/** The character's capsule height: whoever follows the stand-in follows the middle of it. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stand-In", meta = (ClampMin = "1", Units = "Centimeters"))
 	float Height = 180.0f;
 
@@ -56,6 +60,10 @@ public:
 	UFUNCTION(CallInEditor, Category = "Stand-In")
 	void SnapToGround();
 
+	/** What its preview shows: whoever has the view to preview sets it every frame. */
+	void SetPreviewView(const FMinimalViewInfo& View);
+
+	virtual FVector GetTargetLocation(AActor* RequestedBy = nullptr) const override;
 	virtual void OnConstruction(const FTransform& Transform) override;
 	virtual void PostRegisterAllComponents() override;
 	virtual void UnregisterAllComponents(bool bForReregister = false) override;
@@ -71,6 +79,10 @@ private:
 
 	UPROPERTY(VisibleAnywhere, Category = "Stand-In")
 	TObjectPtr<USkeletalMeshComponent> SkeletalMesh;
+
+	/** Gives the stand-in an editor preview, which shows the view set on it. */
+	UPROPERTY(VisibleAnywhere, Category = "Stand-In")
+	TObjectPtr<UCameraComponent> PreviewCamera;
 
 	/** What the cylinder's red instance is made from. */
 	UPROPERTY()
