@@ -93,6 +93,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SplineFollower")
 	bool bTeleportPhysics = false;
 
+	/** When a limit holding the follower turns off, the follower eases to where it should be over this time instead of jumping. 0 = at once. A limit can override it. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SplineFollower", meta = (ClampMin = "0", Units = "Seconds"))
+	float LimitReleaseTime = 1.0f;
+
 	/** Tick in editor (Useful for previewing paths in the editor). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SplineFollower", AdvancedDisplay)
 	bool bShouldTickInEditor = false;
@@ -210,6 +214,11 @@ private:
 
 	/** Limit that stopped the follower last frame, so OnLimitReached fires once per stop. */
 	TWeakObjectPtr<AKzSplineLimit> LastHitLimit;
+
+	/** Easing out of a limit that turned off: where it was let go, for how long, and how long it has been. Duration 0 = not easing. */
+	float ReleaseFrom = 0.0f;
+	float ReleaseDuration = 0.0f;
+	float ReleaseElapsed = 0.0f;
 
 	void InitializeReferences();
 

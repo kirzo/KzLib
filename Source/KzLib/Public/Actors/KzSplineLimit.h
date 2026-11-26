@@ -41,6 +41,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Spline Limit")
 	bool bSticky = false;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Spline Limit", meta = (InlineEditConditionToggle))
+	bool bOverrideReleaseTime = false;
+
+	/** When it turns off while holding a follower, the follower eases to where it should be over this time instead of its own Limit Release Time. 0 = at once. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Spline Limit", meta = (ClampMin = "0", Units = "Seconds", EditCondition = "bOverrideReleaseTime"))
+	float ReleaseTime = 1.0f;
+
 	virtual void SetEnabled_Implementation(bool bNewEnabled) override { bEnabled = bNewEnabled; }
 
 protected:

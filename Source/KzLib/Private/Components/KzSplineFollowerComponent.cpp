@@ -241,6 +241,20 @@ bool UKzSplineFollowerComponent::FinishMove(float NewDistance, float DeltaTime, 
 	const float LimitedDistance = bStuck ? CurrentDistance : ApplyLimits(CurrentDistance, NewDistance);
 
 	CurrentDistance = LimitedDistance;
+	if (ReleaseDuration > 0.0f)
+	{
+		ReleaseElapsed += DeltaTime;
+		const float Alpha = ReleaseElapsed / ReleaseDuration;
+		if (bTeleported || bStuck || Alpha >= 1.0f)
+		{
+			ReleaseDuration = 0.0f;
+		}
+		else
+		{
+			// Toward where it should be now, which keeps moving with the target.
+			CurrentDistance = FMath::Lerp(ReleaseFrom, LimitedDistance, FMath::InterpEaseInOut(0.0f, 1.0f, Alpha, 2.0f));
+		}
+	}
 	MoveToDistance(CurrentDistance, bTeleported ? 0.0f : DeltaTime);
 
 	return LimitedDistance != NewDistance;
@@ -489,6 +503,14 @@ float UKzSplineFollowerComponent::ApplyLimits(float PrevDistance, float NewDista
 	{
 		LastHitLimit.Reset();
 		return NewDistance;
+	}
+
+	// The limit that held it last frame turned off.
+	if (const AKzSplineLimit* Released = LastHitLimit.Get(); Released && !Released->bEnabled)
+	{
+		ReleaseFrom = PrevDistance;
+		ReleaseElapsed = 0.0f;
+		ReleaseDuration = Released->bOverrideReleaseTime ? Released->ReleaseTime : LimitReleaseTime;
 	}
 
 	// The nearest enabled limit on each side of where the follower was that stops it going that way.
