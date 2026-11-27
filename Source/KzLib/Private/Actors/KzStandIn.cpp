@@ -94,7 +94,8 @@ void AKzStandIn::UpdateLook()
 	SkeletalMesh->SetVisibility(SkeletalAsset != nullptr);
 
 	UStaticMesh* StaticAsset = Cast<UStaticMesh>(Mesh);
-	StaticMesh->SetStaticMesh(StaticAsset);
+	// Never left empty, which map checks flag: without a static mesh it holds the cylinder's, hidden.
+	StaticMesh->SetStaticMesh(StaticAsset ? StaticAsset : Cylinder->GetStaticMesh());
 	StaticMesh->SetVisibility(StaticAsset != nullptr);
 
 	const FRotator MeshRotation(0.0, YawOffset, 0.0);
