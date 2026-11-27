@@ -50,6 +50,8 @@ FKzLibEditorStyle::FKzLibEditorStyle()
 	SetIcon("KzSplineAreaComponent", TEXT("SplineArea"));
 	SetIcon("KzActorGroup", TEXT("ActorGroup"));
 	SetThumbnail("KzActorGroup", TEXT("ActorGroupColor"));
+	SetIcon("KzInvisibleWall", TEXT("InvisibleWall"));
+	SetThumbnail("KzInvisibleWall", TEXT("InvisibleWallColor"));
 
 	Set("Kz.CardBorder", new FSlateRoundedBoxBrush(
 		FStyleColors::Header, CoreStyleConstants::InputFocusRadius,
